@@ -68,13 +68,14 @@ class HybridWindEstimator(object):
         assert(len(self.U1) == len(self.U2) == len(self.U3))
 
 
-    def calculate_opt(self,psi_m,error_output=False,**kwargs):
+    def calculate_opt(self,psi_m,method='brentq',error_output=False,**kwargs):
         """Obtain solution for general stability functions, psi_m(z/L),
         by solving an optimization problem. Optional kwargs are inputs
-        to scipy.optimize.fsolve.
+        to the scipy.optimize solver.
         """
-        #from scipy.optimize import fsolve
-        from scipy.optimize import brentq # can bracket results
+        #from scipy.optimize import root_scalar  # scipy >= 1.2 
+        import scipy.optimize
+        findroot = getattr(scipy.optimize,method)
 
         dU21 = self.U2 - self.U1
         dU31 = self.U3 - self.U1
@@ -94,16 +95,6 @@ class HybridWindEstimator(object):
             if x0 == 0:
                 invL[i] = 0
             else:
-                #soln,info,ierr,msg = fsolve(fun,x0,args=(Ri,),
-                #                            full_output=True,**kwargs)
-                #if ierr==1:
-                #    invL[i] = soln[0]
-                #else:
-                #    if x0 > 0:
-                #        fail_stable += 1
-                #    else:
-                #        fail_unstable += 1
-
                 # need to have bounds because psi_m(z_L) may not be
                 # continuously differentiable at z_L=0
                 if x0 > 0:
@@ -111,7 +102,12 @@ class HybridWindEstimator(object):
                 else:
                     bounds = (-1,0)
                 try:
-                    root,res = brentq(fun,bounds[0],bounds[1],args=(Ri,),full_output=True,**kwargs)
+                    #res = root_scalar(fun,method=method,
+                    #                  bracket=(bounds[0],bounds[1]),
+                    #                  args=(Ri,),full_output=True,**kwargs)
+                    #root = res.root
+                    root,res = findroot(fun,bounds[0],bounds[1],
+                                        args=(Ri,),full_output=True,**kwargs)
                 except ValueError: 
                     pass
                 else:
