@@ -69,9 +69,9 @@ class HybridWindEstimator(object):
 
 
     def calculate_opt(self,psi_m,method='brentq',error_output=False,**kwargs):
-        """Obtain solution for general stability functions, psi_m(z/L),
-        by solving an optimization problem. Optional kwargs are inputs
-        to the scipy.optimize solver.
+        """Obtain solution given stability function, psi_m(z/L), by
+        solving an optimization problem. Optional kwargs are inputs to
+        the scipy.optimize solver indicated by 'method'.
         """
         #from scipy.optimize import root_scalar  # scipy >= 1.2 
         import scipy.optimize
@@ -86,10 +86,11 @@ class HybridWindEstimator(object):
             # x == 1/L
             return np.log(z3/z1) - R*np.log(z2/z1) \
                     - psi_m(z3*x) + R*psi_m(z2*x) + (1-R)*psi_m(z1*x)
+        # guess >0 (<0) implies stable (unstable) conditions
         guess = np.sign(self.R - self.RN)
-        invL = np.empty(guess.shape)
+        err = np.empty(guess.shape) # calculated if error_output==True
+        invL = np.empty(guess.shape) # 1/L
         invL.fill(np.nan)
-        err = np.empty(guess.shape)
         fail_unstable, fail_stable = 0,0
         for i,(x0,Ri) in enumerate(zip(guess,self.R)):
             if x0 == 0:
@@ -119,17 +120,16 @@ class HybridWindEstimator(object):
                             fail_stable += 1
                         else:
                             fail_unstable += 1
-
                 if error_output:
                     Rnum = np.log(z3/z1) - psi_m(z3*invL[i]) + psi_m(z1*invL[i])
                     Rden = np.log(z2/z1) - psi_m(z2*invL[i]) + psi_m(z1*invL[i])
                     err[i] = Ri - Rnum/Rden
+        if (fail_stable > 0) or (fail_unstable > 0):
+            print('failed to find 1/L for # of stable/unstable cases:',fail_stable,fail_unstable)
 
-        print('failed to find 1/L for # of stable/unstable cases:',fail_stable,fail_unstable)
         self.invL = invL
-        self.error = err
-
         if error_output:
+            self.error = err 
             return self.invL, self.error
         else:
             return self.invL
