@@ -142,9 +142,11 @@ def twrlocll(twrf):
     stnlat = float(header[8])
     return stnlat,stnlon
 
-# Tower class: put tower data into an object variable
-# Call with: twr = wrfdict.tower('[path to towers]/[tower abrv.].d0[domain].*')
-class tower():
+class Tower():
+    ''' 
+    Tower class: put tower data into an object variable
+    Call with: twr = wrfdict.tower('[path to towers]/[tower abrv.].d0[domain].*')
+    '''
     def __init__(self,fstr):
         self.fstr = fstr
         self.getvars()
