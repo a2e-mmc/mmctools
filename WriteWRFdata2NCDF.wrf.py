@@ -44,7 +44,7 @@ for ff in wrfoutf: # Loop over all WRF files
     if cc == 0: # Initialize 2D vars and gather necessary variables
         poii, poij = wrfdict.latlon2ij(wrfout,stnlat,stnlon) # i,j location
                                                 # closest to given lat/lon
-        z,zs = wrfdict.getheightloc(wrfout,poij,poii) # Get z values at location
+        z,zs = wrfdict.getheight(wrfout) # Get z values 
         nz = np.shape(zs)[0] # number of heights
         height = zs[:,poij,poii] # tower heights
         # Initialize 2D variables
