@@ -5,6 +5,7 @@
   Who made it: patrick.hawbecker@nrel.gov
   When: 5/11/18
 '''
+from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm    
@@ -18,19 +19,19 @@ def getdims(wrff):
     try:
         nx = wrff.dimensions['west_east'].size
     except KeyError:
-        print 'No x-dimension'; nx = []
+        print('No x-dimension'); nx = []
     try:
         ny = wrff.dimensions['south_north'].size
     except KeyError:
-        print 'No y-dimension'; ny = []
+        print('No y-dimension'); ny = []
     try:
         nz = wrff.dimensions['bottom_top'].size
     except KeyError:
-        print 'No z-dimension'; nz = []
+        print('No z-dimension'); nz = []
     try:
         nt = wrff.dimensions['Time'].size
     except KeyError:
-        print 'No t-dimension'; nt = []
+        print('No t-dimension'); nt = []
     return nt,nz,ny,nx
 
 # Get average (over all x,y) heights; staggered and unstaggered
@@ -39,7 +40,7 @@ def getavgheight(wrff):
     try:
         nz = wrff.dimensions['bottom_top'].size
     except KeyError:
-        print 'No z-dimension'; return []
+        print('No z-dimension'); return []
     if nt == 1:
         ph  = wrff.variables['PH'][0,:,:,:]
         phb = wrff.variables['PHB'][0,:,:,:]
@@ -61,7 +62,7 @@ def getheight(wrff):
     try:
         nz = wrff.dimensions['bottom_top'].size
     except KeyError:
-        print 'No z-dimension'; return []
+        print('No z-dimension'); return []
     ph  = wrff.variables['PH'][0,:,:,:]
     phb = wrff.variables['PHB'][0,:,:,:]
     hgt = wrff.variables['HGT'][0,:,:]
@@ -76,7 +77,7 @@ def getheightloc(wrff,y,x):
     try:
         nz = wrff.dimensions['bottom_top'].size
     except KeyError:
-        print 'No z-dimension'; return []
+        print('No z-dimension'); return []
     if nt == 1:
         ph  = wrff.variables['PH'][0,:,y,x]
         phb = wrff.variables['PHB'][0,:,y,x]
