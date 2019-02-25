@@ -191,15 +191,23 @@ class Tower():
                     self.vv = var
                 elif self.varns[vv] == 'WW':
                     self.ww = var
+                elif self.varns[vv] == 'PP':
+                    self.pp = var
             elif self.varns[vv] == 'TS': # Time series are surface variables
                                          # (no height component)
                 f = open('%s%s' % (self.fstr,self.varns[vv])) # Number of times
                 nt = sum(1 for line in f)-1; f.close()
                 f = open('%s%s' % (self.fstr,self.varns[vv])) # Open to get vars
-                f.readline() # Skip header
+                header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split() # Skip header
+                self.longname = header[0]
+                self.abbr     = header[3]
+                self.lat      = header[4]
+                self.lon      = header[5]
+                self.loci     = header[6]
+                self.locj     = header[7]
+                self.stationz = header[10]
                 for tt in np.arange(0,nt): # Loop over all times
                     line = f.readline().split() # One time, all surface variables
-                    print line
                     if tt == 0: # Initialize number of variables
                         nv = np.shape(line)[0]-2
                         var = np.zeros((nt,nv))
@@ -267,4 +275,3 @@ def unstagger4d(var,ax):
     if ax == 3:
         varu = (var[:,:,:,:-1] + var[:,:,:,1:])/2.0
     return varu
-
