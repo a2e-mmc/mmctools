@@ -13,6 +13,7 @@
 from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 from matplotlib import cm    
 from netCDF4 import Dataset as ncdf
 import subprocess
@@ -221,11 +222,11 @@ class Tower():
                               # vars are where...
 
 
-def wrf_times_to_hours(wrfdata):
+def wrf_times_to_hours(wrfdata,timename='Times'):
     '''Convert WRF times to year, month, day, hour'''
     nt = np.shape(wrfdata.variables['Times'][:])[0]
     if nt == 1:
-        time = ''.join(wrfdata.variables['Times'][0])
+        time = ''.join(wrfdata.variables[timename][0])
         year = np.float(time[:4]);    month = np.float(time[5:7])
         day  = np.float(time[8:10]);  hour  = np.float(time[11:13])
         minu = np.float(time[14:16]); sec   = np.float(time[17:19])
@@ -235,7 +236,7 @@ def wrf_times_to_hours(wrfdata):
         day  = np.asarray([]); hour  = np.asarray([])
         minu = np.asarray([]); sec   = np.asarray([])
         for tt in np.arange(0,nt):
-            time = ''.join(wrfdata.variables['Times'][tt])
+            time = ''.join(wrfdata.variables[timename][tt])
             year  = np.append(year,np.float(time[:4]))
             month = np.append(month,np.float(time[5:7]))
             day   = np.append(day,np.float(time[8:10]))
@@ -244,6 +245,11 @@ def wrf_times_to_hours(wrfdata):
             sec   = np.append(sec,np.float(time[17:19]))
         hours = hour + minu/60.0 + sec/(60.0*60.0)
     return [year,month,day,hours]
+
+def wrf_times_to_datetime(wrfdata,timename='Times',format='%Y-%m-%d_%H:%M:%S'):
+    """Convert WRF times to datetime format"""
+    timestrs = wrfdata.variables['Times'][:]
+    return [ datetime.strptime(s.values.tostring().decode(), format) for s in timestrs ]
 
 def latlon_to_ij(wrfdata,lat,lon):
     '''Get i,j location from given wrf file and lat/long'''
