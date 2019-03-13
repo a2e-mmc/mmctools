@@ -6,11 +6,8 @@ import os
 from glob import glob
 from datetime import datetime
 import numpy as np
-
 from netCDF4 import Dataset as ncdf
-
-import wrf.wrfdict as wrfdict
-
+import wrf.utils as wrfdict
 
 def write_WRF_to_NCDF(lat,lon,datadir,outputfile,dom=1,
                       prefix='wrfout_d{:02d}_*00'):
@@ -38,12 +35,12 @@ def write_WRF_to_NCDF(lat,lon,datadir,outputfile,dom=1,
     # - - - WRF Data - - -
     for cc,ff in enumerate(wrfoutf): # Loop over all WRF files
         wrfout     = ncdf(ff)
-        year,month,day,hour = wrfdict.wrftimes2hours(wrfout) # Finds the WRF time
+        year,month,day,hour = wrfdict.wrf_times_to_hours(wrfout) # Finds the WRF time
         wdate[cc] = year*10000 + month*100 + day # Generates an integer in form YYYMMDD
         time[cc]  = hour
         if cc == 0: # Initialize 2D vars and gather necessary variables
-            poii, poij = wrfdict.latlon2ij(wrfout,lat,lon) # i,j location closest to given lat/lon
-            z,zs = wrfdict.getheightloc(wrfout,poij,poii) # Get z values at location
+            poii, poij = wrfdict.latlon_to_ij(wrfout,lat,lon) # i,j location closest to given lat/lon
+            z,zs = wrfdict.get_height_at_ind(wrfout,poij,poii) # Get z values at location
             nz = len(zs) # number of heights
             height = zs[:] # tower heights
             # Initialize 2D variables
