@@ -14,8 +14,6 @@ from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
-from matplotlib import cm    
-from netCDF4 import Dataset as ncdf
 import subprocess
 
 
