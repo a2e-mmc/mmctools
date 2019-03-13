@@ -17,33 +17,37 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 
+def _get_dim(wrfdata,dimname):
+    """Returns the specified dimension, with support for both netCDF4
+    and xarray
+    """
+    if hasattr(wrfdata,'dimensions'):
+        try:
+            return wrfdata.dimensions[dimname].size
+        except KeyError:
+            print('No {:s} dimension'.format(dimname))
+            return None
+    elif hasattr(wrfdata,'dims'):
+        try:
+            return wrfdata.dims[dimname]
+        except KeyError:
+            print('No {:s} dimension'.format(dimname))
+            return None
+    else:
+        raise AttributeError('WRF data has no dimension attribute')
+
 def get_wrf_dims(wrfdata):
     ''' Find the dimensions of the given WRF file'''
-    try:
-        nx = wrfdata.dimensions['west_east'].size
-    except KeyError:
-        print('No x-dimension'); nx = []
-    try:
-        ny = wrfdata.dimensions['south_north'].size
-    except KeyError:
-        print('No y-dimension'); ny = []
-    try:
-        nz = wrfdata.dimensions['bottom_top'].size
-    except KeyError:
-        print('No z-dimension'); nz = []
-    try:
-        nt = wrfdata.dimensions['Time'].size
-    except KeyError:
-        print('No t-dimension'); nt = []
+    nx = _get_dim(wrfdata,'west_east')
+    ny = _get_dim(wrfdata,'south_north')
+    nz = _get_dim(wrfdata,'bottom_top')
+    nt = _get_dim(wrfdata,'Time')
     return nt,nz,ny,nx
 
 def get_avg_height(wrfdata):
     '''Get average (over all x,y) heights; staggered and unstaggered'''
-    nt = wrfdata.dimensions['Time'].size
-    try:
-        nz = wrfdata.dimensions['bottom_top'].size
-    except KeyError:
-        print('No z-dimension'); return []
+    nt = _get_dim(wrfdata,'Time')
+    nz = _get_dim(wrfdata,'bottom_top')
     if nt == 1:
         ph  = wrfdata.variables['PH'][0,:,:,:]
         phb = wrfdata.variables['PHB'][0,:,:,:]
@@ -62,10 +66,7 @@ def get_avg_height(wrfdata):
 
 def get_height(wrfdata):
     '''Get heights for all x,y,z'''
-    try:
-        nz = wrfdata.dimensions['bottom_top'].size
-    except KeyError:
-        print('No z-dimension'); return []
+    nz = _get_dim(wrfdata,'bottom_top')
     ph  = wrfdata.variables['PH'][0,:,:,:]
     phb = wrfdata.variables['PHB'][0,:,:,:]
     hgt = wrfdata.variables['HGT'][0,:,:]
@@ -76,11 +77,8 @@ def get_height(wrfdata):
 
 def get_height_at_ind(wrfdata,j,i):
     '''Get model height at a specific j,i'''
-    nt = wrfdata.dimensions['Time'].size
-    try:
-        nz = wrfdata.dimensions['bottom_top'].size
-    except KeyError:
-        print('No z-dimension'); return []
+    nt = _get_dim(wrfdata,'Time')
+    nz = _get_dim(wrfdata,'bottom_top')
     if nt == 1:
         ph  = wrfdata.variables['PH'][0,:,j,i]
         phb = wrfdata.variables['PHB'][0,:,j,i]
