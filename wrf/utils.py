@@ -4,6 +4,11 @@
 
   Who made it: patrick.hawbecker@nrel.gov
   When: 5/11/18
+
+  Notes:
+  - Utility functions should automatically handle input data in either
+    netCDF4.Dataset or xarray.Dataset formats.
+
 '''
 from __future__ import print_function
 import numpy as np
