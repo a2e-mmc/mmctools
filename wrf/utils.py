@@ -9,93 +9,94 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm    
 from netCDF4 import Dataset as ncdf
-import pickle
 import subprocess
 
 
-# Find the dimensions of the given WRF file
-def getdims(wrff):
+def get_wrf_dims(wrffile):
+    ''' Find the dimensions of the given WRF file'''
     try:
-        nx = wrff.dimensions['west_east'].size
+        nx = wrffile.dimensions['west_east'].size
     except KeyError:
         print 'No x-dimension'; nx = []
     try:
-        ny = wrff.dimensions['south_north'].size
+        ny = wrffile.dimensions['south_north'].size
     except KeyError:
         print 'No y-dimension'; ny = []
     try:
-        nz = wrff.dimensions['bottom_top'].size
+        nz = wrffile.dimensions['bottom_top'].size
     except KeyError:
         print 'No z-dimension'; nz = []
     try:
-        nt = wrff.dimensions['Time'].size
+        nt = wrffile.dimensions['Time'].size
     except KeyError:
         print 'No t-dimension'; nt = []
     return nt,nz,ny,nx
 
-# Get average (over all x,y) heights; staggered and unstaggered
-def getavgheight(wrff):
-    nt = wrff.dimensions['Time'].size
+def get_avg_height(wrffile):
+    '''Get average (over all x,y) heights; staggered and unstaggered'''
+    nt = wrffile.dimensions['Time'].size
     try:
-        nz = wrff.dimensions['bottom_top'].size
+        nz = wrffile.dimensions['bottom_top'].size
     except KeyError:
         print 'No z-dimension'; return []
     if nt == 1:
-        ph  = wrff.variables['PH'][0,:,:,:]
-        phb = wrff.variables['PHB'][0,:,:,:]
-        hgt = wrff.variables['HGT'][0,:,:]
-        z   = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
-        zs  = (z[1:] + z[:-1])*0.5
+        ph  = wrffile.variables['PH'][0,:,:,:]
+        phb = wrffile.variables['PHB'][0,:,:,:]
+        hgt = wrffile.variables['HGT'][0,:,:]
+        zs  = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
+        z   = (zs[1:] + zs[:-1])*0.5
     else:
-        z = np.zeros((nt,nz+1))
+        zs = np.zeros((nt,nz+1))
         for tt in range(0,nt):
-            ph  = wrff.variables['PH'][tt,:,:,:]
-            phb = wrff.variables['PHB'][tt,:,:,:]
-            hgt = wrff.variables['HGT'][tt,:,:]
-            z[tt,:] = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
-        zs  = (z[:,1:] + z[:,:-1])*0.5
+            ph  = wrffile.variables['PH'][tt,:,:,:]
+            phb = wrffile.variables['PHB'][tt,:,:,:]
+            hgt = wrffile.variables['HGT'][tt,:,:]
+            zs[tt,:] = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
+        z  = (zs[:,1:] + zs[:,:-1])*0.5
     return z,zs
 
-# Get heights for all x,y,z
-def getheight(wrff):
+def get_height(wrffile):
+    '''Get heights for all x,y,z'''
     try:
-        nz = wrff.dimensions['bottom_top'].size
+        nz = wrffile.dimensions['bottom_top'].size
     except KeyError:
         print 'No z-dimension'; return []
-    ph  = wrff.variables['PH'][0,:,:,:]
-    phb = wrff.variables['PHB'][0,:,:,:]
-    hgt = wrff.variables['HGT'][0,:,:]
+    ph  = wrffile.variables['PH'][0,:,:,:]
+    phb = wrffile.variables['PHB'][0,:,:,:]
+    hgt = wrffile.variables['HGT'][0,:,:]
 
-    z   = ((ph+phb)/9.81) - hgt
-    zs  = (z[1:,:,:] + z[:-1,:,:])*0.5
+    zs  = ((ph+phb)/9.81) - hgt
+    z   = (zs[1:,:,:] + zs[:-1,:,:])*0.5
     return z,zs
 
-# Get model height at a specific i,j
-def getheightloc(wrff,y,x):
-    nt = wrff.dimensions['Time'].size
+def get_height_at_ind(wrffile,j,i):
+    '''Get model height at a specific j,i'''
+    nt = wrffile.dimensions['Time'].size
     try:
-        nz = wrff.dimensions['bottom_top'].size
+        nz = wrffile.dimensions['bottom_top'].size
     except KeyError:
         print 'No z-dimension'; return []
     if nt == 1:
-        ph  = wrff.variables['PH'][0,:,y,x]
-        phb = wrff.variables['PHB'][0,:,y,x]
-        hgt = wrff.variables['HGT'][0,y,x]
-        z   = ((ph+phb)/9.81) - hgt
-        zs  = (z[1:] + z[:-1])*0.5
+        ph  = wrffile.variables['PH'][0,:,j,i]
+        phb = wrffile.variables['PHB'][0,:,j,i]
+        hgt = wrffile.variables['HGT'][0,j,i]
+        zs  = ((ph+phb)/9.81) - hgt
+        z   = (zs[1:] + zs[:-1])*0.5
     else:
-        z = np.zeros((nt,nz+1))
+        zs = np.zeros((nt,nz+1))
         for tt in range(0,nt):
-            ph  = wrff.variables['PH'][tt,:,y,x]
-            phb = wrff.variables['PHB'][tt,:,y,x]
-            hgt = wrff.variables['HGT'][tt,y,x]
-            z[tt,:] = ((ph+phb)/9.81) - hgt
-        zs  = (z[:,1:] + z[:,:-1])*0.5
+            ph  = wrffile.variables['PH'][tt,:,j,i]
+            phb = wrffile.variables['PHB'][tt,:,j,i]
+            hgt = wrffile.variables['HGT'][tt,j,i]
+            zs[tt,:] = ((ph+phb)/9.81) - hgt
+        z  = (zs[:,1:] + zs[:,:-1])*0.5
     return z,zs
 
-# Return all files from a given directory starting with "fstr"
-def getwrffiles(fdir,fstr,returnFileNames=True):
-    #fdir = file directory; fstr = file string structure (e.g. 'wrfout')
+def get_wrf_files(fdir,fstr,returnFileNames=True):
+    '''
+    Return all files from a given directory starting with "fstr"
+    fdir = file directory; fstr = file string structure (e.g. 'wrfout')
+    '''
     nwrffs = subprocess.check_output('cd %s && ls %s*' % (fdir,fstr), shell=True).split()
     nt = np.shape(nwrffs)[0]
     if returnFileNames==True:
@@ -103,16 +104,14 @@ def getwrffiles(fdir,fstr,returnFileNames=True):
     else:
         return nt
 
-# Return latitude and longitude
-def latlon(wrff):
-    lat = wrff.variables['XLAT'][0,:,:]
-    lon = wrff.variables['XLONG'][0,:,:]
+def latlon(wrffile):
+    '''Return latitude and longitude'''
+    lat = wrffile.variables['XLAT'][0,:,:]
+    lon = wrffile.variables['XLONG'][0,:,:]
     return lat,lon
 
-#=====================================#
-# - - - - - - TOWER DATA  - - - - - - #
-# Get the names and locations of all towers in directory (fdir)
-def gettowers(fdir,tstr):
+def get_tower_names(fdir,tstr):
+    '''Get the names and locations of all towers in directory (fdir)'''
     f = open('%s%s' % (fdir,tstr))
     nt = sum(1 for line in f)-3; f.close()
     f = open('%s%s' % (fdir,tstr))
@@ -124,18 +123,18 @@ def gettowers(fdir,tstr):
         tij[0,tt] = line[2]; tij[1,tt] = line[3]
     return tname,tij
 
-# Get the i,j location of the given tower
-def twrlocij(twrf):
-    twr = open(twrf,'r')
+def twrloc_ij(twr_file_name):
+    '''Get the i,j location of the given tower'''
+    twr = open(twr_file_name,'r')
     header = twr.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
     twr.close()
     stni = int(header[6]) - 1
     stnj = int(header[7]) - 1
     return stni,stnj
 
-# Get the lat/lon location of the given tower
-def twrlocll(twrf):
-    twr = open(twrf,'r')
+def twrloc_ll(twr_file_name):
+    '''Get the lat/lon location of the given tower'''
+    twr = open(twr_file_name,'r')
     header = twr.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
     twr.close()
     stnlon = float(header[9])
@@ -215,13 +214,12 @@ class Tower():
                 self.ts = var # Need to look up what tslist outputs to know which
                               # vars are where...
 
-#=====================================#
 
-# Convert WRF times to year, month, day, hour
-def wrftimes2hours(wrff):
-    nt = np.shape(wrff.variables['Times'][:])[0]
+def wrf_times_to_hours(wrffile):
+    '''Convert WRF times to year, month, day, hour'''
+    nt = np.shape(wrffile.variables['Times'][:])[0]
     if nt == 1:
-        time = ''.join(wrff.variables['Times'][0])
+        time = ''.join(wrffile.variables['Times'][0])
         year = np.float(time[:4]);    month = np.float(time[5:7])
         day  = np.float(time[8:10]);  hour  = np.float(time[11:13])
         minu = np.float(time[14:16]); sec   = np.float(time[17:19])
@@ -231,7 +229,7 @@ def wrftimes2hours(wrff):
         day  = np.asarray([]); hour  = np.asarray([])
         minu = np.asarray([]); sec   = np.asarray([])
         for tt in np.arange(0,nt):
-            time = ''.join(wrff.variables['Times'][tt])
+            time = ''.join(wrffile.variables['Times'][tt])
             year  = np.append(year,np.float(time[:4]))
             month = np.append(month,np.float(time[5:7]))
             day   = np.append(day,np.float(time[8:10]))
@@ -241,23 +239,23 @@ def wrftimes2hours(wrff):
         hours = hour + minu/60.0 + sec/(60.0*60.0)
     return [year,month,day,hours]
 
-# Get i,j location from given wrf file and lat/long
-def latlon2ij(wrff,latoi,lonoi):
-    lat,lon = latlon(wrff)
+def latlon_to_ij(wrffile,latoi,lonoi):
+    '''Get i,j location from given wrf file and lat/long'''
+    lat,lon = latlon(wrffile)
     dist    = ((lat-latoi)**2 + (lon-lonoi)**2)**0.5
     jj,ii   = np.where(dist==np.min(dist))
     return ii[0],jj[0]
 
-# Unstagger 2D variable on given axis
 def unstagger2d(var,ax):
+    '''Unstagger 2D variable on given axis'''
     if ax == 0:
         varu = (var[:-1,:] + var[1:,:])/2.0
     if ax == 1:
         varu = (var[:,:-1] + var[:,1:])/2.0
     return varu
 
-# Unstagger 3D variable on given axis
 def unstagger3d(var,ax):
+    '''Unstagger 3D variable on given axis'''
     if ax == 0:
         varu = (var[:-1,:,:] + var[1:,:,:])/2.0
     if ax == 1:
@@ -266,8 +264,8 @@ def unstagger3d(var,ax):
         varu = (var[:,:,:-1] + var[:,:,1:])/2.0
     return varu
 
-# Unstagger 4D variable on given axis
 def unstagger4d(var,ax):
+    '''Unstagger 4D variable on given axis'''
     if ax == 1:
         varu = (var[:,:-1,:,:] + var[:,1:,:,:])/2.0
     if ax == 2:
