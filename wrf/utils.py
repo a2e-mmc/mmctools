@@ -250,7 +250,12 @@ def wrf_times_to_hours(wrfdata,timename='Times'):
 def wrf_times_to_datetime(wrfdata,timename='Times',format='%Y-%m-%d_%H:%M:%S'):
     """Convert WRF times to datetime format"""
     timestrs = wrfdata.variables['Times'][:]
-    return [ datetime.strptime(s.values.tostring().decode(), format) for s in timestrs ]
+    if hasattr(timestrs[0],'values'):
+        # xarray
+        return [ datetime.strptime(s.values.tostring().decode(), format) for s in timestrs ]
+    else:
+        # netcdf
+        return [ datetime.strptime(s.tostring().decode(), format) for s in timestrs ]
 
 def latlon_to_ij(wrfdata,lat,lon):
     '''Get i,j location from given wrf file and lat/long'''
