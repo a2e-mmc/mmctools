@@ -5,6 +5,7 @@
   Who made it: patrick.hawbecker@nrel.gov
   When: 5/11/18
 '''
+from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm    
@@ -17,19 +18,19 @@ def get_wrf_dims(wrffile):
     try:
         nx = wrffile.dimensions['west_east'].size
     except KeyError:
-        print 'No x-dimension'; nx = []
+        print('No x-dimension'); nx = []
     try:
         ny = wrffile.dimensions['south_north'].size
     except KeyError:
-        print 'No y-dimension'; ny = []
+        print('No y-dimension'); ny = []
     try:
         nz = wrffile.dimensions['bottom_top'].size
     except KeyError:
-        print 'No z-dimension'; nz = []
+        print('No z-dimension'); nz = []
     try:
         nt = wrffile.dimensions['Time'].size
     except KeyError:
-        print 'No t-dimension'; nt = []
+        print('No t-dimension'); nt = []
     return nt,nz,ny,nx
 
 def get_avg_height(wrffile):
@@ -38,7 +39,7 @@ def get_avg_height(wrffile):
     try:
         nz = wrffile.dimensions['bottom_top'].size
     except KeyError:
-        print 'No z-dimension'; return []
+        print('No z-dimension'); return []
     if nt == 1:
         ph  = wrffile.variables['PH'][0,:,:,:]
         phb = wrffile.variables['PHB'][0,:,:,:]
@@ -60,7 +61,7 @@ def get_height(wrffile):
     try:
         nz = wrffile.dimensions['bottom_top'].size
     except KeyError:
-        print 'No z-dimension'; return []
+        print('No z-dimension'); return []
     ph  = wrffile.variables['PH'][0,:,:,:]
     phb = wrffile.variables['PHB'][0,:,:,:]
     hgt = wrffile.variables['HGT'][0,:,:]
@@ -75,7 +76,7 @@ def get_height_at_ind(wrffile,j,i):
     try:
         nz = wrffile.dimensions['bottom_top'].size
     except KeyError:
-        print 'No z-dimension'; return []
+        print('No z-dimension'); return []
     if nt == 1:
         ph  = wrffile.variables['PH'][0,:,j,i]
         phb = wrffile.variables['PHB'][0,:,j,i]
