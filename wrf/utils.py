@@ -11,10 +11,10 @@
 
 '''
 from __future__ import print_function
+import os, glob
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
-import subprocess
 
 
 def get_wrf_dims(wrfdata):
@@ -97,14 +97,19 @@ def get_height_at_ind(wrfdata,j,i):
         z  = (zs[:,1:] + zs[:,:-1])*0.5
     return z,zs
 
-def get_wrf_files(fdir,fstr,returnFileNames=True):
+def get_wrf_files(dpath='.',prefix='wrfout',returnFileNames=True,
+                  fullpath=False,sort=True):
     '''
-    Return all files from a given directory starting with "fstr"
-    fdir = file directory; fstr = file string structure (e.g. 'wrfout')
+    Return all files from a given directory starting with "prefix"
+    dpath = file directory; prefix = file string structure (e.g. 'wrfout')
     '''
-    nwrffs = subprocess.check_output('cd %s && ls %s*' % (fdir,fstr), shell=True).split()
+    nwrffs = glob.glob(os.path.join(dpath,prefix+'*'))
     nt = np.shape(nwrffs)[0]
     if returnFileNames==True:
+        if not fullpath:
+            nwrffs = [ os.path.split(fpath)[-1] for fpath in nwrffs ]
+        if sort:
+            nwrffs.sort()
         return nwrffs,nt
     else:
         return nt
@@ -156,7 +161,7 @@ class Tower():
         self.getvars()
         self.getdata()
     def getvars(self): # find available vars
-        varns = subprocess.check_output('ls %s*' % (self.fstr), shell=True).split() 
+        varns = glob.glob('{:s}*'.format(self.fstr))
         nvars = np.shape(varns)[0] # Number of variables
         for vv in range(0,nvars): # Loop over all variables
             varns[vv] = varns[vv].replace(self.fstr,'').replace('.','')
