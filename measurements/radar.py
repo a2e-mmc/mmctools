@@ -19,6 +19,8 @@ def profiler(fname,modes=None,
     Assumed data format for consensus data format rev 5.1 based on
     provided reference for rev 4.1 from:
     https://a2e.energy.gov/data/wfip2/attach/915mhz-cns-winds-data-format.txt
+    - Winds variables of interest: SPD, DIR(, SNR)
+    - RASS variables of interest: T, Tc, W
 
     Additional data format reference:
     https://www.esrl.noaa.gov/psd/data/obs/formats/
