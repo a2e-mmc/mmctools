@@ -4,110 +4,118 @@
 
   Who made it: patrick.hawbecker@nrel.gov
   When: 5/11/18
+
+  Notes:
+  - Utility functions should automatically handle input data in either
+    netCDF4.Dataset or xarray.Dataset formats.
+
 '''
+from __future__ import print_function
+import os, glob
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import cm    
-from netCDF4 import Dataset as ncdf
-import subprocess
+from datetime import datetime
 
 
-def get_wrf_dims(wrffile):
+def _get_dim(wrfdata,dimname):
+    """Returns the specified dimension, with support for both netCDF4
+    and xarray
+    """
+    if hasattr(wrfdata,'dimensions'):
+        try:
+            return wrfdata.dimensions[dimname].size
+        except KeyError:
+            print('No {:s} dimension'.format(dimname))
+            return None
+    elif hasattr(wrfdata,'dims'):
+        try:
+            return wrfdata.dims[dimname]
+        except KeyError:
+            print('No {:s} dimension'.format(dimname))
+            return None
+    else:
+        raise AttributeError('WRF data has no dimension attribute')
+
+def get_wrf_dims(wrfdata):
     ''' Find the dimensions of the given WRF file'''
-    try:
-        nx = wrffile.dimensions['west_east'].size
-    except KeyError:
-        print 'No x-dimension'; nx = []
-    try:
-        ny = wrffile.dimensions['south_north'].size
-    except KeyError:
-        print 'No y-dimension'; ny = []
-    try:
-        nz = wrffile.dimensions['bottom_top'].size
-    except KeyError:
-        print 'No z-dimension'; nz = []
-    try:
-        nt = wrffile.dimensions['Time'].size
-    except KeyError:
-        print 'No t-dimension'; nt = []
+    nx = _get_dim(wrfdata,'west_east')
+    ny = _get_dim(wrfdata,'south_north')
+    nz = _get_dim(wrfdata,'bottom_top')
+    nt = _get_dim(wrfdata,'Time')
     return nt,nz,ny,nx
 
-def get_avg_height(wrffile):
+def get_avg_height(wrfdata):
     '''Get average (over all x,y) heights; staggered and unstaggered'''
-    nt = wrffile.dimensions['Time'].size
-    try:
-        nz = wrffile.dimensions['bottom_top'].size
-    except KeyError:
-        print 'No z-dimension'; return []
+    nt = _get_dim(wrfdata,'Time')
+    nz = _get_dim(wrfdata,'bottom_top')
     if nt == 1:
-        ph  = wrffile.variables['PH'][0,:,:,:]
-        phb = wrffile.variables['PHB'][0,:,:,:]
-        hgt = wrffile.variables['HGT'][0,:,:]
+        ph  = wrfdata.variables['PH'][0,:,:,:]
+        phb = wrfdata.variables['PHB'][0,:,:,:]
+        hgt = wrfdata.variables['HGT'][0,:,:]
         zs  = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
         z   = (zs[1:] + zs[:-1])*0.5
     else:
         zs = np.zeros((nt,nz+1))
         for tt in range(0,nt):
-            ph  = wrffile.variables['PH'][tt,:,:,:]
-            phb = wrffile.variables['PHB'][tt,:,:,:]
-            hgt = wrffile.variables['HGT'][tt,:,:]
+            ph  = wrfdata.variables['PH'][tt,:,:,:]
+            phb = wrfdata.variables['PHB'][tt,:,:,:]
+            hgt = wrfdata.variables['HGT'][tt,:,:]
             zs[tt,:] = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
         z  = (zs[:,1:] + zs[:,:-1])*0.5
     return z,zs
 
-def get_height(wrffile):
+def get_height(wrfdata):
     '''Get heights for all x,y,z'''
-    try:
-        nz = wrffile.dimensions['bottom_top'].size
-    except KeyError:
-        print 'No z-dimension'; return []
-    ph  = wrffile.variables['PH'][0,:,:,:]
-    phb = wrffile.variables['PHB'][0,:,:,:]
-    hgt = wrffile.variables['HGT'][0,:,:]
+    nz = _get_dim(wrfdata,'bottom_top')
+    ph  = wrfdata.variables['PH'][0,:,:,:]
+    phb = wrfdata.variables['PHB'][0,:,:,:]
+    hgt = wrfdata.variables['HGT'][0,:,:]
 
     zs  = ((ph+phb)/9.81) - hgt
     z   = (zs[1:,:,:] + zs[:-1,:,:])*0.5
     return z,zs
 
-def get_height_at_ind(wrffile,j,i):
+def get_height_at_ind(wrfdata,j,i):
     '''Get model height at a specific j,i'''
-    nt = wrffile.dimensions['Time'].size
-    try:
-        nz = wrffile.dimensions['bottom_top'].size
-    except KeyError:
-        print 'No z-dimension'; return []
+    nt = _get_dim(wrfdata,'Time')
+    nz = _get_dim(wrfdata,'bottom_top')
     if nt == 1:
-        ph  = wrffile.variables['PH'][0,:,j,i]
-        phb = wrffile.variables['PHB'][0,:,j,i]
-        hgt = wrffile.variables['HGT'][0,j,i]
+        ph  = wrfdata.variables['PH'][0,:,j,i]
+        phb = wrfdata.variables['PHB'][0,:,j,i]
+        hgt = wrfdata.variables['HGT'][0,j,i]
         zs  = ((ph+phb)/9.81) - hgt
         z   = (zs[1:] + zs[:-1])*0.5
     else:
         zs = np.zeros((nt,nz+1))
         for tt in range(0,nt):
-            ph  = wrffile.variables['PH'][tt,:,j,i]
-            phb = wrffile.variables['PHB'][tt,:,j,i]
-            hgt = wrffile.variables['HGT'][tt,j,i]
+            ph  = wrfdata.variables['PH'][tt,:,j,i]
+            phb = wrfdata.variables['PHB'][tt,:,j,i]
+            hgt = wrfdata.variables['HGT'][tt,j,i]
             zs[tt,:] = ((ph+phb)/9.81) - hgt
         z  = (zs[:,1:] + zs[:,:-1])*0.5
     return z,zs
 
-def get_wrf_files(fdir,fstr,returnFileNames=True):
+def get_wrf_files(dpath='.',prefix='wrfout',returnFileNames=True,
+                  fullpath=False,sort=True):
     '''
-    Return all files from a given directory starting with "fstr"
-    fdir = file directory; fstr = file string structure (e.g. 'wrfout')
+    Return all files from a given directory starting with "prefix"
+    dpath = file directory; prefix = file string structure (e.g. 'wrfout')
     '''
-    nwrffs = subprocess.check_output('cd %s && ls %s*' % (fdir,fstr), shell=True).split()
+    nwrffs = glob.glob(os.path.join(dpath,prefix+'*'))
     nt = np.shape(nwrffs)[0]
     if returnFileNames==True:
+        if not fullpath:
+            nwrffs = [ os.path.split(fpath)[-1] for fpath in nwrffs ]
+        if sort:
+            nwrffs.sort()
         return nwrffs,nt
     else:
         return nt
 
-def latlon(wrffile):
+def latlon(wrfdata):
     '''Return latitude and longitude'''
-    lat = wrffile.variables['XLAT'][0,:,:]
-    lon = wrffile.variables['XLONG'][0,:,:]
+    lat = wrfdata.variables['XLAT'][0,:,:]
+    lon = wrfdata.variables['XLONG'][0,:,:]
     return lat,lon
 
 def get_tower_names(fdir,tstr):
@@ -151,7 +159,7 @@ class Tower():
         self.getvars()
         self.getdata()
     def getvars(self): # find available vars
-        varns = subprocess.check_output('ls %s*' % (self.fstr), shell=True).split() 
+        varns = glob.glob('{:s}*'.format(self.fstr))
         nvars = np.shape(varns)[0] # Number of variables
         for vv in range(0,nvars): # Loop over all variables
             varns[vv] = varns[vv].replace(self.fstr,'').replace('.','')
@@ -215,11 +223,11 @@ class Tower():
                               # vars are where...
 
 
-def wrf_times_to_hours(wrffile):
+def wrf_times_to_hours(wrfdata,timename='Times'):
     '''Convert WRF times to year, month, day, hour'''
-    nt = np.shape(wrffile.variables['Times'][:])[0]
+    nt = np.shape(wrfdata.variables['Times'][:])[0]
     if nt == 1:
-        time = ''.join(wrffile.variables['Times'][0])
+        time = ''.join(wrfdata.variables[timename][0])
         year = np.float(time[:4]);    month = np.float(time[5:7])
         day  = np.float(time[8:10]);  hour  = np.float(time[11:13])
         minu = np.float(time[14:16]); sec   = np.float(time[17:19])
@@ -229,7 +237,7 @@ def wrf_times_to_hours(wrffile):
         day  = np.asarray([]); hour  = np.asarray([])
         minu = np.asarray([]); sec   = np.asarray([])
         for tt in np.arange(0,nt):
-            time = ''.join(wrffile.variables['Times'][tt])
+            time = ''.join(wrfdata.variables[timename][tt])
             year  = np.append(year,np.float(time[:4]))
             month = np.append(month,np.float(time[5:7]))
             day   = np.append(day,np.float(time[8:10]))
@@ -239,37 +247,47 @@ def wrf_times_to_hours(wrffile):
         hours = hour + minu/60.0 + sec/(60.0*60.0)
     return [year,month,day,hours]
 
-def latlon_to_ij(wrffile,latoi,lonoi):
+def wrf_times_to_datetime(wrfdata,timename='Times',format='%Y-%m-%d_%H:%M:%S'):
+    """Convert WRF times to datetime format"""
+    timestrs = wrfdata.variables['Times'][:]
+    if hasattr(timestrs[0],'values'):
+        # xarray
+        return [ datetime.strptime(s.values.tostring().decode(), format) for s in timestrs ]
+    else:
+        # netcdf
+        return [ datetime.strptime(s.tostring().decode(), format) for s in timestrs ]
+
+def latlon_to_ij(wrfdata,lat,lon):
     '''Get i,j location from given wrf file and lat/long'''
-    lat,lon = latlon(wrffile)
-    dist    = ((lat-latoi)**2 + (lon-lonoi)**2)**0.5
-    jj,ii   = np.where(dist==np.min(dist))
+    glat,glon = latlon(wrfdata)
+    dist = ((glat-lat)**2 + (glon-lon)**2)**0.5
+    jj,ii = np.where(dist==np.min(dist))
     return ii[0],jj[0]
 
-def unstagger2d(var,ax):
+def unstagger2d(var,axis):
     '''Unstagger 2D variable on given axis'''
-    if ax == 0:
+    if axis == 0:
         varu = (var[:-1,:] + var[1:,:])/2.0
-    if ax == 1:
+    if axis == 1:
         varu = (var[:,:-1] + var[:,1:])/2.0
     return varu
 
-def unstagger3d(var,ax):
+def unstagger3d(var,axis):
     '''Unstagger 3D variable on given axis'''
-    if ax == 0:
+    if axis == 0:
         varu = (var[:-1,:,:] + var[1:,:,:])/2.0
-    if ax == 1:
+    if axis == 1:
         varu = (var[:,:-1,:] + var[:,1:,:])/2.0
-    if ax == 2:
+    if axis == 2:
         varu = (var[:,:,:-1] + var[:,:,1:])/2.0
     return varu
 
-def unstagger4d(var,ax):
+def unstagger4d(var,axis):
     '''Unstagger 4D variable on given axis'''
-    if ax == 1:
+    if axis == 1:
         varu = (var[:,:-1,:,:] + var[:,1:,:,:])/2.0
-    if ax == 2:
+    if axis == 2:
         varu = (var[:,:,:-1,:] + var[:,:,1:,:])/2.0
-    if ax == 3:
+    if axis == 3:
         varu = (var[:,:,:,:-1] + var[:,:,:,1:])/2.0
     return varu
