@@ -38,13 +38,15 @@ def read_date_dirs(dpath='.',
                 collection_date = pd.to_datetime(dname,
                                                  format=expected_date_format)
             except ValueError:
-                if verbose: print('Skipping '+dname)
+                if verbose:
+                    print('Skipping '+dname)
             else:
                 print('Processing '+fullpath)
                 for fname in sorted(os.listdir(fullpath)):
                     fpath = os.path.join(fullpath,fname)
                     if not fname.endswith(ext): continue
-                    if verbose: print('  reading '+fname)
+                    if verbose:
+                        print('  reading '+fname)
                     try:
                         df = reader(fpath,**kwargs)
                     except reader_exceptions as err:
@@ -53,4 +55,10 @@ def read_date_dirs(dpath='.',
                     dataframes.append(df)
                     Nfiles += 1
             print('  {} dataframes added'.format(Nfiles))
-    return pd.concat(dataframes)
+    if len(dataframes) == 0:
+        print('No dataframes were read!')
+        df = None
+    else:
+        df = pd.concat(dataframes)
+    return df
+
