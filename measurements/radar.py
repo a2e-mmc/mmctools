@@ -35,11 +35,11 @@ def profiler(fname,modes=None,
     with open(fname,'r') as f:
         if modes is not None:
             for _ in range(modes):
-                dataframes.append(read_profiler_data_block(f))
+                dataframes.append(_read_profiler_data_block(f))
         else:
             while True:
                 try:
-                    dataframes.append(read_profiler_data_block(f))
+                    dataframes.append(_read_profiler_data_block(f))
                 except (IOError,IndexError):
                     break
     df = pd.concat(dataframes)
@@ -65,3 +65,30 @@ def profiler(fname,modes=None,
                 df.loc[df[col]==val,col] = np.nan # flag bad values
     return df
 
+def _read_profiler_data_block(f,expected_datatypes=['WINDS','RASS']):
+    """Used by radar profiler"""
+    # Line 1 (may not be present for subsequent blocks within the same file
+    if f.readline().strip() == '':
+        f.readline() # Line 2: station name
+    assert(f.readline().split()[0] in expected_datatypes) # Line 3: WINDS, version
+    f.readline() # Line 4: lat (N), long (W), elevation (m)
+    Y,m,d,H,M,S,_ = f.readline().split() # Line 5: date
+    date_time = pd.to_datetime('20{}{}{} {}{}{}'.format(Y,m,d,H,M,S))
+    f.readline() # Line 6: consensus averaging time
+    f.readline() # Line 7: beam info
+    f.readline() # Line 8: beam info
+    f.readline() # Line 9: beam info
+    f.readline() # Line 10: beam info
+    header = f.readline().split()
+    header = [ col + '.' + str(header[:i].count(col))
+               if header.count(col) > 1
+               else col
+               for i,col in enumerate(header) ]
+    block = []
+    line = f.readline()
+    while not line.strip()=='$' and not line=='':
+        block.append(line.split())
+        line = f.readline()
+    df = pd.DataFrame(data=block,columns=header,dtype=float)
+    df['date_time'] = date_time
+    return df
