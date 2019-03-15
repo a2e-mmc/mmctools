@@ -6,10 +6,9 @@ Based on https://github.com/NWTC/datatools/blob/master/remote_sensing.py
 import numpy as np
 import pandas as pd
 
-def radar_profiler(fname,
-                   modes=2,
-                   check_na=['SPD','DIR'],
-                   na_values=999999):
+def profiler(fname,modes=None,
+        check_na=['SPD','DIR'],na_values=999999,
+        verbose=False):
     """Wind Profiler radar with RASS
 
     Users:
@@ -20,10 +19,17 @@ def radar_profiler(fname,
     provided reference for rev 4.1 from:
     https://a2e.energy.gov/data/wfip2/attach/915mhz-cns-winds-data-format.txt
 
-    Set 'modes' to None to read all blocks in the file
-
     Additional data format reference:
     https://www.esrl.noaa.gov/psd/data/obs/formats/
+
+    Usage
+    =====
+    modes : int or None
+        Number of data blocks to read from file; set to None to read all data
+    check_na : list
+        Column names from file to check for n/a or nan values
+    na_values : values or list of values
+        Values to be considered n/a and set to nan
     """
     dataframes = []
     with open(fname,'r') as f:
@@ -47,13 +53,15 @@ def radar_profiler(fname,
             if len(matches) > 0:
                 nalist += matches
             else:
-                print('Note: column '+col+'* not found')
+                if verbose:
+                    print('Note: column '+col+'* not found')
         check_na = nalist
         if not hasattr(na_values,'__iter__'):
             na_values = [na_values]
-        #print('Checking',check_na,'for',na_values)
         for val in na_values:
             for col in check_na:
+                if verbose:
+                    print('Checking',col,'for',val)
                 df.loc[df[col]==val,col] = np.nan # flag bad values
     return df
 
