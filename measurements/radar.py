@@ -6,6 +6,7 @@ Based on https://github.com/NWTC/datatools/blob/master/remote_sensing.py
 import numpy as np
 import pandas as pd
 
+
 def profiler(fname,modes=None,
         check_na=['SPD','DIR'],na_values=999999,
         verbose=False):
@@ -24,8 +25,9 @@ def profiler(fname,modes=None,
 
     Usage
     =====
-    modes : int or None
-        Number of data blocks to read from file; set to None to read all data
+    modes : int, list, or None
+        Number of data blocks to read from file; a list of zero-indexed
+        modes to read from file; or set to None to read all data
     check_na : list
         Column names from file to check for n/a or nan values
     na_values : values or list of values
@@ -34,14 +36,34 @@ def profiler(fname,modes=None,
     dataframes = []
     with open(fname,'r') as f:
         if modes is not None:
-            for _ in range(modes):
-                dataframes.append(_read_profiler_data_block(f))
+            if hasattr(modes,'__iter__'):
+                # specified modes to read
+                modes_to_read = np.arange(np.max(modes)+1)
+            else:
+                # specified number of modes
+                modes_to_read = np.arange(modes)
+                modes = modes_to_read
+            for i in modes_to_read:
+                df = _read_profiler_data_block(f)
+                if i in modes:
+                    if verbose:
+                        print('Adding mode',i)
+                    dataframes.append(df)
+                else:
+                    if verbose:
+                        print('Skipping mode',i)
         else:
+            # read all modes
+            i = 0
             while True:
                 try:
                     dataframes.append(_read_profiler_data_block(f))
                 except (IOError,IndexError):
                     break
+                else:
+                    if verbose:
+                        print('Read mode',i)
+                    i += 1
     df = pd.concat(dataframes)
     if na_values is not None:
         nalist = []
