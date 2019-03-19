@@ -60,4 +60,9 @@ def T_to_Tv(T,p=None,RH=None,w=None,e=None,pd=None,epsilon=0.622,verbose=False):
         print('Specify (RH,) or (w,) or (e,pd)')
         Tv = None
     return Tv
+
+
+def Ts_to_Tv(Ts,**kwargs):
+    """Convert sonic temperature [K] to virtual temperature [K].
+    """
     
