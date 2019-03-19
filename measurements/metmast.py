@@ -56,7 +56,7 @@ RMYoung_05106 = OrderedDict(
 
 def read_data(fname, column_spec,
               height=None, multi_index=False,
-              datetime_offset=None,
+              datetime_start=None, datetime_offset=None,
               start=pd.datetime(1990,1,1), end=pd.datetime.today(),
               **kwargs):
     """Read in data (e.g., output from a sonic anemometer) at a height
@@ -76,19 +76,26 @@ def read_data(fname, column_spec,
         time_format = column_spec[time_name]
         time = pd.to_timedelta(df[time_name], format=time_format)
         if date_name in column_spec.keys():
-            assert(datetime_offset is None)
+            if datetime_start is not None:
+                print('Ignored datetime_start')
             date_format = column_spec[date_name]
             date = pd.to_datetime(df[date_name], format=date_format)
             df[datetime_name] = date + time
-        elif datetime_offset is not None:
-            df[datetime_name] = datetime_offset + time
+        elif datetime_start is not None:
+            df[datetime_name] = pd.to_datetime(datetime_start) + time
             have_datetime = True
         else:
-            print('Specify datetime_offset for complete datetime')
+            print('Specify datetime_start for complete datetime')
             df[datetime_name] = time
             have_datetime = False
     else:
         print('No datetime in column spec')
+
+    # add time offset, e.g., for standardizing data that were averaged to the
+    # beginning/end of an interval
+    if have_datetime and (datetime_offset is not None):
+        offset = pd.to_timedelta(datetime_offset)
+        df[datetime_name] += offset
 
     # trim datetime
     if have_datetime:
