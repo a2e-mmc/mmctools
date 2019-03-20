@@ -91,13 +91,13 @@ def read_data(fpath, column_spec,
     datetime_start_format : str, optional
         If datetime_start is specified, then the format of the provided
         datetime string
-    datetime : pandas.DateTimeIndex, optional
+    datetime : pandas.DatetimeIndex, optional
         If no date or time information are included in datafile, use
         this specified datetime series
     data_freq : str, optional
         Assuming data were recorded at regular intervals, the time
         between samples described by a pandas offset string; used with
-        datetime_start to create a DateTimeIndex when no date or time
+        datetime_start to create a DatetimeIndex when no date or time
         information are included in the datafile
     datetime_offset : float, optional
         Add a time offset (in seconds) that will be converted into a
@@ -158,7 +158,7 @@ def read_data(fpath, column_spec,
         datetime_start = pd.to_datetime(datetime_start,
                                         format=datetime_start_format)
         df[datetime_name] = pd.DatetimeIndex(start=datetime_start,
-                                             freq=data_freq)
+                                             periods=len(df), freq=data_freq)
     elif datetime_name in datetime_columns:
         # we have complete information
         datetime_format = column_spec[datetime_name]
