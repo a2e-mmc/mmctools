@@ -64,6 +64,27 @@ def read_data(fname, column_spec,
               **kwargs):
     """Read in data (e.g., output from a sonic anemometer) at a height
     on the met mast and standardize outputs
+
+    Inputs
+    ------
+    fname : str
+        Filename passed to pandas.read_csv()
+    column_spec : OrderedDict
+        Pairs of column names and data formats
+    height : float, optional
+        Height to associate with this data (column will be added)
+    multi_index : bool, optional
+        If height is specified, then return a pandas.DataFrame with a
+        MultiIndex
+    datetime_start : str, optional
+        To specify datetime information missing from the data file
+    datetime_start_format : str, optional
+        If datetime_start is specified, then the format of the provided
+        datetime string
+    start,end : str or datetime, optional
+        Trim the data down to this specified time range
+    **kwargs : optional
+        Additional arguments to pass to pandas.read_csv()
     """
     columns = column_spec.keys()
     df = pd.read_csv(fname,names=columns,**kwargs)
