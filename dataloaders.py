@@ -12,9 +12,8 @@ import pandas as pd
 reader_exceptions = (IOError, UnicodeDecodeError, AssertionError, ValueError)
 
 
-def read_dir(dpath='.',
+def read_dir(dpath='.',file_filter='*',
              reader=pd.read_csv,
-             file_filter='*',
              ext='csv',
              sort=True,
              verbose=False,
@@ -56,7 +55,7 @@ def read_dir(dpath='.',
     return df
 
 
-def read_date_dirs(dpath='.',
+def read_date_dirs(dpath='.',dir_filter='*',
                    expected_date_format=None,
                    reader=pd.read_csv,
                    ext='csv',
@@ -77,7 +76,8 @@ def read_date_dirs(dpath='.',
     Extra keyword arguments are passed to the data reader.
     """
     dataframes = []
-    for dname in sorted(os.listdir(dpath)):
+    dpathlist = glob.glob(os.path.join(dpath,dir_filter))
+    for dname in sorted(dpathlist):
         Nfiles = 0
         fullpath = os.path.join(dpath,dname)
         if os.path.isdir(fullpath):
