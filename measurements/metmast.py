@@ -34,7 +34,7 @@ Metek_USA1 = OrderedDict(
     v=100, # units are cm/s, i.e., 100*[m/s]
     u=100, 
     w=100,
-    T=lambda Ts: 273.15 + Ts/100, # sonic temperature, 100*[deg C]
+    Ts=lambda Ts: 273.15 + Ts/100, # sonic temperature, 100*[deg C]
     time='%H:%M:%S',
 )
 
@@ -55,6 +55,12 @@ RMYoung_05106 = OrderedDict(
     p10X=1, # datalogger power [V]
 )
 
+Gill_R3_50 = OrderedDict(
+    v=1, # North-South, plus to North
+    u=1, # East-West, plus to East
+    w=1, # Vertical, plus upward
+    Ts=lambda Ts: 273.15 + Ts, # virtual sonic temperature [deg C]
+)
 
 def read_data(fname, column_spec,
               height=None, multi_index=False,
