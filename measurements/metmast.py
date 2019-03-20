@@ -64,7 +64,27 @@ def read_data(fname, column_spec,
     """Read in data (e.g., output from a sonic anemometer) at a height
     on the met mast and standardize outputs
     """
-    df = pd.read_csv(fname)
+    columns = column_spec.keys()
+    df = pd.read_csv(fname,names=columns,**kwargs)
+
+    # standardize the data
+    datetime_columns = []
+    for col,fmt in column_spec.items():
+        if fmt==1:
+            continue
+        elif callable(fmt):
+            # apply function to column
+            df[col] = df[col].apply(fmt)
+        elif isinstance(fmt,float):
+            # convert to standard units
+            df[col] = df[col] / fmt
+        elif isinstance(fmt,str):
+            # collect datetime column names
+            datetime_columns.append(col)
+        elif fmt is None:
+            df = df.drop(columns=col)
+        else:
+            raise TypeError('Unexpected column name/format:',(col,fmt))
 
     # set up date/time column
     if datetime_name in column_spec.keys():
@@ -120,4 +140,6 @@ def read_data(fname, column_spec,
         # assume we have u,v velocity components
         df[winddirection_name] = np.degrees(np.arctan2(-df['u'],-df['v']))
         df.loc[df[winddirection_name] < 0, winddirection_name] += 360.0
+
+    return df
 
