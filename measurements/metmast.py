@@ -155,7 +155,8 @@ def read_data(fpath, column_spec,
         # use user-specified start datetime and time interval ('freq')
         # specified by a pandas offset string
         # ref: http://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects
-        datetime_start = pd.to_datetime(datetime_start)
+        datetime_start = pd.to_datetime(datetime_start,
+                                        format=datetime_start_format)
         df[datetime_name] = pd.DatetimeIndex(start=datetime_start,
                                              freq=data_freq)
     elif datetime_name in datetime_columns:
