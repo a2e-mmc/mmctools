@@ -56,7 +56,7 @@ def read_dir(dpath='.',file_filter='*',
 
 
 def read_date_dirs(dpath='.',dir_filter='*',
-                   expected_date_format=None,
+                   expected_date_format='%Y%m%d',
                    reader=pd.read_csv,
                    ext='csv',
                    verbose=False,
