@@ -61,6 +61,7 @@ Gill_R3_50 = OrderedDict(
     u=1, # East-West, plus to East
     w=1, # Vertical, plus upward
     Ts=lambda Ts: 273.15 + Ts, # virtual sonic temperature [deg C]
+    qc=1, # basic quality control code: 0 - OK, 1 - sonic bad data code, 2 - broken data line, and 3 - missed line
 )
 
 def read_data(fpath, column_spec,
