@@ -43,14 +43,16 @@ RMYoung_05106 = OrderedDict(
     year='%Y',  # 4-digit year
     day='%j',  # julian day number
     time='%H%M',
-    HorizontalWind=1, # mean horizontal wind speed
-    wspd=1,
-    wdir=1,
-    wdir_std=1,
+    HorizontalWind=1, # mean horizontal wind speed [m/s]
+    wspd=1, # resultant mean wind speed [m/s]
+    wdir=1, # resultant mean of wind direction == arctan(Ueast/Unorth) [deg]
+    wdir_std=1, # stdev of wind direction [deg]
     T=lambda Ta: 273.15 + Ta, # air temperature [deg C]
-    RH=1,
-    P=lambda p: 1.0*p, # barometric pressure, not corrected for sea-level [mb]
-    SW_down=1,
+    RH=1, # relative humidity [%]
+    P=1, # barometric pressure (not corrected for sea level) [mb]
+    SW_down=1, # downwelling SW solar radiation (400-1100nm) [W/m^2]
+    T10X=1, # datalogger temperature [deg C]
+    p10X=1, # datalogger power [V]
 )
 
 
