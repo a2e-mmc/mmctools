@@ -65,6 +65,7 @@ Gill_R3_50 = OrderedDict(
 def read_data(fname, column_spec,
               height=None, multi_index=False,
               datetime_start='', datetime_start_format='',
+              data_freq=None, output_freq=None,
               datetime=None, datetime_offset=None,
               start=pd.datetime(1990,1,1), end=pd.datetime.today(),
               **kwargs):
@@ -90,10 +91,19 @@ def read_data(fname, column_spec,
     datetime : pandas.DateTimeIndex, optional
         If no date or time information are included in datafile, use
         this specified datetime series
+    data_freq : str, optional
+        Assuming data were recorded at regular intervals, the time
+        between samples described by a pandas offset string; used with
+        datetime_start to create a DateTimeIndex when no date or time
+        information are included in the datafile
     datetime_offset : float, optional
         Add a time offset (in seconds) that will be converted into a
         timedelta, e.g., for standardizing data that were averaged to
         the beginning or end of an interval
+    output_freq : int, optional
+        For output_freq 'N', return every Nth row in datafile; for crude
+        resampling of data with high sampling frequency but inconsistent
+        number of data rows in output files
     start,end : str or datetime, optional
         Trim the data down to this specified time range
     **kwargs : optional
@@ -120,15 +130,26 @@ def read_data(fname, column_spec,
             df = df.drop(columns=col)
         else:
             raise TypeError('Unexpected column name/format:',(col,fmt))
-    if (len(datetime_columns) == 0) and (datetime is None):
-        raise InputError('No datetime data in file; need to specify datetime')
+    if (len(datetime_columns) == 0) and \
+            ((datetime is None) or ((datetime_start is None) and (data_freq is None))):
+        raise InputError('No datetime data in file; need to specify datetime, or datetime_start and data_freq')
     elif (len(datetime_columns) > 0) and (datetime is not None):
         print('Note: datetime specified; datetime information in datafile ignored')
+    elif (len(datetime_columns) > 0) and \
+            (datetime_start is not None) and (data_freq is not None):
+        print('Note: datetime_start and data_freq specified; datetime information in datafile ignored')
 
     # set up date/time column
     if datetime is not None:
         # use user-specified datetime
         df[datetime_name] = datetime
+    elif datetime_start and data_freq:
+        # use user-specified start datetime and time interval ('freq')
+        # specified by a pandas offset string
+        # ref: http://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects
+        datetime_start = pd.to_datetime(datetime_start)
+        df[datetime_name] = pd.DatetimeIndex(start=datetime_start,
+                                             freq=data_freq)
     elif datetime_name in datetime_columns:
         # we have complete information
         datetime_format = column_spec[datetime_name]
@@ -171,6 +192,10 @@ def read_data(fname, column_spec,
         # - create datetime series
         df[datetime_name] = pd.to_datetime(datetime, format=datetime_format)
         df = df.drop(columns=datetime_columns)
+
+    if output_freq is not None:
+        N = int(output_freq)
+        df = df.iloc[::N,:]
 
     # add time offset, e.g., for standardizing data that were averaged to the
     # beginning/end of an interval
