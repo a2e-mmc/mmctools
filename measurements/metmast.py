@@ -67,7 +67,7 @@ Gill_R3_50 = OrderedDict(
 def read_data(fpath, column_spec,
               height=None, multi_index=False,
               datetime_start='', datetime_start_format='',
-              data_freq=None, output_freq=None,
+              data_freq=None, max_data_rows=None, output_freq=None,
               datetime=None, datetime_offset=None,
               start=pd.datetime(1990,1,1), end=pd.datetime.today(),
               **kwargs):
@@ -100,6 +100,8 @@ def read_data(fpath, column_spec,
         between samples described by a pandas offset string; used with
         datetime_start to create a DatetimeIndex when no date or time
         information are included in the datafile
+    max_data_rows : int, optional
+        Maximum rows to process from datafile
     datetime_offset : float, optional
         Add a time offset (in seconds) that will be converted into a
         timedelta, e.g., for standardizing data that were averaged to
@@ -203,6 +205,8 @@ def read_data(fpath, column_spec,
         df[datetime_name] = pd.to_datetime(datetime, format=datetime_format)
         df = df.drop(columns=datetime_columns)
 
+    if max_data_rows is not None:
+        df = df.iloc[:max_data_rows]
     if output_freq is not None:
         N = int(output_freq)
         df = df.iloc[::N,:]
