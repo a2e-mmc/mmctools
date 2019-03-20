@@ -77,9 +77,9 @@ def read_date_dirs(dpath='.',dir_filter='*',
     """
     dataframes = []
     dpathlist = glob.glob(os.path.join(dpath,dir_filter))
-    for dname in sorted(dpathlist):
+    for fullpath in sorted(dpathlist):
         Nfiles = 0
-        fullpath = os.path.join(dpath,dname)
+        dname = os.path.split(fullpath)[-1]
         if os.path.isdir(fullpath):
             try:
                 collection_date = pd.to_datetime(dname,
