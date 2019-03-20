@@ -3,6 +3,7 @@ Data readers for meteorological towers
 
 Based on https://github.com/NWTC/datatools/blob/master/metmast.py
 """
+import os
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
@@ -62,7 +63,7 @@ Gill_R3_50 = OrderedDict(
     Ts=lambda Ts: 273.15 + Ts, # virtual sonic temperature [deg C]
 )
 
-def read_data(fname, column_spec,
+def read_data(fpath, column_spec,
               height=None, multi_index=False,
               datetime_start='', datetime_start_format='',
               data_freq=None, output_freq=None,
@@ -74,7 +75,7 @@ def read_data(fname, column_spec,
 
     Inputs
     ------
-    fname : str
+    fpath : str
         Filename passed to pandas.read_csv()
     column_spec : OrderedDict
         Pairs of column names and data formats
@@ -83,8 +84,10 @@ def read_data(fname, column_spec,
     multi_index : bool, optional
         If height is specified, then return a pandas.DataFrame with a
         MultiIndex
-    datetime_start : str, optional
-        To specify datetime information missing from the data file
+    datetime_start : str or callable, optional
+        To specify datetime information missing from the data file; if
+        callable, then a function to parse the starting datetime from
+        the filename
     datetime_start_format : str, optional
         If datetime_start is specified, then the format of the provided
         datetime string
@@ -110,7 +113,7 @@ def read_data(fname, column_spec,
         Additional arguments to pass to pandas.read_csv()
     """
     columns = column_spec.keys()
-    df = pd.read_csv(fname,names=columns,**kwargs)
+    df = pd.read_csv(fpath,names=columns,**kwargs)
 
     # standardize the data
     datetime_columns = []
@@ -138,6 +141,11 @@ def read_data(fname, column_spec,
     elif (len(datetime_columns) > 0) and \
             (datetime_start is not None) and (data_freq is not None):
         print('Note: datetime_start and data_freq specified; datetime information in datafile ignored')
+
+    if callable(datetime_start):
+        # parse datetime from file name
+        fname = os.path.split(fpath)[-1]
+        datetime_start = datetime_start(fname)
 
     # set up date/time column
     if datetime is not None:
