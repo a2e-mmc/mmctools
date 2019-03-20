@@ -122,9 +122,14 @@ def read_data(fname, column_spec,
             raise TypeError('Unexpected column name/format:',(col,fmt))
     if (len(datetime_columns) == 0) and (datetime is None):
         raise InputError('No datetime data in file; need to specify datetime')
+    elif (len(datetime_columns) > 0) and (datetime is not None):
+        print('Note: datetime specified; datetime information in datafile ignored')
 
     # set up date/time column
-    if datetime_name in datetime_columns:
+    if datetime is not None:
+        # use user-specified datetime
+        df[datetime_name] = datetime
+    elif datetime_name in datetime_columns:
         # we have complete information
         datetime_format = column_spec[datetime_name]
         df[datetime_name] = pd.to_datetime(df[datetime_name],
@@ -137,9 +142,6 @@ def read_data(fname, column_spec,
         time_format = column_spec[time_name]
         df[datetime_name] = pd.to_datetime(df[date_name]+df[time_name],
                                            format=date_format+time_format)
-    elif datetime is not None:
-        # use user-specified datetime
-        df[datetime_name] = datetime
     else:
         # try to cobble together datetime information from all text columns
         # - convert datetime columns into string type (so that we can add them
