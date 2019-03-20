@@ -65,7 +65,7 @@ Gill_R3_50 = OrderedDict(
 def read_data(fname, column_spec,
               height=None, multi_index=False,
               datetime_start='', datetime_start_format='',
-              datetime_offset=None,
+              datetime=None, datetime_offset=None,
               start=pd.datetime(1990,1,1), end=pd.datetime.today(),
               **kwargs):
     """Read in data (e.g., output from a sonic anemometer) at a height
@@ -87,6 +87,9 @@ def read_data(fname, column_spec,
     datetime_start_format : str, optional
         If datetime_start is specified, then the format of the provided
         datetime string
+    datetime : pandas.DateTimeIndex, optional
+        If no date or time information are included in datafile, use
+        this specified datetime series
     datetime_offset : float, optional
         Add a time offset (in seconds) that will be converted into a
         timedelta, e.g., for standardizing data that were averaged to
@@ -117,6 +120,8 @@ def read_data(fname, column_spec,
             df = df.drop(columns=col)
         else:
             raise TypeError('Unexpected column name/format:',(col,fmt))
+    if (len(datetime_columns) == 0) and (datetime is None):
+        raise InputError('No datetime data in file; need to specify datetime')
 
     # set up date/time column
     if datetime_name in datetime_columns:
@@ -132,6 +137,9 @@ def read_data(fname, column_spec,
         time_format = column_spec[time_name]
         df[datetime_name] = pd.to_datetime(df[date_name]+df[time_name],
                                            format=date_format+time_format)
+    elif datetime is not None:
+        # use user-specified datetime
+        df[datetime_name] = datetime
     else:
         # try to cobble together datetime information from all text columns
         # - convert datetime columns into string type (so that we can add them
