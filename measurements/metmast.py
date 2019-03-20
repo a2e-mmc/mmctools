@@ -134,7 +134,7 @@ def read_data(fpath, column_spec,
         else:
             raise TypeError('Unexpected column name/format:',(col,fmt))
     if (len(datetime_columns) == 0) and \
-            ((datetime is None) or ((datetime_start is None) and (data_freq is None))):
+            ((datetime is None) and ((datetime_start is None) or (data_freq is None))):
         raise ValueError('No datetime data in file; need to specify datetime, or datetime_start and data_freq')
     elif (len(datetime_columns) > 0) and (datetime is not None):
         print('Note: datetime specified; datetime information in datafile ignored')
