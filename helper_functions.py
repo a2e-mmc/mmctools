@@ -4,7 +4,8 @@ Helper functions for calculating standard meteorological quantities
 import numpy as np
 import pandas as pd
 
-def T_to_Tv(T,p=None,RH=None,w=None,e=None,pd=None,epsilon=0.622,verbose=False):
+def T_to_Tv(T,p=None,RH=None,w=None,q=None,e=None,pd=None,
+            epsilon=0.622,verbose=False):
     """Convert moist air temperature [K] to virtual temperature [K].
     
     Formulas based on given total pressure (p, mbar) and relative
@@ -36,7 +37,7 @@ def T_to_Tv(T,p=None,RH=None,w=None,e=None,pd=None,epsilon=0.622,verbose=False):
         # alternative calculation, based on dewpoint
         if verbose:
             # from https://www.weather.gov/media/epz/wxcalc/virtualTemperature.pdf
-            # - note this is Wallace & Hobbs' eqn 3.16, also implemented  below
+            # - note this is Wallace & Hobbs' eqn 3.16, also implemented below
             # - note the expression for vapor pressure is similar to the
             #   saturation vapor pressure expression above, with Td instead of T
             # - is it 237.3 or 237.7?
@@ -50,6 +51,10 @@ def T_to_Tv(T,p=None,RH=None,w=None,e=None,pd=None,epsilon=0.622,verbose=False):
         if verbose:
             print('Tv(T,p,RH) ~=',T*(1+0.61*w))
         Tv = T * (w/epsilon + 1) / (1 + w)
+    elif q is not None:
+        w = q / (1-q)
+        # Using Wallace & Hobbs, Eqn 3.59
+        Tv = T * (w/epsilon + 1) / (1 + w)
     elif w is not None:
         # Using Wallace & Hobbs, Eqn 3.59
         Tv = T * (w/epsilon + 1) / (1 + w)
@@ -57,7 +62,7 @@ def T_to_Tv(T,p=None,RH=None,w=None,e=None,pd=None,epsilon=0.622,verbose=False):
         # Wallace & Hobbs, Eqn 3.16
         Tv = T / (1 - e/pd*(1-epsilon))
     else:
-        print('Specify (RH,) or (w,) or (e,pd)')
+        print('Specify (RH,p) or (q,) or (w,) or (e,pd)')
         Tv = None
     return Tv
 
