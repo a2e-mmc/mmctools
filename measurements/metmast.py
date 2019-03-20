@@ -58,7 +58,8 @@ RMYoung_05106 = OrderedDict(
 
 def read_data(fname, column_spec,
               height=None, multi_index=False,
-              datetime_start=None, datetime_offset=None,
+              datetime_start='', datetime_start_format='',
+              datetime_offset=None,
               start=pd.datetime(1990,1,1), end=pd.datetime.today(),
               **kwargs):
     """Read in data (e.g., output from a sonic anemometer) at a height
@@ -87,42 +88,60 @@ def read_data(fname, column_spec,
             raise TypeError('Unexpected column name/format:',(col,fmt))
 
     # set up date/time column
-    if datetime_name in column_spec.keys():
+    if datetime_name in datetime_columns:
         # we have complete information
         datetime_format = column_spec[datetime_name]
         df[datetime_name] = pd.to_datetime(df[datetime_name],
                                            format=datetime_format)
-        have_datetime = True
-    elif time_name in column_spec.keys():
-        # we have time (and optionally, date) information in separate columns
+    elif (date_name in datetime_columns) and (time_name in datetime_columns):
+        # we have separate date and time columns
+        if datetime_start is not None:
+            print('Ignored specified datetime_start')
+        date_format = column_spec[date_name]
         time_format = column_spec[time_name]
-        time = pd.to_timedelta(df[time_name], format=time_format)
-        if date_name in column_spec.keys():
-            if datetime_start is not None:
-                print('Ignored datetime_start')
-            date_format = column_spec[date_name]
-            date = pd.to_datetime(df[date_name], format=date_format)
-            df[datetime_name] = date + time
-        elif datetime_start is not None:
-            df[datetime_name] = pd.to_datetime(datetime_start) + time
-            have_datetime = True
-        else:
-            print('Specify datetime_start for complete datetime')
-            df[datetime_name] = time
-            have_datetime = False
+        df[datetime_name] = pd.to_datetime(df[date_name]+df[time_name],
+                                           format=date_format+time_format)
     else:
-        print('No datetime in column spec')
+        # try to cobble together datetime information from all text columns
+        # - convert datetime columns into string type (so that we can add them
+        #   together) and make sure time strings didn't end up truncated as
+        #   integers
+        #   e.g. %H%M : 01:00 --> 100 (instead of '0100')
+        test_strings = ['%H','%M','%S']
+        for col in datetime_columns:
+            if df[col].dtype == np.int64:
+                fmt = column_spec[col]
+                if any([s in fmt for s in test_strings]):
+                    for strftime_str in test_strings:
+                        fmt = fmt.replace(strftime_str,'00')
+                    timestrlen = len(fmt)
+                    # convert integer column data into zero-padded string
+                    zeropadfmt = '{:0' + str(timestrlen) + '}'
+                    df[col] = df[col].apply(lambda t: zeropadfmt.format(t))
+                else:
+                    # convert integer column, e.g., year(, month, day) into str
+                    df[col] = df[col].astype(str)
+        # - combine all datetime columns into a series
+        datetime = datetime_start \
+                + df[datetime_columns].apply(lambda cols: ''.join(cols), axis=1)
+        # - combine all format strings
+        datetime_format = datetime_start_format \
+                + ''.join([column_spec[col] for col in datetime_columns])
+        # - create datetime series
+        df[datetime_name] = pd.to_datetime(datetime, format=datetime_format)
+        df = df.drop(columns=datetime_columns)
 
     # add time offset, e.g., for standardizing data that were averaged to the
     # beginning/end of an interval
-    if have_datetime and (datetime_offset is not None):
+    if datetime_offset is not None:
         offset = pd.to_timedelta(datetime_offset)
         df[datetime_name] += offset
 
     # trim datetime
-    if have_datetime:
-        datetime_range = (df[datetime_name] >= start) & (df[datetime_name] <= end)
-        df = df.loc[datetime_range]
+    start = pd.to_datetime(start)
+    end = pd.to_datetime(end)
+    datetime_range = (df[datetime_name] >= start) & (df[datetime_name] <= end)
+    df = df.loc[datetime_range]
 
     # set height column (and multi-index)
     if height is not None:
