@@ -81,6 +81,10 @@ def read_data(fname, column_spec,
     datetime_start_format : str, optional
         If datetime_start is specified, then the format of the provided
         datetime string
+    datetime_offset : float, optional
+        Add a time offset (in seconds) that will be converted into a
+        timedelta, e.g., for standardizing data that were averaged to
+        the beginning or end of an interval
     start,end : str or datetime, optional
         Trim the data down to this specified time range
     **kwargs : optional
@@ -155,7 +159,7 @@ def read_data(fname, column_spec,
     # add time offset, e.g., for standardizing data that were averaged to the
     # beginning/end of an interval
     if datetime_offset is not None:
-        offset = pd.to_timedelta(datetime_offset)
+        offset = pd.to_timedelta(datetime_offset,unit='s')
         df[datetime_name] += offset
 
     # trim datetime
