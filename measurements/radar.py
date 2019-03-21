@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 
-def profiler(fname,modes=None,
+def profiler(fname,scans=None,
         check_na=['SPD','DIR'],na_values=999999,
         verbose=False):
     """Wind Profiler radar with RASS
@@ -27,9 +27,9 @@ def profiler(fname,modes=None,
 
     Usage
     =====
-    modes : int, list, or None
+    scans : int, list, or None
         Number of data blocks to read from file; a list of zero-indexed
-        modes to read from file; or set to None to read all data
+        scans to read from file; or set to None to read all data
     check_na : list
         Column names from file to check for n/a or nan values
     na_values : values or list of values
@@ -37,17 +37,17 @@ def profiler(fname,modes=None,
     """
     dataframes = []
     with open(fname,'r') as f:
-        if modes is not None:
-            if hasattr(modes,'__iter__'):
-                # specified modes to read
-                modes_to_read = np.arange(np.max(modes)+1)
+        if scans is not None:
+            if hasattr(scans,'__iter__'):
+                # specified scans to read
+                scans_to_read = np.arange(np.max(scans)+1)
             else:
-                # specified number of modes
-                modes_to_read = np.arange(modes)
-                modes = modes_to_read
-            for i in modes_to_read:
+                # specified number of scans
+                scans_to_read = np.arange(scans)
+                scans = scans_to_read
+            for i in scans_to_read:
                 df = _read_profiler_data_block(f)
-                if i in modes:
+                if i in scans:
                     if verbose:
                         print('Adding mode',i)
                     dataframes.append(df)
@@ -55,7 +55,7 @@ def profiler(fname,modes=None,
                     if verbose:
                         print('Skipping mode',i)
         else:
-            # read all modes
+            # read all scans
             i = 0
             while True:
                 try:
