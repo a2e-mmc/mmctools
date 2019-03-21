@@ -239,6 +239,25 @@ def read_data(fpath, column_spec,
         # assume we have u,v velocity components
         df[winddirection_name] = np.degrees(np.arctan2(-df['u'],-df['v']))
         df.loc[df[winddirection_name] < 0, winddirection_name] += 360.0
+    try:
+        # drop "nonstandard" variables
+        df = df.drop(columns=['u','v'])
+    except KeyError: pass
 
     return df
+
+def standard_output(df):
+    """Proposed workflow for "step 1", which entails reading, combining,
+    and standardizing data prior to analysis:
+        df = read_data()
+        df['calculated_data'] = some_postprocessing()
+        standard_output(df).to_csv()
+        standard_output(df).to_xarray().to_netcdf()
+    """
+    output_columns = [datetime_name,height_name,windspeed_name,winddirection_name]
+    column_list = list(df.columns)
+    for col in output_columns: 
+        column_list.remove(col)
+    output_columns += column_list
+    return df[column_list]
 
