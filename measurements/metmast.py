@@ -233,8 +233,8 @@ def read_data(fpath, column_spec,
 
     # standard calculations
     if not windspeed_name in column_spec.keys():
-        # assume we have all velocity components
-        df[windspeed_name] = np.sqrt(df['u']**2 + df['v']**2 + df['w']**2)
+        # assume we have u,v velocity components
+        df[windspeed_name] = np.sqrt(df['u']**2 + df['v']**2)
     if not winddirection_name in column_spec.keys():
         # assume we have u,v velocity components
         df[winddirection_name] = np.degrees(np.arctan2(-df['u'],-df['v']))
