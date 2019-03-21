@@ -71,3 +71,15 @@ def Ts_to_Tv(Ts,**kwargs):
     """Convert sonic temperature [K] to virtual temperature [K].
     """
     
+
+def covariance(a,b,interval):
+    """Calculate covariance between two quantities in the specified
+    interval.
+
+    Example:
+        heatflux = covariance(df['Ts'],df['w'],'10min')
+    """
+    a_mean = a.rolling(interval).mean()
+    b_mean = b.rolling(interval).mean()
+    ab_mean = (a*b).rolling(interval).mean()
+    return ab_mean - a_mean*b_mean
