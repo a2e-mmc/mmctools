@@ -4,6 +4,7 @@ Data readers for meteorological towers
 Based on https://github.com/NWTC/datatools/blob/master/metmast.py
 """
 import os
+import inspect
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
@@ -76,6 +77,7 @@ def read_data(fpath, column_spec,
               data_freq=None, max_data_rows=None, output_freq=None,
               datetime=None, datetime_offset=None,
               start=pd.datetime(1990,1,1), end=pd.datetime.today(),
+              return_description=False,
               **kwargs):
     """Read in data (e.g., output from a sonic anemometer) at a height
     on the met mast and standardize outputs
@@ -126,19 +128,28 @@ def read_data(fpath, column_spec,
 
     # standardize the data
     datetime_columns = []
+    description = []
     for col,fmt in column_spec.items():
         if fmt==1:
+            #description.append('read column {:s}'.format(col))
             continue
         elif callable(fmt):
             # apply function to column
+            funcdesc = inspect.getsource(fmt)
+            eqidx = funcdesc.index('=')
+            funcdesc = funcdesc[eqidx+1:].strip()
+            description.append('applied function ({:s}) to column {:s}'.format(funcdesc,col))
             df[col] = df[col].apply(fmt)
         elif isinstance(fmt,float):
             # convert to standard units
+            description.append('scaled column {:s} by factor of {:g}'.format(col,1./fmt))
             df[col] = df[col] / fmt
         elif isinstance(fmt,str):
             # collect datetime column names
+            #description.append('read datetime-related column {:s}'.format(col))
             datetime_columns.append(col)
         elif fmt is None:
+            description.append('ignored column {:s}'.format(col))
             df = df.drop(columns=col)
         else:
             raise TypeError('Unexpected column name/format:',(col,fmt))
@@ -249,7 +260,11 @@ def read_data(fpath, column_spec,
         df = df.drop(columns=['u','v'])
     except KeyError: pass
 
-    return df
+    #print('\n'.join(description))
+    if return_description:
+        return df, description
+    else:
+        return df
 
 
 def standard_output(df,output=None,**kwargs):
