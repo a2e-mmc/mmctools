@@ -20,6 +20,7 @@ def T_to_Tv(T,p=None,RH=None,w=None,q=None,e=None,pd=None,
         es = 6.112 * np.exp(17.67*T_degC / (T_degC + 243.5))
         if verbose:
             # from https://www.weather.gov/media/epz/wxcalc/vaporPressure.pdf
+            # - where do these equations come from?
             # - is it 237.3 or 237.7?
             es_est = 6.11 * 10**(7.5*T_degC/(237.3+T_degC))
             print('e_s(T) =',es,'est',es_est)
@@ -68,13 +69,15 @@ def T_to_Tv(T,p=None,RH=None,w=None,q=None,e=None,pd=None,
 
 
 def Ts_to_Tv(Ts,**kwargs):
-    """Convert sonic temperature [K] to virtual temperature [K].
+    """TODO: Convert sonic temperature [K] to virtual temperature [K].
     """
     
 
 def covariance(a,b,interval):
-    """Calculate covariance between two quantities in the specified
-    interval.
+    """Calculate covariance between two series (with datetime index) in
+    the specified interval, where the interval is defined by a pandas
+    offset string
+    (http://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects).
 
     Example:
         heatflux = covariance(df['Ts'],df['w'],'10min')
@@ -83,3 +86,4 @@ def covariance(a,b,interval):
     b_mean = b.rolling(interval).mean()
     ab_mean = (a*b).rolling(interval).mean()
     return ab_mean - a_mean*b_mean
+
