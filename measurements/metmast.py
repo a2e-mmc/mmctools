@@ -8,9 +8,7 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 
-#
 # TODO:
-# - standardize names ("wspd" vs "windspeed" vs "speed", etc)
 # - standardize units
 # - standardize quantities (air temperature vs virtual temperature etc)
 
@@ -21,7 +19,14 @@ height_name = 'height'
 windspeed_name = 'wspd'
 winddirection_name = 'wdir'
 
-#
+standard_output_columns = [
+    datetime_name,
+    height_name,
+    windspeed_name,
+    winddirection_name
+]
+
+
 # Data descriptors
 # ================
 # Use OrderedDict to correctly associate columns with data. Data columns
@@ -63,6 +68,7 @@ Gill_R3_50 = OrderedDict(
     Ts=lambda Ts: 273.15 + Ts, # virtual sonic temperature [deg C]
     qc=1, # basic quality control code: 0 - OK, 1 - sonic bad data code, 2 - broken data line, and 3 - missed line
 )
+
 
 def read_data(fpath, column_spec,
               height=None, multi_index=False,
