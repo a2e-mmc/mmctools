@@ -71,7 +71,7 @@ Gill_R3_50 = OrderedDict(
 
 
 def read_data(fpath, column_spec,
-              height=None, multi_index=False,
+              height=None, multi_index=True,
               datetime_start='', datetime_start_format='',
               data_freq=None, max_data_rows=None, output_freq=None,
               datetime=None, datetime_offset=None,
@@ -230,8 +230,7 @@ def read_data(fpath, column_spec,
     df = df.loc[datetime_range]
 
     # set height column (and multi-index)
-    if height is not None:
-        df[height_name] = height
+    df[height_name] = height
     if height and multi_index:
         df = df.set_index([datetime_name,height_name])
     else:
@@ -252,18 +251,36 @@ def read_data(fpath, column_spec,
 
     return df
 
-def standard_output(df):
+
+def standard_output(df,output=None,**kwargs):
     """Proposed workflow for "step 1", which entails reading, combining,
     and standardizing data prior to analysis:
-        df = read_data()
+        df = metmast.read_data()
+        # - at this point, the data should have standard columns, with standard
+        #   names, in standard units
         df['calculated_data'] = some_postprocessing()
-        standard_output(df).to_csv()
-        standard_output(df).to_xarray().to_netcdf()
+        # - we may have additional nonstandard columns at this point containing
+        #   measured and/or derived quantities
+        standard_output(df)
+        # Output type will be dictated by the output file extension
+        standard_output(df,'/path/to/data.csv')
+        standard_output(df,'/path/to/data.nc')
     """
-    output_columns = [datetime_name,height_name,windspeed_name,winddirection_name]
+    index_names = df.index.names
+    df = df.reset_index()
     column_list = list(df.columns)
-    for col in output_columns: 
+    for col in standard_output_columns: 
         column_list.remove(col)
-    output_columns += column_list
-    return df[column_list]
+    output_columns = standard_output_columns + column_list
+    df = df[output_columns].set_index(index_names)
+    if output is None:
+        return df
+    else:
+        _,ext = os.path.splitext(output)        
+        if ext == '.csv':
+            df.to_csv(output,**kwargs)
+        elif ext == '.nc':
+            df.to_xarray().to_netcdf(output,**kwargs)
+        else:
+            raise NotImplementedError('Output extension {:s} not supported'.format(ext))
 
