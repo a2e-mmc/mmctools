@@ -89,8 +89,8 @@ def read_data(fpath, column_spec,
         Filename passed to pandas.read_csv()
     column_spec : OrderedDict
         Pairs of column names and data formats
-    height : float, optional
-        Height to associate with this data (column will be added)
+    height : float
+        Height to associate with this data
     multi_index : bool, optional
         If height is specified, then return a pandas.DataFrame with a
         MultiIndex
@@ -107,8 +107,9 @@ def read_data(fpath, column_spec,
     data_freq : str, optional
         Assuming data were recorded at regular intervals, the time
         between samples described by a pandas offset string; used with
-        datetime_start to create a DatetimeIndex when no date or time
-        information are included in the datafile
+        datetime_start to create a DatetimeIndex when date or time
+        information are not included in the datafile (or to overwrite
+        the data)
     max_data_rows : int, optional
         Maximum rows to process from datafile
     datetime_offset : float, optional
@@ -175,7 +176,7 @@ def read_data(fpath, column_spec,
         # use user-specified datetime
         df[datetime_name] = datetime
     elif datetime_start and data_freq:
-        # use user-specified start datetime and time interval ('freq')
+        # use user-specified start datetime and time interval ('data_freq')
         # specified by a pandas offset string
         # ref: http://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects
         datetime_start = pd.to_datetime(datetime_start,
