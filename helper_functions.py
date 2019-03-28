@@ -41,13 +41,13 @@ def T_d(T, RH, celsius=False, model='NWS'):
     are in Kelvin.
     """
     if model == 'NWS':
+        es = e_s(T, celsius, model='NWS')
         if not celsius:
             T -= 273.15
         # from https://www.weather.gov/media/epz/wxcalc/virtualTemperature.pdf
         # - note the expression for vapor pressure is the saturation vapor
         #   pressure expression, with Td instead of T
         # - should the coefficient be 237.3 or 237.7?
-        es = e_s(T, model='NWS')
         e = RH/100. * es
         denom = 7.5*np.log(10) - np.log(e/6.11)
         Td = 237.3 * np.log(e/6.11) / denom
