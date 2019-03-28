@@ -9,10 +9,17 @@ import pandas as pd
 epsilon = 0.622 # ratio of molecular weights of water to dry air
 
 
-def e_s(T_degC, model='Bolton1980'):
-    """Calculate the saturation vapor pressure of water, $e_s$ [mbar]
-    given the air temperature in celsius.
+def e_s(T, celsius=False, model='Bolton1980'):
+    """Calculate the saturation vapor pressure of water, $e_s$ [mb]
+    given the air temperature.
     """
+    if celsius:
+        # input is deg C
+        T_degC = T
+        T = T + 273.15
+    else:
+        # input is in Kelvin
+        T_degC = T - 273.15
     if model == 'Bolton1980':
         # Eqn 10 from Bolton (1980), Mon. Weather Rev., Vol 108
         es = 6.112 * np.exp(17.67*T_degC / (T_degC + 243.5))
@@ -27,7 +34,7 @@ def e_s(T_degC, model='Bolton1980'):
     return es
 
 
-def T_d(T, RH, model='NWS', celsius=False):
+def T_d(T, RH, celsius=False, model='NWS'):
     """Calculate the dewpoint temperature, $T_d$, from air temperature
     and relative humidity [%]. If celsius is True, input and output 
     temperatures are in degrees Celsius; otherwise, inputs and outputs
