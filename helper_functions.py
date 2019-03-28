@@ -58,6 +58,15 @@ def T_d(T, RH, celsius=False, model='NWS'):
     return Td
 
 
+def w_s(T,p,celsius=False):
+    """Calculate the saturation mixing ratio, $w_s$ [kg/kg] given the
+    air temperature and station pressure [mb].
+    """
+    es = e_s(T,celsius)
+    # From Wallace & Hobbs, Eqn 3.63
+    return epsilon * es / (p - es)
+
+
 def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
             verbose=False):
     """Convert moist air temperature [K] to virtual temperature [K].
@@ -76,8 +85,7 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
             es_est = e_s(T_degC, model='NWS')
             print('e_s(T) =',es,'est',es_est)
         # saturation mixing ratio, ws [-]
-        #   Wallace & Hobbs, Eqn 3.63
-        ws = epsilon * es / (p - es)
+        ws = w_s(T, p)
         if verbose:
             print('w_s(T,p) =',ws,'est',epsilon*es/p)
         # mixing ratio, w, from definition of relative humidity
