@@ -134,6 +134,10 @@ def read_data(fpath, column_spec,
         if fmt==1:
             #description.append('read column {:s}'.format(col))
             continue
+        elif isinstance(fmt,(int,float)):
+            # convert to standard units
+            description.append('scaled column {:s} by factor of {:g}'.format(col,1./fmt))
+            df[col] = df[col] / fmt
         elif callable(fmt):
             # apply function to column
             funcdesc = inspect.getsource(fmt)
@@ -141,10 +145,6 @@ def read_data(fpath, column_spec,
             funcdesc = funcdesc[eqidx+1:].strip()
             description.append('applied function ({:s}) to column {:s}'.format(funcdesc,col))
             df[col] = df[col].apply(fmt)
-        elif isinstance(fmt,float):
-            # convert to standard units
-            description.append('scaled column {:s} by factor of {:g}'.format(col,1./fmt))
-            df[col] = df[col] / fmt
         elif isinstance(fmt,str):
             # collect datetime column names
             #description.append('read datetime-related column {:s}'.format(col))
