@@ -78,6 +78,7 @@ def read_data(fpath, column_spec,
               datetime=None, datetime_offset=None,
               start=pd.datetime(1990,1,1), end=pd.datetime.today(),
               return_description=False,
+              verbose=False,
               **kwargs):
     """Read in data (e.g., output from a sonic anemometer) at a height
     on the met mast and standardize outputs
@@ -157,10 +158,12 @@ def read_data(fpath, column_spec,
             ((datetime is None) and ((datetime_start is None) or (data_freq is None))):
         raise ValueError('No datetime data in file; need to specify datetime, or datetime_start and data_freq')
     elif (len(datetime_columns) > 0) and (datetime is not None):
-        print('Note: datetime specified; datetime information in datafile ignored')
+        if verbose:
+            print('Note: datetime specified; datetime information in datafile ignored')
     elif (len(datetime_columns) > 0) and \
             (datetime_start is not None) and (data_freq is not None):
-        print('Note: datetime_start and data_freq specified; datetime information in datafile ignored')
+        if verbose:
+            print('Note: datetime_start and data_freq specified; datetime information in datafile ignored')
 
     if callable(datetime_start):
         # parse datetime from file name
@@ -187,7 +190,7 @@ def read_data(fpath, column_spec,
     elif (date_name in datetime_columns) and (time_name in datetime_columns):
         # we have separate date and time columns
         if datetime_start is not None:
-            print('Ignored specified datetime_start')
+            if verbose: print('Ignored specified datetime_start')
         date_format = column_spec[date_name]
         time_format = column_spec[time_name]
         df[datetime_name] = pd.to_datetime(df[date_name]+df[time_name],
