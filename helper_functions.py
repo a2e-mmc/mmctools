@@ -68,26 +68,30 @@ def w_s(T,p,celsius=False):
 
 
 def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
-            verbose=False):
-    """Convert moist air temperature [K] to virtual temperature [K].
+            celsius=False,verbose=False):
+    """Convert moist air temperature to virtual temperature.
     
     Formulas based on given total (or "station") pressure (p [mbar]) and
     relative humidity (RH [%]); mixing ratio (w [kg/kg]); or partial
     pressures of water vapor and dry air (e, pd [mbar]); or dewpoint
-    temperature (Td [K]).
+    temperature (Td).
     """
+    if celsius:
+        T_degC = T
+        T += 273.15
+    else:
+        T_degC = T - 273.15
     if (p is not None) and (RH is not None):
         # saturation vapor pressure of water, e_s [mbar]
-        T_degC = T - 273.15
-        es = e_s(T_degC)
+        es = e_s(T)
         if verbose:
             # sanity check!
-            es_est = e_s(T_degC, model='NWS')
-            print('e_s(T) =',es,'est',es_est)
+            es_est = e_s(T, model='NWS')
+            print('e_s(T) =',es,'~=',es_est)
         # saturation mixing ratio, ws [-]
         ws = w_s(T, p)
         if verbose:
-            print('w_s(T,p) =',ws,'est',epsilon*es/p)
+            print('w_s(T,p) =',ws,'~=',epsilon*es/p)
         # mixing ratio, w, from definition of relative humidity
         w = (RH/100.) * ws
         if verbose:
@@ -111,12 +115,16 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
         # https://www.weather.gov/media/epz/wxcalc/vaporPressure.pdf
         # - where do these equations come from?
         # - is it 237.3 or 237.7?
-        Td_degC = Td - 273.15
+        Td_degC = Td
+        if not celsius:
+            Td_degC -= 273.15
         e = 6.11 * 10**(7.5*Td_degC/(237.7+Td_degC))
         # Calculate from definition of virtual temperature
         Tv = T_to_Tv(T,e=e,p=p)
     else:
         raise ValueError('Specify (RH,p) or (e,p) or (w,), or (Td,p)')
+    if celsius:
+        Tv -= 273.15
     return Tv
 
 
