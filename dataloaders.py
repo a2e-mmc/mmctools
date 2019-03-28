@@ -43,7 +43,7 @@ def read_dir(dpath='.',file_filter='*',
         if verbose:
             print('Reading '+fpath)
         try:
-            df = reader(fpath,**kwargs)
+            df = reader(fpath,verbose=verbose,**kwargs)
         except reader_exceptions as err:
             print(err,'while reading',fpath)
         dataframes.append(df)
@@ -95,7 +95,7 @@ def read_date_dirs(dpath='.',dir_filter='*',
                     if verbose:
                         print('  reading '+fname)
                     try:
-                        df = reader(fpath,**kwargs)
+                        df = reader(fpath,verbose=verbose,**kwargs)
                     except reader_exceptions as err:
                         print('Reader error {:s}: {:s} while reading {:s}'.format(
                                 str(type(err)),str(err),fname))
