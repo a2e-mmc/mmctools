@@ -223,6 +223,9 @@ def read_data(fpath, column_spec,
         datetime_format = datetime_start_format \
                 + ''.join([column_spec[col] for col in datetime_columns])
         # - create datetime series
+        if verbose:
+            print('Attempting to parse datetime with format"{:s}"'.format(datetime_format))
+            print(datetime)
         df[datetime_name] = pd.to_datetime(datetime, format=datetime_format)
         df = df.drop(columns=datetime_columns)
 
