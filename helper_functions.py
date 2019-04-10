@@ -24,6 +24,10 @@ def e_s(T, celsius=False, model='Tetens'):
         # Eqn 10 from Bolton (1980), Mon. Weather Rev., Vol 108
         # - applicable from -30 to 35 deg C
         svp = 6.112 * np.exp(17.67*T_degC / (T_degC + 243.5))
+    elif model == 'Magnus':
+        # Eqn 21 from Alduchov and Eskridge (1996), J. Appl. Meteorol., Vol 35
+        # - AERK formulation, applicable from -40 to 50 deg C
+        svp = 6.1094 * np.exp(17.625*T_degC / (243.04 + T_degC))
     elif model == 'Tetens':
         # Tetens' formula, e.g., from the National Weather Service:
         # https://www.weather.gov/media/epz/wxcalc/vaporPressure.pdf
@@ -84,6 +88,8 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
         if verbose:
             # sanity check!
             es_est = e_s(T, model='Bolton')
+            print('e_s(T) =',es,'~=',es_est)
+            es_est = e_s(T, model='Magnus')
             print('e_s(T) =',es,'~=',es_est)
         # saturation mixing ratio, ws [-]
         ws = w_s(T, p)
