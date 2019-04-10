@@ -9,7 +9,7 @@ import pandas as pd
 epsilon = 0.622 # ratio of molecular weights of water to dry air
 
 
-def e_s(T, celsius=False, model='Bolton1980'):
+def e_s(T, celsius=False, model='Tetens'):
     """Calculate the saturation vapor pressure of water, $e_s$ [mb]
     given the air temperature.
     """
@@ -20,18 +20,17 @@ def e_s(T, celsius=False, model='Bolton1980'):
     else:
         # input is in Kelvin
         T_degC = T - 273.15
-    if model == 'Bolton1980':
+    if model == 'Bolton':
         # Eqn 10 from Bolton (1980), Mon. Weather Rev., Vol 108
-        es = 6.112 * np.exp(17.67*T_degC / (T_degC + 243.5))
-    elif model == 'NWS':
-        # From National Weather Service
+        # - applicable from -30 to 35 deg C
+        svp = 6.112 * np.exp(17.67*T_degC / (T_degC + 243.5))
+    elif model == 'Tetens':
+        # Tetens' formula, e.g., from the National Weather Service:
         # https://www.weather.gov/media/epz/wxcalc/vaporPressure.pdf
-        # - where do these equations come from?
-        # - is it 237.3 or 237.7?
-        es = 6.11 * 10**(7.5*T_degC/(237.3+T_degC))
+        svp = 6.11 * 10**(7.5*T_degC/(237.3+T_degC))
     else:
         raise ValueError('Unknown model: {:s}'.format(model))
-    return es
+    return svp
 
 
 def T_d(T, RH, celsius=False, model='NWS'):
@@ -42,10 +41,10 @@ def T_d(T, RH, celsius=False, model='NWS'):
     """
     if model == 'NWS':
         es = e_s(T, celsius, model='NWS')
-        # from https://www.weather.gov/media/epz/wxcalc/virtualTemperature.pdf
+        # From National Weather Service, using Tetens' formula:
+        # https://www.weather.gov/media/epz/wxcalc/virtualTemperature.pdf
         # - note the expression for vapor pressure is the saturation vapor
         #   pressure expression, with Td instead of T
-        # - should the coefficient be 237.3 or 237.7?
         e = RH/100. * es
         denom = 7.5*np.log(10) - np.log(e/6.11)
         Td = 237.3 * np.log(e/6.11) / denom
@@ -84,7 +83,7 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
         es = e_s(T)
         if verbose:
             # sanity check!
-            es_est = e_s(T, model='NWS')
+            es_est = e_s(T, model='Bolton')
             print('e_s(T) =',es,'~=',es_est)
         # saturation mixing ratio, ws [-]
         ws = w_s(T, p)
@@ -109,14 +108,12 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
         # Using Wallace & Hobbs, Eqn 3.59 substituted into 3.16
         Tv = T * (w/epsilon + 1) / (1 + w)
     elif (Td is not None) and (p is not None):
-        # From National Weather Service
+        # From National Weather Service, using Tetens' formula:
         # https://www.weather.gov/media/epz/wxcalc/vaporPressure.pdf
-        # - where do these equations come from?
-        # - is it 237.3 or 237.7?
         Td_degC = Td
         if not celsius:
             Td_degC -= 273.15
-        e = 6.11 * 10**(7.5*Td_degC/(237.7+Td_degC))
+        e_s(Td_degC, model='Tetens')
         # Calculate from definition of virtual temperature
         Tv = T_to_Tv(T,e=e,p=p)
     else:
