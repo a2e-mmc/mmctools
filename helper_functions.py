@@ -123,7 +123,7 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
         # Calculate from definition of virtual temperature
         Tv = T_to_Tv(T,e=e,p=p)
     else:
-        raise ValueError('Specify (RH,p) or (e,p) or (w,), or (Td,p)')
+        raise ValueError('Specify (T,RH,p) or (T,e,p) or (T,w), or (T,Td,p)')
     if celsius:
         Tv -= 273.15
     return Tv
