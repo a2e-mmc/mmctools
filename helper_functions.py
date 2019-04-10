@@ -44,7 +44,7 @@ def T_d(T, RH, celsius=False, model='NWS'):
     are in Kelvin.
     """
     if model == 'NWS':
-        es = e_s(T, celsius, model='NWS')
+        es = e_s(T, celsius, model='Tetens')
         # From National Weather Service, using Tetens' formula:
         # https://www.weather.gov/media/epz/wxcalc/virtualTemperature.pdf
         # - note the expression for vapor pressure is the saturation vapor
@@ -119,7 +119,7 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
         Td_degC = Td
         if not celsius:
             Td_degC -= 273.15
-        e_s(Td_degC, model='Tetens')
+        e = e_s(Td_degC, celsius=True, model='Tetens')
         # Calculate from definition of virtual temperature
         Tv = T_to_Tv(T,e=e,p=p)
     else:
