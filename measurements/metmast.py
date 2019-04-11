@@ -9,9 +9,11 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 
-# TODO:
-# - standardize units
-# - standardize quantities (air temperature vs virtual temperature etc)
+# TODO: Decide on
+# - standardized units
+# - standardized quantities (air temperature vs virtual temperature etc)
+# - what to do with extra nonstandard quantities
+# - should timestamps correspond to the beginning of statistics interval
 
 datetime_name = 'datetime'
 date_name = 'date' # for building datetime from separate columns
@@ -19,6 +21,7 @@ time_name = 'time' # for building datetime from separate columns
 height_name = 'height'
 windspeed_name = 'wspd'
 winddirection_name = 'wdir'
+sonictemperature_name = 'Ts'
 
 standard_output_columns = [
     datetime_name,
@@ -38,7 +41,7 @@ standard_output_columns = [
 # - None: ignore column
 
 Metek_USA1 = OrderedDict(
-    v=100, # units are cm/s, i.e., 100*[m/s]
+    v=100, # units are [cm/s], i.e., 100*[m/s]
     u=100, 
     w=100,
     Ts=lambda Ts: 273.15 + Ts/100, # sonic temperature, 100*[deg C]
