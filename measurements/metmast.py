@@ -199,6 +199,7 @@ def read_data(fpath, column_spec,
         time_format = column_spec[time_name]
         df[datetime_name] = pd.to_datetime(df[date_name]+df[time_name],
                                            format=date_format+time_format)
+        df = df.drop(columns=[date_name,time_name])
     else:
         # try to cobble together datetime information from all text columns
         # - convert datetime columns into string type (so that we can add them
