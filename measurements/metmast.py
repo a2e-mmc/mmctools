@@ -9,9 +9,11 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 
-# TODO:
-# - standardize units
-# - standardize quantities (air temperature vs virtual temperature etc)
+# TODO: Decide on
+# - standardized units
+# - standardized quantities (air temperature vs virtual temperature etc)
+# - what to do with extra nonstandard quantities
+# - should timestamps correspond to the beginning of statistics interval
 
 datetime_name = 'datetime'
 date_name = 'date' # for building datetime from separate columns
@@ -19,6 +21,7 @@ time_name = 'time' # for building datetime from separate columns
 height_name = 'height'
 windspeed_name = 'wspd'
 winddirection_name = 'wdir'
+sonictemperature_name = 'Ts'
 
 standard_output_columns = [
     datetime_name,
@@ -38,7 +41,7 @@ standard_output_columns = [
 # - None: ignore column
 
 Metek_USA1 = OrderedDict(
-    v=100, # units are cm/s, i.e., 100*[m/s]
+    v=100, # units are [cm/s], i.e., 100*[m/s]
     u=100, 
     w=100,
     Ts=lambda Ts: 273.15 + Ts/100, # sonic temperature, 100*[deg C]
@@ -156,13 +159,13 @@ def read_data(fpath, column_spec,
         else:
             raise TypeError('Unexpected column name/format:',(col,fmt))
     if (len(datetime_columns) == 0) and \
-            ((datetime is None) and ((datetime_start is None) or (data_freq is None))):
+            ((datetime is None) and ((datetime_start=='') or (data_freq is None))):
         raise ValueError('No datetime data in file; need to specify datetime, or datetime_start and data_freq')
     elif (len(datetime_columns) > 0) and (datetime is not None):
         if verbose:
             print('Note: datetime specified; datetime information in datafile ignored')
     elif (len(datetime_columns) > 0) and \
-            (datetime_start is not None) and (data_freq is not None):
+            (datetime_start != '') and (data_freq is not None):
         if verbose:
             print('Note: datetime_start and data_freq specified; datetime information in datafile ignored')
 
@@ -190,12 +193,13 @@ def read_data(fpath, column_spec,
                                            format=datetime_format)
     elif (date_name in datetime_columns) and (time_name in datetime_columns):
         # we have separate date and time columns
-        if datetime_start is not None:
-            if verbose: print('Ignored specified datetime_start')
+        if datetime_start != '':
+            if verbose: print('Ignored specified datetime_start',datetime_start)
         date_format = column_spec[date_name]
         time_format = column_spec[time_name]
         df[datetime_name] = pd.to_datetime(df[date_name]+df[time_name],
                                            format=date_format+time_format)
+        df = df.drop(columns=[date_name,time_name])
     else:
         # try to cobble together datetime information from all text columns
         # - convert datetime columns into string type (so that we can add them
