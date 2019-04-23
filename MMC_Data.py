@@ -30,7 +30,8 @@ class MMC_Data():
    def __init__(self,pklData={}):
        self.dataDict = collections.defaultdict(list)
        
-       self.dataSetLength = len(pklData)-1
+       #JAS_Trying to get all records... self.dataSetLength = len(pklData)-1
+       self.dataSetLength = len(pklData)
        self.dataSetDict = pklData[0]
        self.dataRecordDict = []
        time=[]
@@ -130,19 +131,24 @@ class MMC_Data():
    def setRunningMeans(self,windowLength,levels):
    #def getDataSetRunningMean(self,windowLength,levels, start_datetime,stop_datetime):
        for k in range(levels):
+          #print("setRunningMeans: k = {:d}".format(k))
           self.dataDict['u_mean'][:,k] = running_mean(self.dataDict['u'][:,k],windowLength)
           self.dataDict['v_mean'][:,k] = running_mean(self.dataDict['v'][:,k],windowLength)
           self.dataDict['w_mean'][:,k] = running_mean(self.dataDict['w'][:,k],windowLength)
           self.dataDict['theta_mean'][:,k] = running_mean(self.dataDict['theta'][:,k],windowLength) 
-#       self.tke_mean = self.tke
-#       self.hflux_mean = self.hflux
-#       self.uu_mean = self.tau11
-#       self.uv_mean = self.tau12
-#       self.uw_mean = self.tau13
-#       self.vv_mean = self.tau22
-#       self.vw_mean = self.tau23
-#       self.ww_mean = self.tau33
-#       self.wt_mean = self.hflux
+          self.dataDict['tke_mean'][:,k] = running_mean(self.dataDict['tke'][:,k],windowLength)
+          self.dataDict['hflux_mean'][:,k] = running_mean(self.dataDict['hflux'][:,k],windowLength)
+          self.dataDict['uu_mean'][:,k] = running_mean( np.square(np.subtract(self.dataDict['u'][:,k],self.dataDict['u_mean'][:,k])),windowLength)
+          self.dataDict['uv_mean'][:,k] = running_mean( np.multiply(np.subtract(self.dataDict['u'][:,k],self.dataDict['u_mean'][:,k]),
+                                                                np.subtract(self.dataDict['v'][:,k],self.dataDict['v_mean'][:,k])) ,windowLength)
+          self.dataDict['uw_mean'][:,k] = running_mean( np.multiply(np.subtract(self.dataDict['u'][:,k],self.dataDict['u_mean'][:,k]),
+                                                                np.subtract(self.dataDict['w'][:,k],self.dataDict['w_mean'][:,k])) ,windowLength)
+          self.dataDict['vv_mean'][:,k] = running_mean( np.square(np.subtract(self.dataDict['v'][:,k],self.dataDict['v_mean'][:,k])),windowLength)
+          self.dataDict['vw_mean'][:,k] = running_mean( np.multiply(np.subtract(self.dataDict['v'][:,k],self.dataDict['v_mean'][:,k]),
+                                                                np.subtract(self.dataDict['w'][:,k],self.dataDict['w_mean'][:,k])) ,windowLength)
+          self.dataDict['ww_mean'][:,k] = running_mean( np.square(np.subtract(self.dataDict['w'][:,k],self.dataDict['w_mean'][:,k])),windowLength)
+          self.dataDict['wt_mean'][:,k] = running_mean( np.multiply(np.subtract(self.dataDict['w'][:,k],self.dataDict['w_mean'][:,k]),
+                                                                np.subtract(self.dataDict['theta'][:,k],self.dataDict['theta_mean'][:,k])) ,windowLength)
        self.dataDict['wspd_mean'] = np.sqrt(np.square(self.dataDict['u_mean'])+np.square(self.dataDict['v_mean']))
        #self.dataDict['wdir_mean'] = np.arctan2(self.dataDict['v_mean'],self.dataDict['u_mean'])*180./np.pi+180.0   #From Branko's original, but this seems incorrect...
        self.dataDict['wdir_mean'] = (270.0-np.arctan2(self.dataDict['v_mean'],self.dataDict['u_mean'])*180./np.pi)%360  
