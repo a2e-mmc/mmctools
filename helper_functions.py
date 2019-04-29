@@ -157,7 +157,7 @@ def fit_power_law_alpha(z,U,zref=80.0,Uref=8.0):
     above0 = (z > 0)
     logz = np.log(z[above0]) - np.log(zref)
     logU = np.log(U[above0]) - np.log(Uref)
-    fun = lambda xdata,alpha: alpha*xdata
+    fun = lambda logz,alpha: alpha*logz
     popt, pcov = curve_fit(fun, xdata=logz, ydata=logU,
                            p0=0.2, bounds=(0,np.inf))
     alpha = popt[0]
