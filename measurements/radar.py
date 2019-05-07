@@ -46,7 +46,10 @@ def profiler(fname,scans=None,
                 scans_to_read = np.arange(scans)
                 scans = scans_to_read
             for i in scans_to_read:
-                df = _read_profiler_data_block(f)
+                try:
+                    df = _read_profiler_data_block(f)
+                except (IOError,IndexError):
+                    break
                 if i in scans:
                     if verbose:
                         print('Adding scan',i)
