@@ -49,11 +49,11 @@ def profiler(fname,scans=None,
                 df = _read_profiler_data_block(f)
                 if i in scans:
                     if verbose:
-                        print('Adding mode',i)
+                        print('Adding scan',i)
                     dataframes.append(df)
                 else:
                     if verbose:
-                        print('Skipping mode',i)
+                        print('Skipping scan',i)
         else:
             # read all scans
             i = 0
@@ -64,7 +64,7 @@ def profiler(fname,scans=None,
                     break
                 else:
                     if verbose:
-                        print('Read mode',i)
+                        print('Read scan',i)
                     i += 1
     df = pd.concat(dataframes)
     if na_values is not None:
