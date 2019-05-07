@@ -97,7 +97,7 @@ def _read_profiler_data_block(f,expected_datatypes=['WINDS','RASS']):
     assert(f.readline().split()[0] in expected_datatypes) # Line 3: WINDS, version
     f.readline() # Line 4: lat (N), long (W), elevation (m)
     Y,m,d,H,M,S,_ = f.readline().split() # Line 5: date
-    date_time = pd.to_datetime('20{}{}{} {}{}{}'.format(Y,m,d,H,M,S))
+    datetime = pd.to_datetime('20{}{}{} {}{}{}'.format(Y,m,d,H,M,S))
     f.readline() # Line 6: consensus averaging time
     f.readline() # Line 7: beam info
     f.readline() # Line 8: beam info
@@ -114,5 +114,5 @@ def _read_profiler_data_block(f,expected_datatypes=['WINDS','RASS']):
         block.append(line.split())
         line = f.readline()
     df = pd.DataFrame(data=block,columns=header,dtype=float)
-    df['date_time'] = date_time
+    df['datetime'] = datetime
     return df
