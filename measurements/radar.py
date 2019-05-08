@@ -35,11 +35,18 @@ def profiler(fname,scans=None,
         Column names from file to check for n/a or nan values
     na_values : values or list of values
         Values to be considered n/a and set to nan
-    read_scan_properties : bool, optional
-        Read scan properties for each data block
+    read_scan_properties : bool, list, optional
+        Read scan properties for each data block if True or an existing
+        scan information list is provided (to be updated)
     """
     dataframes = []
-    scantypes, scan_type_id = [], []
+    if read_scan_properties == True:
+        scantypes = []
+    else:
+        # scantypes provided as a list of dicts
+        assert isinstance(read_scan_properties, list)
+        scantypes = read_scan_properties
+        read_scan_properties = True
     def match_scan_type(newscan):
         assert (newscan is not None)
         match = False
@@ -48,12 +55,12 @@ def profiler(fname,scans=None,
                 match = True
                 break
         if match:
-            scan_type_id.append(itype)
+            scantypeid = itype
         else:
             # new scan type
-            scan_type_id.append(len(scantypes))
             scantypes.append(newscan)
-        return scan_type_id[-1]
+            scantypeid = len(scantypes)-1
+        return scantypeid
     with open(fname,'r') as f:
         if scans is not None:
             if hasattr(scans,'__iter__'):
@@ -113,13 +120,10 @@ def profiler(fname,scans=None,
                 if verbose:
                     print('Checking',col,'for',val)
                 df.loc[df[col]==val,col] = np.nan # flag bad values
-    if read_scan_properties:
-        if verbose:
-            for itype,scantype in enumerate(scantypes):
-                print('scan type',itype,scantype)
-        return df#, scantypes
-    else:
-        return df
+    if read_scan_properties and verbose:
+        for itype,scantype in enumerate(scantypes):
+            print('scan type',itype,scantype)
+    return df
 
 def _read_profiler_data_block(f, read_scan_properties=False,
                               expected_datatypes=['WINDS','RASS']):
