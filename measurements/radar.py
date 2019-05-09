@@ -151,24 +151,44 @@ def _read_profiler_data_block(f, read_scan_properties=False,
         num_records = [int(item.split(':')[0]) for item in lineitems[::2]]
         tot_records = [int(item.split(':')[1]) for item in lineitems[::2]]
         cns_window_size = [float(item.strip('()')) for item in lineitems[1::2]]
-        # Line 8: processing info (oblique/vertical pairs)
-        lineitems = [int(val) for val in f.readline().split()]
-        num_coherent_integrations = lineitems[:2]
-        num_spectral_averages = lineitems[2:4]
-        pulse_width = lineitems[4:6] # [ns]
-        inner_pulse_period = lineitems[6:8] # [ms]
-        # Line 9: processing info (oblique/vertical pairs)
-        lineitems = f.readline().split()
-        doppler_value = [float(val) for val in lineitems[:2]] # [m/s]
-        vertical_correction = bool(lineitems[2])
-        delay = [int(val) for val in lineitems[3:5]] # [ns]
-        num_gates = [int(val) for val in lineitems[5:7]]
-        gate_spacing = [int(val) for val in lineitems[7:9]] # [ns]
-        # Line 10: for each beam: azimuth, elevation
-        lineitems = [float(val) for val in f.readline().split()]
-        assert len(lineitems) == 2*num_beams
-        beam_azimuth = lineitems[::2] # [deg]
-        beam_elevation = lineitems[1::2] # [deg]
+        if datatype=='WINDS':
+            # Line 8: processing info (oblique/vertical pairs)
+            lineitems = [int(val) for val in f.readline().split()]
+            num_coherent_integrations = lineitems[:2]
+            num_spectral_averages = lineitems[2:4]
+            pulse_width = lineitems[4:6] # [ns]
+            inner_pulse_period = lineitems[6:8] # [ms]
+            # Line 9: processing info (oblique/vertical pairs)
+            lineitems = f.readline().split()
+            doppler_value = [float(val) for val in lineitems[:2]] # [m/s]
+            vertical_correction = bool(lineitems[2])
+            delay = [int(val) for val in lineitems[3:5]] # [ns]
+            num_gates = [int(val) for val in lineitems[5:7]]
+            gate_spacing = [int(val) for val in lineitems[7:9]] # [ns]
+            # Line 10: for each beam: azimuth, elevation
+            lineitems = [float(val) for val in f.readline().split()]
+            assert len(lineitems) == 2*num_beams
+            beam_azimuth = lineitems[::2] # [deg]
+            beam_elevation = lineitems[1::2] # [deg]
+        elif datatype=='RASS':
+            # Line 8: processing info
+            lineitems = [int(val) for val in f.readline().split()]
+            num_coherent_integrations = lineitems[0]
+            num_spectral_averages = lineitems[1]
+            pulse_width = lineitems[2] # [ns]
+            inner_pulse_period = lineitems[3] # [ms]
+            # Line 9: processing info (oblique/vertical pairs)
+            lineitems = f.readline().split()
+            doppler_value = float(lineitems[0]) # [m/s]
+            vertical_correction = 'n/a'
+            delay = int(lineitems[1]) # [ns]
+            num_gates = int(lineitems[2])
+            gate_spacing = int(lineitems[3]) # [ns]
+            # Line 10: for each beam: azimuth, elevation
+            lineitems = [float(val) for val in f.readline().split()]
+            assert len(lineitems) == 2*num_beams
+            beam_azimuth = lineitems[::2] # [deg]
+            beam_elevation = lineitems[1::2] # [deg]
     else:
         f.readline()
         f.readline()
