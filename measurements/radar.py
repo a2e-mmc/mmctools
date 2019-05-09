@@ -194,6 +194,10 @@ def _read_profiler_data_block(f, read_scan_properties=False,
         scaninfo = {
             'station':name,
             'data_format':data_format,
+            # Line 6
+            'consensus_avg_time_min':cns_avg_time,
+            'num_beams':num_beams,
+            'num_range_gates':num_ranges,
             # Line 7
             'beam:reqd_records_for_consensus': num_records,
             'beam:tot_num_records': tot_records,
