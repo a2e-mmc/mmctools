@@ -134,7 +134,9 @@ def _read_profiler_data_block(f, read_scan_properties=False,
         # Line 2: station name
         name = f.readline().strip()
     # Line 3: WINDS, version
-    assert(f.readline().split()[0] in expected_datatypes)
+    data_format = f.readline().strip()
+    datatype = data_format.split()[0]
+    assert(datatype in expected_datatypes)
     # Line 4: lat (N), long (W), elevation (m)
     lat,lon,elev = [float(val) for val in f.readline().split()]
     # Line 5: date
@@ -190,6 +192,8 @@ def _read_profiler_data_block(f, read_scan_properties=False,
     # return data and header info if requested
     if read_scan_properties:
         scaninfo = {
+            'station':name,
+            'data_format':data_format,
             # Line 7
             'beam:reqd_records_for_consensus': num_records,
             'beam:tot_num_records': tot_records,
