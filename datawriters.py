@@ -41,7 +41,6 @@ def write_to_netCDF(nc_filename, data,
                     print(newvar[newvar == np.nan])
                 newvar[newvar == np.nan] = data['fillValue']
                 newvar.units = data['units'][vv]
-
     ncfile.createDimension('nchars',19)
     newvar[:] = data['time']
     ncfile.description = data['description']
@@ -52,4 +51,5 @@ def write_to_netCDF(nc_filename, data,
     ncfile.altitude    = data['altitude']
     ncfile.createdon   = datetime.now().strftime(standard_datetime_fmt)
     ncfile.createdby   = data['author']
+    ncfile.close()
 
