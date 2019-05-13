@@ -1,7 +1,9 @@
 """
 Standardized data output routines
 """
-from netCDF import Dataset
+from datetime import datetime
+import numpy as np
+from netCDF4 import Dataset
 
 standard_datetime_fmt = '%Y-%m-%d %H:%M:%S'
 
@@ -48,6 +50,6 @@ def write_to_netCDF(nc_filename, data,
     ncfile.latitude    = data['latitude']
     ncfile.longitude   = data['longitude']
     ncfile.altitude    = data['altitude']
-    ncfile.createdon   = datetime.datetime.now().strftime(standard_datetime_fmt)
+    ncfile.createdon   = datetime.now().strftime(standard_datetime_fmt)
     ncfile.createdby   = data['author']
 
