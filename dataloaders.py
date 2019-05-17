@@ -14,7 +14,6 @@ reader_exceptions = (IOError, UnicodeDecodeError, AssertionError, ValueError)
 
 def read_dir(dpath='.',file_filter='*',
              reader=pd.read_csv,
-             ext='csv',
              sort=True,
              verbose=False,
              **kwargs):
@@ -38,8 +37,6 @@ def read_dir(dpath='.',file_filter='*',
         fpathlist.sort()
     for fpath in fpathlist:
         if not os.path.isfile(fpath): continue
-        if not fpath.endswith(ext):
-            continue
         if verbose:
             print('Reading '+fpath)
         try:
