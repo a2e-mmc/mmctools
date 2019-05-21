@@ -139,8 +139,9 @@ def TTURawToMMC(path,startyear,startmonth,startday,outpath):
        if starttime == "23":
           endday='{:02d}'.format(int(startday)+1)
        endtime = endtimes[starttimes.index(starttime)]
-       filename = "TTU200m_{:s}_{:s}{:s}_{:s}00_{:s}{:s}_{:s}00.dat".format(startyear,startmonth,startday,starttime,\
-                                                                            endmonth,endday,endtime) 
+       #filename = "TTU200m_{:s}_{:s}{:s}_{:s}00_{:s}{:s}_{:s}00.dat".format(startyear,startmonth,startday,starttime,\
+       #                                                                     endmonth,endday,endtime) 
+       filename = "tower.z01.00.{:s}{:s}{:s}.{:s}0000.ttu200m.dat".format(startyear,startmonth,startday,starttime)
        pathandname = '{:s}/{:s}'.format(path,filename)
        filelines = file_len(pathandname)
        f = open(pathandname,'r')
