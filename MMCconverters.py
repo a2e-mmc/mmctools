@@ -36,12 +36,12 @@ def readMMC_fileheader(f):
     levels = int(head9[12:25].strip())
     print("levels: {:d}".format(levels))
 
-    fileheader={'lab':lab,'location':location,'latitude':latitude, \
-                'longitude':longitude,'codename':codename,         \
-                'codetype':codetype,'casename':casename,           \
+    fileheader={'lab':lab,'location':location,'latitude':latitude,
+                'longitude':longitude,'codename':codename,
+                'codetype':codetype,'casename':casename,
                 'benchmark':benchmark,'levels':levels }
 
-    return fileheader;
+    return fileheader
 
 ##############
 def readMMC_recordheader(f):
@@ -71,8 +71,8 @@ def readMMC_recordheader(f):
             if (i % 2) == 1:
                 varunits.append(varlist[i])
 
-        recordheader={'date':date,'time':time,'ustar':ustar,'z0':z0,  \
-                      'tskin':tskin,'hflux':hflux,'varnames':varnames, \
+        recordheader={'date':date,'time':time,'ustar':ustar,'z0':z0,
+                      'tskin':tskin,'hflux':hflux,'varnames':varnames,
                       'varunits':varunits}
     except:
         print("Error in readrecordheader... Check your datafile for bad records!!\n Lines read are")
@@ -83,7 +83,7 @@ def readMMC_recordheader(f):
         print("head5 = ",head5)
         print("head6 = ",head6)
         print("head7 = ",head7)
-    return recordheader;
+    return recordheader
 
 ##############
 def readMMC_records(f,Nlevels):
@@ -98,7 +98,7 @@ def readMMC_records(f,Nlevels):
         #print("len(record) = {:d}",len(record))
     recordarray=np.array(record).reshape(Nlevels,floor(len(record)/Nlevels))
     #print("recordarray.shape = ",recordarray.shape)
-    return recordarray;
+    return recordarray
 
 ##############
 def readMMC_database(f):
@@ -114,7 +114,7 @@ def readMMC_database(f):
         recordheader=readMMC_recordheader(f);
         recordarray = readMMC_records(f,fileheader['levels'])
         database.append([recordheader,recordarray])
-    return database;
+    return database
 
 def convertMMCToPickle(pathbase,year,dataDir,pklDir):
     inpath ="{pb:s}/{yr:s}/{dDir:s}/".format(pb=pathbase,yr=year,dDir=dataDir)
