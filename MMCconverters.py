@@ -92,7 +92,8 @@ def readMMC_records(f,Nlevels):
     for i in range(Nlevels):
         line = f.readline()
         #data = map(float,line.split())
-        [record.append(data) for data in map(float,line.split())]
+        for data in map(float,line.split()):
+            record.append(data)
         #print("len(data) = {:d}",len(data))
         #record.append(data)
         #print("len(record) = {:d}",len(record))
@@ -122,7 +123,8 @@ def convertMMCToPickle(pathbase,year,dataDir,pklDir):
     inDirContents = os.listdir(inpath)
     print("inpath: {:s}".format(inpath))
     print("--contains: {:d} files/directories".format(len(inDirContents)))    
-    [print("\t{:s}".format(item)) for item in inDirContents]
+    for item in inDirContents:
+        print("\t{:s}".format(item))
     print("\n")
     outDirContents = os.listdir(outpath)
     inCnt = 0
@@ -154,7 +156,8 @@ def convertMMCToPickle(pathbase,year,dataDir,pklDir):
     print("outpath: {:s}".format(outpath))
     outDirContents = os.listdir(outpath)
     print("--contains: {:d} files/directories".format(len(outDirContents)))
-    [print("\t{:s}".format(item)) for item in outDirContents]
+    for item in outDirContents:
+        print("\t{:s}".format(item))
     print("\n")
 
 def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
@@ -163,7 +166,8 @@ def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
     inDirContents = os.listdir(inpath)
     print("inpath: {:s}".format(inpath))
     print("--contains: {:d} files/directories".format(len(inDirContents)))
-    [print("\t{:s}".format(item)) for item in inDirContents]
+    for item in inDirContents:
+        print("\t{:s}".format(item))
     print("\n")
     outDirContents = os.listdir(outpath)
     inCnt = 0
@@ -195,7 +199,8 @@ def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
     print("outpath: {:s}".format(outpath))
     outDirContents = os.listdir(outpath)
     print("--contains: {:d} files/directories".format(len(outDirContents)))
-    [print("\t{:s}".format(item)) for item in outDirContents]
+    for item in outDirContents:
+        print("\t{:s}".format(item))
     print("\n")
 
 def dbToXarray(db):
@@ -222,7 +227,6 @@ def dbToXarray(db):
     coords['levels']=np.arange(0,db[0]['levels']).astype('int32')    
     xrDS=xr.Dataset(coords=coords)  #Set the coordinates of the xarrays DataSet as (Times and levels)
     for i in range(len(db[1][0]['varnames'])): #Add each variable field to the xarray-Dataset
-       
         xrDS[db[1][0]['varnames'][i]] = (('levels','Times'),bigArray[i,:,:])
     xrDS=xr.decode_cf(xrDS)  #Make sure the Times coordinate is of type  datetime64
     return(xrDS)
