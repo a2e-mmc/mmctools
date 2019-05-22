@@ -203,17 +203,24 @@ def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
         print("\t{:s}".format(item))
     print("\n")
 
-def dbToXarray(db):
+def dbToXarray(db,specified_date=None):
+    """Convert db to xarray
+
+    If specified_date is not None, then the Time array will use the
+    specified date; otherwise, the date will be read from the input 
+    database. This is used as a hack to handle LLNL's bogus dates and
+    times since the WRF run was 'ideal'.
+    """
     #Deal with the times by converting the metadata strings to datetime objects
     Times = np.ndarray([len(db)-1])
     for i in range(1,len(db)):
         #date_string='{:s} {:s}'.format(db[i][0]['date'],db[i][0]['time']).strip()
-        #time=dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S')
-        ###Hack to handle LLNL's bogus dates & times since the WRF run was 'ideal'
-        date_string = '{:s} {:s} {:s}'.format('2013-11-08',db[i][0]['time'].strip(),'UTC').strip()
-        #print("date_string = {:s}".format(date_string))
-        time = dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S %Z')
-        #### END HACK LLNL IDEAL WRF
+        if specified_date is None:
+            time = dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S')
+        else:
+            date_string = '{:s} {:s} {:s}'.format(specified_date,db[i][0]['time'].strip(),'UTC').strip()
+            #print("date_string = {:s}".format(date_string))
+            time = dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S %Z')
         time = time.replace(tzinfo=dt.timezone.utc)
         Times[i-1] = time.timestamp()
         #print(time.strftime('%m-%d-%Y %H:%M:%S'))
