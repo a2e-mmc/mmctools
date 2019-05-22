@@ -207,16 +207,16 @@ def dbToXarray(db):
     #Deal with the times by converting the metadata strings to datetime objects
     Times = np.ndarray([len(db)-1])
     for i in range(1,len(db)):
-       #date_string='{:s} {:s}'.format(db[i][0]['date'],db[i][0]['time']).strip()
-       #time=dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S')
-       ###Hack to handle LLNL's bogus dates & times since the WRF run was 'ideal'
-       date_string = '{:s} {:s} {:s}'.format('2013-11-08',db[i][0]['time'].strip(),'UTC').strip()
-       #print("date_string = {:s}".format(date_string))
-       time = dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S %Z')
-       #### END HACK LLNL IDEAL WRF
-       time = time.replace(tzinfo=dt.timezone.utc)
-       Times[i-1] = time.timestamp()
-       #print(time.strftime('%m-%d-%Y %H:%M:%S'))
+        #date_string='{:s} {:s}'.format(db[i][0]['date'],db[i][0]['time']).strip()
+        #time=dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S')
+        ###Hack to handle LLNL's bogus dates & times since the WRF run was 'ideal'
+        date_string = '{:s} {:s} {:s}'.format('2013-11-08',db[i][0]['time'].strip(),'UTC').strip()
+        #print("date_string = {:s}".format(date_string))
+        time = dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S %Z')
+        #### END HACK LLNL IDEAL WRF
+        time = time.replace(tzinfo=dt.timezone.utc)
+        Times[i-1] = time.timestamp()
+        #print(time.strftime('%m-%d-%Y %H:%M:%S'))
     bigArray = np.ndarray([len(db[1][0]['varnames']),db[0]['levels'],len(db)-1]) #array(flds,levels,times)
     for i in range(1,len(db)-1):
         bigArray[:,:,i-1] = db[i][1].transpose()
