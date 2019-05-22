@@ -13,6 +13,7 @@ import pickle
 
 ##############
 def readMMC_fileheader(f):
+    """Read header from legacy MMC file"""
     head1 = f.readline()
     head2 = f.readline()
     head3 = f.readline()
@@ -44,6 +45,7 @@ def readMMC_fileheader(f):
 
 ##############
 def readMMC_recordheader(f):
+    """Read a record from legacy MMC file"""
     try:
         head1 = f.readline()
         head2 = f.readline()
@@ -84,21 +86,23 @@ def readMMC_recordheader(f):
     return recordheader;
 
 ##############
-def readMMC_records(f,levels):
+def readMMC_records(f,Nlevels):
+    """Read specified number of records from legacy MMC file"""
     record=[]
-    for i in range(levels):
+    for i in range(Nlevels):
         line = f.readline()
         #data = map(float,line.split())
         [record.append(data) for data in map(float,line.split())]
         #print("len(data) = {:d}",len(data))
         #record.append(data)
         #print("len(record) = {:d}",len(record))
-    recordarray=np.array(record).reshape(levels,floor(len(record)/levels))
+    recordarray=np.array(record).reshape(Nlevels,floor(len(record)/Nlevels))
     #print("recordarray.shape = ",recordarray.shape)
     return recordarray;
 
 ##############
 def readMMC_database(f):
+    """Read entire legacy MMC file"""
     fileheader=readMMC_fileheader(f);
     database = [fileheader]
     l=0
