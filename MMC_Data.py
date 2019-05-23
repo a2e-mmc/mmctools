@@ -1,12 +1,13 @@
-#
-#
-#"""
-# MMC_Data.py
-# 
-# This Python source defines the MMC_Data class 
-# An instance of this class is a given set of 'observed' (via instrument or model) timeseries of U,V,W, and other state variables.
-# along with associated location (lat/lon), time, and elevation characteristics of the data stream 
-#"""
+"""
+MMC_Data.py
+ 
+This Python source defines the MMC_Data class 
+
+An instance of this class is a given set of 'observed' (via instrument
+or model) timeseries of U,V,W, and other state variables, along with
+associated location (lat/lon), time, and elevation characteristics of
+the data stream 
+"""
 
 #import os
 #import sys
@@ -23,9 +24,11 @@ from matplotlib.ticker import AutoMinorLocator
 #from sklearn import linear_model
 
 class MMC_Data():
-   """ A given set of 'observed' (via instrument or model) timeseries of U,V,W, and other state variables
-       and any 'derived' (via calculation methods) data like mean, perturbation, variance, correlations, 
-       etc... that are attributes (could be defined or missing a value) in a given MMC_Data instance
+   """A given set of 'observed' (via instrument or model) timeseries of
+   U,V,W, and other state variables and any 'derived' (via calculation
+   methods) data like mean, perturbation, variance, correlations, etc...
+   that are attributes (could be defined or missing a value) in a given
+   MMC_Data instance
    """
    def __init__(self,pklData={}):
        self.dataDict = collections.defaultdict(list)
@@ -121,13 +124,6 @@ class MMC_Data():
    def getRecordDict(self,recNum):
        return self.dataRecordDict[recNum]
 
-   def plotDataSetByKey(self,xVarKey,yVarKey):
-       plt.figure()
-       plt.plot(self.dataDict[xVarKey],self.dataDict[yVarKey],'bo-')
-       #plt.show(block=False)
-       plt.draw()
-       #plt.show()
-       #plt.pause(0.0001) 
    def setRunningMeans(self,windowLength,levels):
    #def getDataSetRunningMean(self,windowLength,levels, start_datetime,stop_datetime):
        for k in range(levels):
@@ -153,6 +149,19 @@ class MMC_Data():
        #self.dataDict['wdir_mean'] = np.arctan2(self.dataDict['v_mean'],self.dataDict['u_mean'])*180./np.pi+180.0   #From Branko's original, but this seems incorrect...
        self.dataDict['wdir_mean'] = (270.0-np.arctan2(self.dataDict['v_mean'],self.dataDict['u_mean'])*180./np.pi)%360  
 #       self.dataDict['shear_mean']=np.sqrt(np.square(self.uw_mean)+np.square(self.vw_mean))
+
+    #
+    # Plotting functions (TODO: move to plotting.py)
+    #
+
+   def plotDataSetByKey(self,xVarKey,yVarKey):
+       plt.figure()
+       plt.plot(self.dataDict[xVarKey],self.dataDict[yVarKey],'bo-')
+       #plt.show(block=False)
+       plt.draw()
+       #plt.show()
+       #plt.pause(0.0001) 
+
    def plotObsVsModelProfileAsSubplot(self,fig,axs,fldString,obsData,obsIndepVar,obsLabel,modelData,modelIndepVar,modelLabel):
        #Set the Marker styles
        obs_marker_style = dict(color='r', linestyle='None', marker='s', markersize=5, markerfacecolor='None')
@@ -237,6 +246,7 @@ def linearly_interpolate_nans(y):
     # Fill in all the nan values using the predicted coefficients
     y.flat[np.isnan(y)] = np.dot(X[:, np.isnan(y)].T, beta)
     return y
+
 def running_mean(x, N):
     M = len(x)
     bad = np.where(np.isnan(x))
@@ -253,6 +263,7 @@ def running_mean(x, N):
     for i in range(M-floor(N/2)+1,M):
         xavg = np.append(xavg,np.nanmean(y[i-N:i]))
     return xavg
+
 def running_mean2(x,N):
     xavg=[]
     M=len(x)
