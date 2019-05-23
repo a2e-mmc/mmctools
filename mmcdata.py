@@ -1,7 +1,7 @@
 """
-MMC_Data.py
+mmcdata.py
  
-This Python source defines the MMC_Data class 
+This Python source defines the MMCData class 
 
 An instance of this class is a given set of 'observed' (via instrument
 or model) timeseries of U,V,W, and other state variables, along with
@@ -23,12 +23,12 @@ from matplotlib.ticker import AutoMinorLocator
 #from scipy import interpolate
 #from sklearn import linear_model
 
-class MMC_Data():
+class MMCData():
     """A given set of 'observed' (via instrument or model) timeseries of
     U,V,W, and other state variables and any 'derived' (via calculation
     methods) data like mean, perturbation, variance, correlations, etc...
     that are attributes (could be defined or missing a value) in a given
-    MMC_Data instance
+    MMCData instance
     """
     def __init__(self,pklData={},**kwargs):
         self.dataDict = collections.defaultdict(list)
