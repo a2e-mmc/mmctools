@@ -13,6 +13,7 @@ import pickle
 
 ##############
 def readMMC_fileheader(f):
+    """Read header from legacy MMC file"""
     head1 = f.readline()
     head2 = f.readline()
     head3 = f.readline()
@@ -35,15 +36,16 @@ def readMMC_fileheader(f):
     levels = int(head9[12:25].strip())
     print("levels: {:d}".format(levels))
 
-    fileheader={'lab':lab,'location':location,'latitude':latitude, \
-                'longitude':longitude,'codename':codename,         \
-                'codetype':codetype,'casename':casename,           \
+    fileheader={'lab':lab,'location':location,'latitude':latitude,
+                'longitude':longitude,'codename':codename,
+                'codetype':codetype,'casename':casename,
                 'benchmark':benchmark,'levels':levels }
 
-    return fileheader;
+    return fileheader
 
 ##############
 def readMMC_recordheader(f):
+    """Read a record from legacy MMC file"""
     try:
         head1 = f.readline()
         head2 = f.readline()
@@ -69,8 +71,8 @@ def readMMC_recordheader(f):
             if (i % 2) == 1:
                 varunits.append(varlist[i])
 
-        recordheader={'date':date,'time':time,'ustar':ustar,'z0':z0,  \
-                      'tskin':tskin,'hflux':hflux,'varnames':varnames, \
+        recordheader={'date':date,'time':time,'ustar':ustar,'z0':z0,
+                      'tskin':tskin,'hflux':hflux,'varnames':varnames,
                       'varunits':varunits}
     except:
         print("Error in readrecordheader... Check your datafile for bad records!!\n Lines read are")
@@ -81,24 +83,27 @@ def readMMC_recordheader(f):
         print("head5 = ",head5)
         print("head6 = ",head6)
         print("head7 = ",head7)
-    return recordheader;
+    return recordheader
 
 ##############
-def readMMC_records(f,levels):
+def readMMC_records(f,Nlevels):
+    """Read specified number of records from legacy MMC file"""
     record=[]
-    for i in range(levels):
+    for i in range(Nlevels):
         line = f.readline()
         #data = map(float,line.split())
-        [record.append(data) for data in map(float,line.split())]
+        for data in map(float,line.split()):
+            record.append(data)
         #print("len(data) = {:d}",len(data))
         #record.append(data)
         #print("len(record) = {:d}",len(record))
-    recordarray=np.array(record).reshape(levels,floor(len(record)/levels))
+    recordarray=np.array(record).reshape(Nlevels,floor(len(record)/Nlevels))
     #print("recordarray.shape = ",recordarray.shape)
-    return recordarray;
+    return recordarray
 
 ##############
 def readMMC_database(f):
+    """Read entire legacy MMC file"""
     fileheader=readMMC_fileheader(f);
     database = [fileheader]
     l=0
@@ -110,7 +115,7 @@ def readMMC_database(f):
         recordheader=readMMC_recordheader(f);
         recordarray = readMMC_records(f,fileheader['levels'])
         database.append([recordheader,recordarray])
-    return database;
+    return database
 
 def convertMMCToPickle(pathbase,year,dataDir,pklDir):
     inpath ="{pb:s}/{yr:s}/{dDir:s}/".format(pb=pathbase,yr=year,dDir=dataDir)
@@ -118,7 +123,8 @@ def convertMMCToPickle(pathbase,year,dataDir,pklDir):
     inDirContents = os.listdir(inpath)
     print("inpath: {:s}".format(inpath))
     print("--contains: {:d} files/directories".format(len(inDirContents)))    
-    [print("\t{:s}".format(item)) for item in inDirContents]
+    for item in inDirContents:
+        print("\t{:s}".format(item))
     print("\n")
     outDirContents = os.listdir(outpath)
     inCnt = 0
@@ -150,7 +156,8 @@ def convertMMCToPickle(pathbase,year,dataDir,pklDir):
     print("outpath: {:s}".format(outpath))
     outDirContents = os.listdir(outpath)
     print("--contains: {:d} files/directories".format(len(outDirContents)))
-    [print("\t{:s}".format(item)) for item in outDirContents]
+    for item in outDirContents:
+        print("\t{:s}".format(item))
     print("\n")
 
 def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
@@ -159,7 +166,8 @@ def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
     inDirContents = os.listdir(inpath)
     print("inpath: {:s}".format(inpath))
     print("--contains: {:d} files/directories".format(len(inDirContents)))
-    [print("\t{:s}".format(item)) for item in inDirContents]
+    for item in inDirContents:
+        print("\t{:s}".format(item))
     print("\n")
     outDirContents = os.listdir(outpath)
     inCnt = 0
@@ -191,34 +199,41 @@ def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
     print("outpath: {:s}".format(outpath))
     outDirContents = os.listdir(outpath)
     print("--contains: {:d} files/directories".format(len(outDirContents)))
-    [print("\t{:s}".format(item)) for item in outDirContents]
+    for item in outDirContents:
+        print("\t{:s}".format(item))
     print("\n")
 
-def dbToXarray(db):
+def dbToXarray(db,specified_date=None):
+    """Convert db to xarray
+
+    If specified_date is not None, then the Time array will use the
+    specified date; otherwise, the date will be read from the input 
+    database. This is used as a hack to handle LLNL's bogus dates and
+    times since the WRF run was 'ideal'.
+    """
     #Deal with the times by converting the metadata strings to datetime objects
-    Times=np.ndarray([len(db)-1])
+    Times = np.ndarray([len(db)-1])
     for i in range(1,len(db)):
-       #date_string='{:s} {:s}'.format(db[i][0]['date'],db[i][0]['time']).strip()
-       #time=dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S')
-       ###Hack to handle LLNL's bogus dates & times since the WRF run was 'ideal'
-       date_string='{:s} {:s} {:s}'.format('2013-11-08',db[i][0]['time'].strip(),'UTC').strip()
-       #print("date_string = {:s}".format(date_string))
-       time=dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S %Z')
-       #### END HACK LLNL IDEAL WRF
-       time=time.replace(tzinfo=dt.timezone.utc)
-       Times[i-1]=time.timestamp()
-       #print(time.strftime('%m-%d-%Y %H:%M:%S'))
-    bigArray=np.ndarray([len(db[1][0]['varnames']),db[0]['levels'],len(db)-1]) #array(flds,levels,times)
+        #date_string='{:s} {:s}'.format(db[i][0]['date'],db[i][0]['time']).strip()
+        if specified_date is None:
+            time = dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S')
+        else:
+            date_string = '{:s} {:s} {:s}'.format(specified_date,db[i][0]['time'].strip(),'UTC').strip()
+            #print("date_string = {:s}".format(date_string))
+            time = dt.datetime.strptime(date_string,'%Y-%m-%d %H:%M:%S %Z')
+        time = time.replace(tzinfo=dt.timezone.utc)
+        Times[i-1] = time.timestamp()
+        #print(time.strftime('%m-%d-%Y %H:%M:%S'))
+    bigArray = np.ndarray([len(db[1][0]['varnames']),db[0]['levels'],len(db)-1]) #array(flds,levels,times)
     for i in range(1,len(db)-1):
-        bigArray[:,:,i-1]=db[i][1].transpose()
-    bigArray[bigArray== (-999)]=np.nan   #Convert any -999 labeled 'missing values' to np.nan
+        bigArray[:,:,i-1] = db[i][1].transpose()
+    bigArray[bigArray==(-999)] = np.nan   #Convert any -999 labeled 'missing values' to np.nan
     attrs = {'units': 'seconds since 1970-01-01 00:00:00.0'}
-    coords={}
-    coords['Times']=('Times',Times,attrs)
-    coords['levels']=np.arange(0,db[0]['levels']).astype('int32')    
-    xrDS=xr.Dataset(coords=coords)  #Set the coordinates of the xarrays DataSet as (Times and levels)
+    coords = {}
+    coords['Times'] = ('Times',Times,attrs)
+    coords['levels'] = np.arange(0,db[0]['levels']).astype('int32')    
+    xrDS = xr.Dataset(coords=coords)  #Set the coordinates of the xarrays DataSet as (Times and levels)
     for i in range(len(db[1][0]['varnames'])): #Add each variable field to the xarray-Dataset
-       
         xrDS[db[1][0]['varnames'][i]] = (('levels','Times'),bigArray[i,:,:])
-    xrDS=xr.decode_cf(xrDS)  #Make sure the Times coordinate is of type  datetime64
-    return(xrDS)
+    xrDS = xr.decode_cf(xrDS)  #Make sure the Times coordinate is of type  datetime64
+    return xrDS
