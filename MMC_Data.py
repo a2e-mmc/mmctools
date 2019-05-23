@@ -30,7 +30,7 @@ class MMC_Data():
     that are attributes (could be defined or missing a value) in a given
     MMC_Data instance
     """
-    def __init__(self,pklData={}):
+    def __init__(self,pklData={},**kwargs):
         self.dataDict = collections.defaultdict(list)
         
         #JAS_Trying to get all records... self.dataSetLength = len(pklData)-1
@@ -38,9 +38,9 @@ class MMC_Data():
         self.dataSetDict = pklData[0]
         self.dataRecordDict = []
         if self.dataSetLength > 0:
-            self._read(pklData)
+            self._read(pklData,**kwargs)
 
-    def _read(self,pklData):
+    def _read(self,pklData,convert_ft_to_m=False):
         """Updates dataRecordDict, dataDict, and dataSetDict"""
         time=[]
         datetime=[]
@@ -78,14 +78,14 @@ class MMC_Data():
             tau33.append(pklData[i][1][:,12])
             hflux.append(pklData[i][1][:,13])
 
-        #Re-cast fields as numpy arrays and add to 'dataDict' object attribute 
+        # Re-cast fields as numpy arrays and add to 'dataDict' object attribute 
         self.dataDict['datetime'] = np.asarray(datetime)
-        #if (self.dataSetDict['lab'] == "SNL") and (self.dataSetDict['codename'] == "TOWER"):
-        if (self.dataSetDict['lab'] == "SNL") and (self.dataSetDict['codename'] == "SONIC"):
-        #if (self.dataSetDict['lab'] == "BLAH") and (self.dataSetDict['codename'] == "TOWER"):
-            self.dataDict['z'] = np.asarray(z)*0.3048  #Convert TTU/SWiFT height to meters from feet ;-(
+        if convert_ft_to_m:
+            # Convert TTU/SWiFT height to meters from feet ;-(
+            self.dataDict['z'] = np.asarray(z)*0.3048
         else:
-            self.dataDict['z'] = np.asarray(z)         #Otherwise expect heights in meters as they should be
+            # Otherwise expect heights in meters as they should be
+            self.dataDict['z'] = np.asarray(z)
         self.dataDict['u']     = np.asarray(u)
         self.dataDict['v']     = np.asarray(v)
         self.dataDict['w']     = np.asarray(w)
