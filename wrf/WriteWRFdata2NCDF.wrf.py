@@ -61,8 +61,8 @@ def write_WRF_to_NCDF(lat,lon,datadir,outputfile,dom=1,
         TH2[cc]    = wrfout.variables['TH2'][0,poij,poii]
         swdwn[cc]  = wrfout.variables['SWDOWN'][0,poij,poii]
         # U and V need to be interpolated to cell-center
-        u[cc]      = wrfdict.unstagger2d(wrfout.variables['U'][0,:,poij,poii-1:poii+1],ax=1)[:,0]
-        v[cc]      = wrfdict.unstagger2d(wrfout.variables['V'][0,:,poij-1:poij+1,poii],ax=1)[:,0]
+        u[cc]      = wrfdict.unstagger(wrfout.variables['U'][0,:,poij,poii-1:poii+1],ax=1)[:,0]
+        v[cc]      = wrfdict.unstagger(wrfout.variables['V'][0,:,poij-1:poij+1,poii],ax=1)[:,0]
         # W needs to be unstaggered in the vertical direction
         ws         = wrfout.variables['W'][0,:,poij,poii]
         w[cc]      = (ws[1:] + ws[:-1])*0.5

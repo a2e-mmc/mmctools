@@ -264,30 +264,10 @@ def latlon_to_ij(wrfdata,lat,lon):
     jj,ii = np.where(dist==np.min(dist))
     return ii[0],jj[0]
 
-def unstagger2d(var,axis):
-    '''Unstagger 2D variable on given axis'''
-    if axis == 0:
-        varu = (var[:-1,:] + var[1:,:])/2.0
-    if axis == 1:
-        varu = (var[:,:-1] + var[:,1:])/2.0
-    return varu
-
-def unstagger3d(var,axis):
-    '''Unstagger 3D variable on given axis'''
-    if axis == 0:
-        varu = (var[:-1,:,:] + var[1:,:,:])/2.0
-    if axis == 1:
-        varu = (var[:,:-1,:] + var[:,1:,:])/2.0
-    if axis == 2:
-        varu = (var[:,:,:-1] + var[:,:,1:])/2.0
-    return varu
-
-def unstagger4d(var,axis):
-    '''Unstagger 4D variable on given axis'''
-    if axis == 1:
-        varu = (var[:,:-1,:,:] + var[:,1:,:,:])/2.0
-    if axis == 2:
-        varu = (var[:,:,:-1,:] + var[:,:,1:,:])/2.0
-    if axis == 3:
-        varu = (var[:,:,:,:-1] + var[:,:,:,1:])/2.0
-    return varu
+def unstagger(var,axis):
+    '''Unstagger ND variable on given axis'''
+    # left_indx: (:,:,etc.) and replace ":" at ax with ":-1"
+    left_indx = [slice(0,-1) if axi==axis else slice(None) for axi in range(var.ndim)]
+    # right_indx: (:,:,etc.) and replace ":" at ax with "1:"
+    right_indx = [slice(1,None) if axi==axis else slice(None) for axi in range(var.ndim)]
+    return (var[tuple(left_indx)] + var[tuple(right_indx)])/2.0
