@@ -37,6 +37,11 @@ class MMC_Data():
         self.dataSetLength = len(pklData)
         self.dataSetDict = pklData[0]
         self.dataRecordDict = []
+        if self.dataSetLength > 0:
+            self._read(pklData)
+
+    def _read(self,pklData):
+        """Updates dataRecordDict, dataDict, and dataSetDict"""
         time=[]
         datetime=[]
         z=[]
@@ -53,8 +58,7 @@ class MMC_Data():
         tau23=[]
         tau33=[]
         hflux=[]
-        if(self.dataSetLength > 0):
-          for i in range(1,self.dataSetLength):
+        for i in range(1,self.dataSetLength):
             self.dataRecordDict.append(pklData[i][0])
             time.append(pklData[i][0]['time'])
             #datetime.append((dt.datetime.strptime(pklData[i][0]['date']+"_"+pklData[i][0]['time'].strip(), '%Y-%m-%d_%H:%M:%S') - dt.datetime(1970,1,1)).total_seconds())
@@ -73,46 +77,47 @@ class MMC_Data():
             tau23.append(pklData[i][1][:,11])
             tau33.append(pklData[i][1][:,12])
             hflux.append(pklData[i][1][:,13])
-          #Re-cast fields as numpy arrays and add to 'dataDict' object attribute 
-          self.dataDict['datetime'] = np.asarray(datetime)
-          #if (self.dataSetDict['lab'] == "SNL") and (self.dataSetDict['codename'] == "TOWER"):
-          if (self.dataSetDict['lab'] == "SNL") and (self.dataSetDict['codename'] == "SONIC"):
-          #if (self.dataSetDict['lab'] == "BLAH") and (self.dataSetDict['codename'] == "TOWER"):
-             self.dataDict['z'] = np.asarray(z)*0.3048  #Convert TTU/SWiFT height to meters from feet ;-(
-          else:
-             self.dataDict['z'] = np.asarray(z)         #Otherwise expect heights in meters as they should be
-          self.dataDict['u'] = np.asarray(u)
-          self.dataDict['v'] = np.asarray(v)
-          self.dataDict['w'] = np.asarray(w)
-          self.dataDict['theta'] = np.asarray(theta)
-          self.dataDict['pres'] = np.asarray(pres)
-          self.dataDict['tke'] = np.asarray(tke)
-          self.dataDict['tau11'] = np.asarray(tau11)
-          self.dataDict['tau12'] = np.asarray(tau12)
-          self.dataDict['tau13'] = np.asarray(tau13)
-          self.dataDict['tau22'] = np.asarray(tau22)
-          self.dataDict['tau23'] = np.asarray(tau23)
-          self.dataDict['tau33'] = np.asarray(tau33)
-          self.dataDict['hflux'] = np.asarray(hflux)
-          self.dataDict['wspd'] = np.sqrt(np.square(self.dataDict['u'])+np.square(self.dataDict['v']))
-          self.dataDict['wdir'] = (270.0-np.arctan2(self.dataDict['v'],self.dataDict['u'])*180./np.pi)%360 
-          #Declare and initialize to 0 the *_mean arrays
-          self.dataDict['u_mean']     = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['v_mean']     = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['w_mean']     = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['theta_mean'] = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['tke_mean']   = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['hflux_mean'] = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['uu_mean']    = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['uv_mean']    = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['uw_mean']    = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['vv_mean']    = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['vw_mean']    = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['ww_mean']    = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['wt_mean']    = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['wspd_mean']  = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['wdir_mean']  = np.zeros(self.dataDict['u'].shape)
-          self.dataDict['shear_mean']  = np.zeros(self.dataDict['u'].shape)
+
+        #Re-cast fields as numpy arrays and add to 'dataDict' object attribute 
+        self.dataDict['datetime'] = np.asarray(datetime)
+        #if (self.dataSetDict['lab'] == "SNL") and (self.dataSetDict['codename'] == "TOWER"):
+        if (self.dataSetDict['lab'] == "SNL") and (self.dataSetDict['codename'] == "SONIC"):
+        #if (self.dataSetDict['lab'] == "BLAH") and (self.dataSetDict['codename'] == "TOWER"):
+            self.dataDict['z'] = np.asarray(z)*0.3048  #Convert TTU/SWiFT height to meters from feet ;-(
+        else:
+            self.dataDict['z'] = np.asarray(z)         #Otherwise expect heights in meters as they should be
+        self.dataDict['u']     = np.asarray(u)
+        self.dataDict['v']     = np.asarray(v)
+        self.dataDict['w']     = np.asarray(w)
+        self.dataDict['theta'] = np.asarray(theta)
+        self.dataDict['pres']  = np.asarray(pres)
+        self.dataDict['tke']   = np.asarray(tke)
+        self.dataDict['tau11'] = np.asarray(tau11)
+        self.dataDict['tau12'] = np.asarray(tau12)
+        self.dataDict['tau13'] = np.asarray(tau13)
+        self.dataDict['tau22'] = np.asarray(tau22)
+        self.dataDict['tau23'] = np.asarray(tau23)
+        self.dataDict['tau33'] = np.asarray(tau33)
+        self.dataDict['hflux'] = np.asarray(hflux)
+        self.dataDict['wspd']  = np.sqrt(np.square(self.dataDict['u'])+np.square(self.dataDict['v']))
+        self.dataDict['wdir']  = (270.0-np.arctan2(self.dataDict['v'],self.dataDict['u'])*180./np.pi)%360 
+        #Declare and initialize to 0 the *_mean arrays
+        self.dataDict['u_mean']     = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['v_mean']     = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['w_mean']     = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['theta_mean'] = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['tke_mean']   = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['hflux_mean'] = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['uu_mean']    = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['uv_mean']    = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['uw_mean']    = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['vv_mean']    = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['vw_mean']    = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['ww_mean']    = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['wt_mean']    = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['wspd_mean']  = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['wdir_mean']  = np.zeros(self.dataDict['u'].shape)
+        self.dataDict['shear_mean'] = np.zeros(self.dataDict['u'].shape)
  
           
     def getDataSetDict(self):
