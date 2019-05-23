@@ -66,13 +66,15 @@ def get_avg_height(wrfdata):
 
 def get_height(wrfdata):
     '''Get heights for all x,y,z'''
-    nz = _get_dim(wrfdata,'bottom_top')
     ph  = wrfdata.variables['PH'][0,:,:,:]
     phb = wrfdata.variables['PHB'][0,:,:,:]
     hgt = wrfdata.variables['HGT'][0,:,:]
+    
+    # Convert hgt into 3D array by repeating it nz times along a new axis
+    hgt = np.repeat(hgt[np.newaxis, :, :], ph.shape[1], axis=0)
 
     zs  = ((ph+phb)/9.81) - hgt
-    z   = (zs[1:,:,:] + zs[:-1,:,:])*0.5
+    z = unstagger(zs,axis=0)
     return z,zs
 
 def get_height_at_ind(wrfdata,j,i):
