@@ -235,6 +235,128 @@ class MMCData():
 
 #####END OF the MMC_CLASS
 
+
+### Readers for legacy MMC data
+
+def _readMMC_fileheader(f):
+    """Read header from legacy MMC file"""
+    head1 = f.readline()
+    head2 = f.readline()
+    head3 = f.readline()
+    head4 = f.readline()
+    head5 = f.readline()
+    head6 = f.readline()
+    head7 = f.readline()
+    head8 = f.readline()
+    head9 = f.readline()
+    lab = head1[12:25].strip()
+    print("lab: {:s}".format(lab))
+    location = head2[12:25].strip()
+    latitude = float(head3[12:25].strip())
+    longitude = float(head4[12:25].strip())
+    codename = head5[12:25].strip()
+    print("codename: {:s}".format(codename))
+    codetype = head6[12:25].strip()
+    casename = head7[12:25].strip()
+    benchmark = head8[12:25].strip()
+    levels = int(head9[12:25].strip())
+    print("levels: {:d}".format(levels))
+
+    fileheader = {
+        'lab':lab,
+        'location':location,
+        'latitude':latitude,
+        'longitude':longitude,
+        'codename':codename,
+        'codetype':codetype,
+        'casename':casename,
+        'benchmark':benchmark,
+        'levels':levels,
+    }
+
+    return fileheader
+
+def _readMMC_recordheader(f):
+    """Read a record from legacy MMC file"""
+    try:
+        head1 = f.readline()
+        head2 = f.readline()
+        head3 = f.readline()
+        head4 = f.readline()
+        head5 = f.readline()
+        head6 = f.readline()
+        head7 = f.readline()
+        date  = head1[12:22]
+        time  = head2[12:22]
+        ustar = float(head3[26:36].strip())
+        z0    = float(head4[26:36].strip())
+        tskin = float(head5[26:36])
+        hflux = float(head6[26:36])
+        varlist = head7.split()
+
+        varnames=[]
+        varunits=[]
+
+        for i in range(len(varlist)):
+            if (i % 2) == 0:
+                varnames.append(varlist[i])
+            if (i % 2) == 1:
+                varunits.append(varlist[i])
+
+        recordheader = {
+            'date':date,
+            'time':time,
+            'ustar':ustar,
+            'z0':z0,
+            'tskin':tskin,
+            'hflux':hflux,
+            'varnames':varnames,
+            'varunits':varunits,
+        }
+
+    except:
+        print("Error in readrecordheader... Check your datafile for bad records!!\n Lines read are")
+        print("head1 = ",head1)
+        print("head2 = ",head2)
+        print("head3 = ",head3)
+        print("head4 = ",head4)
+        print("head5 = ",head5)
+        print("head6 = ",head6)
+        print("head7 = ",head7)
+
+    return recordheader
+
+def _readMMC_records(f,Nlevels):
+    """Read specified number of records from legacy MMC file"""
+    record=[]
+    for i in range(Nlevels):
+        line = f.readline()
+        #data = map(float,line.split())
+        for data in map(float,line.split()):
+            record.append(data)
+        #print("len(data) = {:d}",len(data))
+        #record.append(data)
+        #print("len(record) = {:d}",len(record))
+    recordarray=np.array(record).reshape(Nlevels,floor(len(record)/Nlevels))
+    #print("recordarray.shape = ",recordarray.shape)
+    return recordarray
+
+def read_mmc_database(f):
+    """Read entire legacy MMC file"""
+    fileheader = _readMMC_fileheader(f);
+    database = [fileheader]
+    l=0
+    while True:
+        line=f.readline()
+        if line == '':
+            break
+        l=l+1
+        recordheader = _readMMC_recordheader(f);
+        recordarray = _readMMC_records(f,fileheader['levels'])
+        database.append([recordheader,recordarray])
+    return database
+
+
 ### Utility functions for MMC class
 def linearly_interpolate_nans(y):
     # Fit a linear regression to the non-nan y values
