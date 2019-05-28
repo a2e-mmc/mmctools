@@ -85,7 +85,7 @@ class MMCData():
         for record in pklData[1:]:
             recordheader, recordarray = record
             self.dataRecordDict.append(recordheader)
-            time.append(recordheader['time'])
+            time.append(recordheader['time'].strip())
             dtstr = recordheader['date'] + "_" + recordheader['time'].strip()
             datetime.append(dt.datetime.strptime(dtstr, '%Y-%m-%d_%H:%M:%S'))
             z.append(recordarray[:,0])
