@@ -15,7 +15,7 @@ from math import *
 import collections
 import numpy as np
 import datetime as dt
-#import pickle
+import pickle
 from matplotlib import pyplot as plt
 from matplotlib import rcParams, cycler
 import matplotlib.dates as mdates
@@ -30,17 +30,26 @@ class MMCData():
     that are attributes (could be defined or missing a value) in a given
     MMCData instance
     """
-    def __init__(self,pklData={},**kwargs):
+    def __init__(self,asciifile=None,pklfile=None,pkldata=None,**kwargs):
         self.dataDict = collections.defaultdict(list)
         
-        #JAS_Trying to get all records... self.dataSetLength = len(pklData)-1
-        self.dataSetLength = len(pklData)
-        self.dataSetDict = pklData[0]
-        self.dataRecordDict = []
-        if self.dataSetLength > 0:
-            self._read(pklData,**kwargs)
+        if asciifile:
+            print('TODO')
+        elif pklfile or pkldata:
+            if pkldata is None:
+                with open(pklfile,'rb') as f:
+                    pkldata = pickle.load(f)
+            # first item is a dictionary with metadata
+            self.dataSetLength = len(pkldata)
+            self.dataSetDict = pkldata[0]
+            self.dataRecordDict = []
+            if self.dataSetLength > 0:
+                #JAS try to get all records... self.dataSetLength = len(pklData)-1
+                self._read_pickled(pkldata,**kwargs)
+        else:
+            raise ValueError('Need to specify asciifile, pklfile, or pkldata')
 
-    def _read(self,pklData,convert_ft_to_m=False):
+    def _read_pickled(self,pklData,convert_ft_to_m=False):
         """Updates dataRecordDict, dataDict, and dataSetDict"""
         time=[]
         datetime=[]
@@ -341,6 +350,8 @@ def _readMMC_records(f,Nlevels):
     #print("recordarray.shape = ",recordarray.shape)
     return recordarray
 
+# TODO: move this into MMCData class so that a class object may be instantiated
+# from an existing file!
 def read_mmc_database(f):
     """Read entire legacy MMC file"""
     fileheader = _readMMC_fileheader(f);
