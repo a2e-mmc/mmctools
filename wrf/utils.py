@@ -66,7 +66,7 @@ def get_avg_height(wrfdata):
 
 def get_height(wrfdata,timevarying=False):
     '''
-    Get heights for all [time,]latitude,longitude,height
+    Get heights for all [time,]height,latitude,longitude
     If `timevarying` is False, return height for first timestamp only
     '''
     ph  = wrfdata.variables['PH'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
