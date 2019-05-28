@@ -1,15 +1,12 @@
 import os
 import sys
-import string
 import datetime as dt
-from netCDF4 import Dataset as ncdf
-from netCDF4 import stringtochar, num2date, date2num
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from math import *
 import numpy as np
 import xarray as xr
 import pickle
+
+from mmctools.mmcdata import read_mmc_database
+
 
 def convertMMCToPickle(pathbase,year,dataDir,pklDir):
     inpath ="{pb:s}/{yr:s}/{dDir:s}/".format(pb=pathbase,yr=year,dDir=dataDir)
@@ -39,7 +36,7 @@ def convertMMCToPickle(pathbase,year,dataDir,pklDir):
                 print("MMC file-- "+i+" already pkl-ized!\n")
             else:
                 fptr = open(inpath+i,'r')
-                db = readMMC_database(fptr)
+                db = read_mmc_database(fptr)
                 fptr.close()
                 outfilename = i.split(fileExtension)[0]+".pkl"
                 outfptr = open(outpath+outfilename,'wb')
@@ -82,7 +79,7 @@ def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
                 print("MMC file-- "+i+" already xarray/netcdf-ized!\n")
             else:
                 fptr = open(inpath+i,'r')
-                db = readMMC_database(fptr)
+                db = read_mmc_database(fptr)
                 fptr.close()
                 #Now make an xarrays object out of the db-dictionary/database
                 xrDS = dbToXarray(db)
