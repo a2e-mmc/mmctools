@@ -8,6 +8,8 @@
   Notes:
   - Utility functions should automatically handle input data in either
     netCDF4.Dataset or xarray.Dataset formats.
+  - TODO: as needed, replace these calls with appropriate calls to the
+    wrf-python module
 
 '''
 from __future__ import print_function
@@ -44,35 +46,16 @@ def get_wrf_dims(wrfdata):
     nt = _get_dim(wrfdata,'Time')
     return nt,nz,ny,nx
 
-def get_avg_height(wrfdata):
-    '''Get average (over all x,y) heights; staggered and unstaggered'''
-    nt = _get_dim(wrfdata,'Time')
-    nz = _get_dim(wrfdata,'bottom_top')
-    if nt == 1:
-        ph  = wrfdata.variables['PH'][0,:,:,:]
-        phb = wrfdata.variables['PHB'][0,:,:,:]
-        hgt = wrfdata.variables['HGT'][0,:,:]
-        zs  = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
-        z   = (zs[1:] + zs[:-1])*0.5
-    else:
-        zs = np.zeros((nt,nz+1))
-        for tt in range(0,nt):
-            ph  = wrfdata.variables['PH'][tt,:,:,:]
-            phb = wrfdata.variables['PHB'][tt,:,:,:]
-            hgt = wrfdata.variables['HGT'][tt,:,:]
-            zs[tt,:] = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
-        z  = (zs[:,1:] + zs[:,:-1])*0.5
-    return z,zs
-
-def get_height(wrfdata,timevarying=False):
+def get_height(wrfdata,timevarying=False,avgheight=False):
     '''
-    Get heights for all x,y,z(,t)
-    If timevarying is False, return height for
-    first timestamp only
+    Get heights for all [time,]height,latitude,longitude
+    If `timevarying` is False, return height for first timestamp if
+    `avgheight` is False, otherwise return the average height over all
+    times.
     '''
-    ph  = wrfdata.variables['PH'][:]
-    phb = wrfdata.variables['PHB'][:]
-    hgt = wrfdata.variables['HGT'][:]
+    ph  = wrfdata.variables['PH'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
+    phb = wrfdata.variables['PHB'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
+    hgt = wrfdata.variables['HGT'][:] # dimensions: (Time, south_north, west_east)
     
     # Convert hgt into 3D array by repeating it nz times along a new axis
     hgt = np.repeat(hgt[:,np.newaxis, :, :], ph.shape[1], axis=1)
@@ -81,6 +64,8 @@ def get_height(wrfdata,timevarying=False):
     z = unstagger(zs,axis=1)
     if timevarying:
         return z,zs
+    elif avgheight:
+        return np.mean(z,axis=0), np.mean(zs,axis=0)
     else:
         return z[0,...], zs[0,...]
 

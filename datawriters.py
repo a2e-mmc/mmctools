@@ -10,6 +10,13 @@ standard_datetime_fmt = '%Y-%m-%d %H:%M:%S'
 # for netCDF output
 core_variables = ['Times','u','v','w','wspd','wdir','T','p','theta','RH']
 
+
+# TODO: consider deprecating `wrf.utils.WriteWRFdata2NCDF()`
+def wrf_to_netcdf(lat,lon,datadir,outputfile,dom=1,
+                  prefix='wrfout_d{:02d}_*00'):
+    print('This is a stub')
+
+# TODO: rename `write_to_netCDF` to `dict_to_netcdf`
 def write_to_netCDF(nc_filename, data,
                     ncformat='NETCDF4_CLASSIC',
                     all_variables=False,
