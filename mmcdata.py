@@ -40,7 +40,7 @@ class MMCData():
                 with open(pklfile,'rb') as f:
                     pkldata = pickle.load(f)
             # first item is a dictionary with metadata
-            self.dataSetLength = len(pkldata)
+            self.dataSetLength = len(pkldata) - 1
             self.dataSetDict = pkldata[0]
             self.dataRecordDict = []
             if self.dataSetLength > 0:
@@ -82,26 +82,27 @@ class MMCData():
         tau23=[]
         tau33=[]
         hflux=[]
-        for i in range(1,self.dataSetLength):
-            self.dataRecordDict.append(pklData[i][0])
-            time.append(pklData[i][0]['time'])
-            #datetime.append((dt.datetime.strptime(pklData[i][0]['date']+"_"+pklData[i][0]['time'].strip(), '%Y-%m-%d_%H:%M:%S') - dt.datetime(1970,1,1)).total_seconds())
-            dtstr = pklData[i][0]['date'] + "_" + pklData[i][0]['time'].strip()
+        for record in pklData[1:]:
+            recordheader, recordarray = record
+            self.dataRecordDict.append(recordheader)
+            time.append(recordheader['time'])
+            dtstr = recordheader['date'] + "_" + recordheader['time'].strip()
             datetime.append(dt.datetime.strptime(dtstr, '%Y-%m-%d_%H:%M:%S'))
-            z.append(pklData[i][1][:,0])
-            u.append(pklData[i][1][:,1])
-            v.append(pklData[i][1][:,2])
-            w.append(pklData[i][1][:,3])
-            theta.append(pklData[i][1][:,4])
-            pres.append(pklData[i][1][:,5])
-            tke.append(pklData[i][1][:,6])
-            tau11.append(pklData[i][1][:,7])
-            tau12.append(pklData[i][1][:,8])
-            tau13.append(pklData[i][1][:,9])
-            tau22.append(pklData[i][1][:,10])
-            tau23.append(pklData[i][1][:,11])
-            tau33.append(pklData[i][1][:,12])
-            hflux.append(pklData[i][1][:,13])
+            z.append(recordarray[:,0])
+            u.append(recordarray[:,1])
+            v.append(recordarray[:,2])
+            w.append(recordarray[:,3])
+            theta.append(recordarray[:,4])
+            pres.append(recordarray[:,5])
+            tke.append(recordarray[:,6])
+            tau11.append(recordarray[:,7])
+            tau12.append(recordarray[:,8])
+            tau13.append(recordarray[:,9])
+            tau22.append(recordarray[:,10])
+            tau23.append(recordarray[:,11])
+            tau33.append(recordarray[:,12])
+            hflux.append(recordarray[:,13])
+        assert len(z) == self.dataSetLength
 
         # Re-cast fields as numpy arrays and add to 'dataDict' object attribute 
         self.dataDict['datetime'] = np.asarray(datetime)
