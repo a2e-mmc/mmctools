@@ -32,9 +32,9 @@ class MMCData():
     """
     def __init__(self,asciifile=None,pklfile=None,pkldata=None,**kwargs):
         self.dataDict = collections.defaultdict(list)
-        
         if asciifile:
-            print('TODO')
+            with open(asciifile,'r') as f:
+                db = self._read_ascii(f)
         elif pklfile or pkldata:
             if pkldata is None:
                 with open(pklfile,'rb') as f:
@@ -48,6 +48,21 @@ class MMCData():
                 self._read_pickled(pkldata,**kwargs)
         else:
             raise ValueError('Need to specify asciifile, pklfile, or pkldata')
+
+    def _read_ascii(self,f):
+        """Read entire legacy MMC file"""
+        fileheader = _read_ascii_header(f);
+        database = [fileheader]
+        l=0
+        while True:
+            line=f.readline()
+            if line == '':
+                break
+            l=l+1
+            recordheader = _read_ascii_recordheader(f);
+            recordarray = _read_ascii_records(f,fileheader['levels'])
+            database.append([recordheader,recordarray])
+        return database
 
     def _read_pickled(self,pklData,convert_ft_to_m=False):
         """Updates dataRecordDict, dataDict, and dataSetDict"""
@@ -247,8 +262,8 @@ class MMCData():
 
 ### Readers for legacy MMC data
 
-def _readMMC_fileheader(f):
-    """Read header from legacy MMC file"""
+def _read_ascii_header(f):
+    """Read header from legacy MMC file, called by _read_ascii()"""
     head1 = f.readline()
     head2 = f.readline()
     head3 = f.readline()
@@ -285,8 +300,8 @@ def _readMMC_fileheader(f):
 
     return fileheader
 
-def _readMMC_recordheader(f):
-    """Read a record from legacy MMC file"""
+def _read_ascii_recordheader(f):
+    """Read a record from legacy MMC file, called by _read_ascii()"""
     try:
         head1 = f.readline()
         head2 = f.readline()
@@ -335,8 +350,10 @@ def _readMMC_recordheader(f):
 
     return recordheader
 
-def _readMMC_records(f,Nlevels):
-    """Read specified number of records from legacy MMC file"""
+def _read_ascii_records(f,Nlevels):
+    """Read specified number of records from legacy MMC file, called
+    by _read_ascii().
+    """
     record=[]
     for i in range(Nlevels):
         line = f.readline()
@@ -349,23 +366,6 @@ def _readMMC_records(f,Nlevels):
     recordarray=np.array(record).reshape(Nlevels,floor(len(record)/Nlevels))
     #print("recordarray.shape = ",recordarray.shape)
     return recordarray
-
-# TODO: move this into MMCData class so that a class object may be instantiated
-# from an existing file!
-def read_mmc_database(f):
-    """Read entire legacy MMC file"""
-    fileheader = _readMMC_fileheader(f);
-    database = [fileheader]
-    l=0
-    while True:
-        line=f.readline()
-        if line == '':
-            break
-        l=l+1
-        recordheader = _readMMC_recordheader(f);
-        recordarray = _readMMC_records(f,fileheader['levels'])
-        database.append([recordheader,recordarray])
-    return database
 
 
 ### Utility functions for MMC class
