@@ -31,10 +31,14 @@ class MMCData():
     MMCData instance
     """
     def __init__(self,asciifile=None,pklfile=None,pkldata=None,**kwargs):
+        self.dataSetDict = None
+        self.dataRecordDict = []
         self.dataDict = collections.defaultdict(list)
         if asciifile:
             with open(asciifile,'r') as f:
-                db = self._read_ascii(f)
+                data = self._read_ascii(f)
+            if self.dataSetLength > 0:
+                self._process_data(data,**kwargs)
         elif pklfile or pkldata:
             if pkldata is None:
                 with open(pklfile,'rb') as f:
@@ -42,29 +46,28 @@ class MMCData():
             # first item is a dictionary with metadata
             self.dataSetLength = len(pkldata) - 1
             self.dataSetDict = pkldata[0]
-            self.dataRecordDict = []
             if self.dataSetLength > 0:
-                #JAS try to get all records... self.dataSetLength = len(pklData)-1
-                self._read_pickled(pkldata,**kwargs)
+                #JAS: try to get all records... self.dataSetLength = len(pkldata)-1
+                self._process_data(pkldata[1:],**kwargs)
         else:
             raise ValueError('Need to specify asciifile, pklfile, or pkldata')
 
     def _read_ascii(self,f):
         """Read entire legacy MMC file"""
-        fileheader = _read_ascii_header(f);
-        database = [fileheader]
-        l=0
+        self.dataSetDict = _read_ascii_header(f)
+        self.dataSetLength = 0
+        data = []
         while True:
             line = f.readline()
             if line == '':
                 break
-            l=l+1
             recordheader = _read_ascii_recordheader(f);
-            recordarray = _read_ascii_records(f,fileheader['levels'])
-            database.append([recordheader,recordarray])
-        return database
+            recordarray = _read_ascii_records(f,self.dataSetDict['levels'])
+            data.append([recordheader, recordarray])
+            self.dataSetLength += 1
+        return data
 
-    def _read_pickled(self,pklData,convert_ft_to_m=False):
+    def _process_data(self,data,convert_ft_to_m=False):
         """Updates dataRecordDict, dataDict, and dataSetDict"""
         time=[]
         datetime=[]
@@ -82,7 +85,7 @@ class MMCData():
         tau23=[]
         tau33=[]
         hflux=[]
-        for record in pklData[1:]:
+        for record in data:
             recordheader, recordarray = record
             self.dataRecordDict.append(recordheader)
             time.append(recordheader['time'].strip())
