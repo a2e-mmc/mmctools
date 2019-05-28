@@ -66,13 +66,12 @@ def get_avg_height(wrfdata):
 
 def get_height(wrfdata,timevarying=False):
     '''
-    Get heights for all x,y,z(,t)
-    If timevarying is False, return height for
-    first timestamp only
+    Get heights for all [time,]latitude,longitude,height
+    If `timevarying` is False, return height for first timestamp only
     '''
-    ph  = wrfdata.variables['PH'][:]
-    phb = wrfdata.variables['PHB'][:]
-    hgt = wrfdata.variables['HGT'][:]
+    ph  = wrfdata.variables['PH'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
+    phb = wrfdata.variables['PHB'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
+    hgt = wrfdata.variables['HGT'][:] # dimensions: (Time, south_north, west_east)
     
     # Convert hgt into 3D array by repeating it nz times along a new axis
     hgt = np.repeat(hgt[:,np.newaxis, :, :], ph.shape[1], axis=1)
