@@ -55,7 +55,7 @@ class MMCData():
         database = [fileheader]
         l=0
         while True:
-            line=f.readline()
+            line = f.readline()
             if line == '':
                 break
             l=l+1
@@ -125,7 +125,8 @@ class MMCData():
         self.dataDict['tau23'] = np.asarray(tau23)
         self.dataDict['tau33'] = np.asarray(tau33)
         self.dataDict['hflux'] = np.asarray(hflux)
-        self.dataDict['wspd']  = np.sqrt(np.square(self.dataDict['u'])+np.square(self.dataDict['v']))
+        self.dataDict['wspd']  = np.sqrt(self.dataDict['u']**2
+                                       + self.dataDict['v']**2)
         self.dataDict['wdir']  = (270.0-np.arctan2(self.dataDict['v'],self.dataDict['u'])*180./np.pi)%360 
         #Declare and initialize to 0 the *_mean arrays
         self.dataDict['u_mean']     = np.zeros(self.dataDict['u'].shape)
@@ -370,6 +371,7 @@ def _read_ascii_records(f,Nlevels):
 
 
 ### Utility functions for MMC class
+
 def linearly_interpolate_nans(y):
     # Fit a linear regression to the non-nan y values
 
