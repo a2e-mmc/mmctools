@@ -64,10 +64,12 @@ def get_avg_height(wrfdata):
         z  = (zs[:,1:] + zs[:,:-1])*0.5
     return z,zs
 
-def get_height(wrfdata,timevarying=False):
+def get_height(wrfdata,timevarying=False,firsttime=True):
     '''
     Get heights for all [time,]height,latitude,longitude
-    If `timevarying` is False, return height for first timestamp only
+    If `timevarying` is False, return height for first timestamp if
+    `firsttime` is True, otherwise return the average height over all
+    times.
     '''
     ph  = wrfdata.variables['PH'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
     phb = wrfdata.variables['PHB'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
@@ -80,8 +82,10 @@ def get_height(wrfdata,timevarying=False):
     z = unstagger(zs,axis=1)
     if timevarying:
         return z,zs
-    else:
+    elif firsttime:
         return z[0,...], zs[0,...]
+    else:
+        return np.mean(z,axis=0), np.mean(zs,axis=0)
 
 def get_height_at_ind(wrfdata,j,i):
     '''Get model height at a specific j,i'''
