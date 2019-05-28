@@ -8,6 +8,8 @@
   Notes:
   - Utility functions should automatically handle input data in either
     netCDF4.Dataset or xarray.Dataset formats.
+  - TODO: as needed, replace these calls with appropriate calls to the
+    wrf-python module
 
 '''
 from __future__ import print_function
@@ -44,31 +46,11 @@ def get_wrf_dims(wrfdata):
     nt = _get_dim(wrfdata,'Time')
     return nt,nz,ny,nx
 
-def get_avg_height(wrfdata):
-    '''Get average (over all x,y) heights; staggered and unstaggered'''
-    nt = _get_dim(wrfdata,'Time')
-    nz = _get_dim(wrfdata,'bottom_top')
-    if nt == 1:
-        ph  = wrfdata.variables['PH'][0,:,:,:]
-        phb = wrfdata.variables['PHB'][0,:,:,:]
-        hgt = wrfdata.variables['HGT'][0,:,:]
-        zs  = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
-        z   = (zs[1:] + zs[:-1])*0.5
-    else:
-        zs = np.zeros((nt,nz+1))
-        for tt in range(0,nt):
-            ph  = wrfdata.variables['PH'][tt,:,:,:]
-            phb = wrfdata.variables['PHB'][tt,:,:,:]
-            hgt = wrfdata.variables['HGT'][tt,:,:]
-            zs[tt,:] = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
-        z  = (zs[:,1:] + zs[:,:-1])*0.5
-    return z,zs
-
-def get_height(wrfdata,timevarying=False,firsttime=True):
+def get_height(wrfdata,timevarying=False,avgheight=False):
     '''
     Get heights for all [time,]height,latitude,longitude
     If `timevarying` is False, return height for first timestamp if
-    `firsttime` is True, otherwise return the average height over all
+    `avgheight` is False, otherwise return the average height over all
     times.
     '''
     ph  = wrfdata.variables['PH'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
@@ -82,10 +64,10 @@ def get_height(wrfdata,timevarying=False,firsttime=True):
     z = unstagger(zs,axis=1)
     if timevarying:
         return z,zs
-    elif firsttime:
-        return z[0,...], zs[0,...]
-    else:
+    elif avgheight:
         return np.mean(z,axis=0), np.mean(zs,axis=0)
+    else:
+        return z[0,...], zs[0,...]
 
 def get_height_at_ind(wrfdata,j,i):
     '''Get model height at a specific j,i'''
