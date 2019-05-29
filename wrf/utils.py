@@ -8,6 +8,8 @@
   Notes:
   - Utility functions should automatically handle input data in either
     netCDF4.Dataset or xarray.Dataset formats.
+  - TODO: as needed, replace these calls with appropriate calls to the
+    wrf-python module
 
 '''
 from __future__ import print_function
@@ -44,36 +46,28 @@ def get_wrf_dims(wrfdata):
     nt = _get_dim(wrfdata,'Time')
     return nt,nz,ny,nx
 
-def get_avg_height(wrfdata):
-    '''Get average (over all x,y) heights; staggered and unstaggered'''
-    nt = _get_dim(wrfdata,'Time')
-    nz = _get_dim(wrfdata,'bottom_top')
-    if nt == 1:
-        ph  = wrfdata.variables['PH'][0,:,:,:]
-        phb = wrfdata.variables['PHB'][0,:,:,:]
-        hgt = wrfdata.variables['HGT'][0,:,:]
-        zs  = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
-        z   = (zs[1:] + zs[:-1])*0.5
-    else:
-        zs = np.zeros((nt,nz+1))
-        for tt in range(0,nt):
-            ph  = wrfdata.variables['PH'][tt,:,:,:]
-            phb = wrfdata.variables['PHB'][tt,:,:,:]
-            hgt = wrfdata.variables['HGT'][tt,:,:]
-            zs[tt,:] = np.mean(np.mean(((ph+phb)/9.81) - hgt,axis=1),axis=1)
-        z  = (zs[:,1:] + zs[:,:-1])*0.5
-    return z,zs
-
-def get_height(wrfdata):
-    '''Get heights for all x,y,z'''
-    nz = _get_dim(wrfdata,'bottom_top')
-    ph  = wrfdata.variables['PH'][0,:,:,:]
-    phb = wrfdata.variables['PHB'][0,:,:,:]
-    hgt = wrfdata.variables['HGT'][0,:,:]
+def get_height(wrfdata,timevarying=False,avgheight=False):
+    '''
+    Get heights for all [time,]height,latitude,longitude
+    If `timevarying` is False, return height for first timestamp if
+    `avgheight` is False, otherwise return the average height over all
+    times.
+    '''
+    ph  = wrfdata.variables['PH'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
+    phb = wrfdata.variables['PHB'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
+    hgt = wrfdata.variables['HGT'][:] # dimensions: (Time, south_north, west_east)
+    
+    # Convert hgt into 3D array by repeating it nz times along a new axis
+    hgt = np.repeat(hgt[:,np.newaxis, :, :], ph.shape[1], axis=1)
 
     zs  = ((ph+phb)/9.81) - hgt
-    z   = (zs[1:,:,:] + zs[:-1,:,:])*0.5
-    return z,zs
+    z = unstagger(zs,axis=1)
+    if timevarying:
+        return z,zs
+    elif avgheight:
+        return np.mean(z,axis=0), np.mean(zs,axis=0)
+    else:
+        return z[0,...], zs[0,...]
 
 def get_height_at_ind(wrfdata,j,i):
     '''Get model height at a specific j,i'''
@@ -264,30 +258,10 @@ def latlon_to_ij(wrfdata,lat,lon):
     jj,ii = np.where(dist==np.min(dist))
     return ii[0],jj[0]
 
-def unstagger2d(var,axis):
-    '''Unstagger 2D variable on given axis'''
-    if axis == 0:
-        varu = (var[:-1,:] + var[1:,:])/2.0
-    if axis == 1:
-        varu = (var[:,:-1] + var[:,1:])/2.0
-    return varu
-
-def unstagger3d(var,axis):
-    '''Unstagger 3D variable on given axis'''
-    if axis == 0:
-        varu = (var[:-1,:,:] + var[1:,:,:])/2.0
-    if axis == 1:
-        varu = (var[:,:-1,:] + var[:,1:,:])/2.0
-    if axis == 2:
-        varu = (var[:,:,:-1] + var[:,:,1:])/2.0
-    return varu
-
-def unstagger4d(var,axis):
-    '''Unstagger 4D variable on given axis'''
-    if axis == 1:
-        varu = (var[:,:-1,:,:] + var[:,1:,:,:])/2.0
-    if axis == 2:
-        varu = (var[:,:,:-1,:] + var[:,:,1:,:])/2.0
-    if axis == 3:
-        varu = (var[:,:,:,:-1] + var[:,:,:,1:])/2.0
-    return varu
+def unstagger(var,axis):
+    '''Unstagger ND variable on given axis'''
+    # left_indx: (:,:,etc.) and replace ":" at ax with ":-1"
+    left_indx = [slice(0,-1) if axi==axis else slice(None) for axi in range(var.ndim)]
+    # right_indx: (:,:,etc.) and replace ":" at ax with "1:"
+    right_indx = [slice(1,None) if axi==axis else slice(None) for axi in range(var.ndim)]
+    return (var[tuple(left_indx)] + var[tuple(right_indx)])/2.0
