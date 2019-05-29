@@ -43,6 +43,24 @@ def _get_dim(wrfdata,dimname):
     else:
         raise AttributeError('Unexpected WRF data type')
 
+def _get_var(wrfdata,varname):
+    """Returns the specified variable, with support for both netCDF4
+    and xarray
+    """
+    if _is_netcdf(wrfdata):
+        try:
+            return wrfdata.variables[varname][:]
+        except KeyError:
+            print('No variable {:s}'.format(varname))
+            return None
+    elif _is_xarray(wrfdata):
+        try:
+            return wrfdata.variables[varname].values
+        except KeyError:
+            print('No variable {:s}'.format(varname))
+            return None
+    else:
+        raise AttributeError('Unexpected WRF data type')
 
 def get_wrf_dims(wrfdata):
     ''' Find the dimensions of the given WRF file'''
