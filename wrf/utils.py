@@ -19,24 +19,30 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 
+def _is_netcdf(wrfdata):
+    return hasattr(wrfdata,'dimensions')
+def _is_xarray(wrfdata):
+    return hasattr(wrfdata,'dims')
+
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
     and xarray
     """
-    if hasattr(wrfdata,'dimensions'):
+    if _is_netcdf(wrfdata):
         try:
             return wrfdata.dimensions[dimname].size
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
-    elif hasattr(wrfdata,'dims'):
+    elif _is_xarray(wrfdata):
         try:
             return wrfdata.dims[dimname]
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
     else:
-        raise AttributeError('WRF data has no dimension attribute')
+        raise AttributeError('Unexpected WRF data type')
+
 
 def get_wrf_dims(wrfdata):
     ''' Find the dimensions of the given WRF file'''
