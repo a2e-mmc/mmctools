@@ -31,6 +31,9 @@ class MMCData():
     MMCData instance
     """
     def __init__(self,asciifile=None,pklfile=None,pkldata=None,**kwargs):
+        """Read ascii data in the legacy MMC format from `asciifile` or
+        pickled data in list form from `pklfile`. 
+        """
         self.dataSetDict = None
         self.dataRecordDict = []
         self.dataDict = collections.defaultdict(list)
@@ -148,8 +151,15 @@ class MMCData():
         self.dataDict['wspd_mean']  = np.zeros(self.dataDict['u'].shape)
         self.dataDict['wdir_mean']  = np.zeros(self.dataDict['u'].shape)
         self.dataDict['shear_mean'] = np.zeros(self.dataDict['u'].shape)
- 
+
+    def to_pickle(self,pklfile):
+        # pickle the entire class instance
+        with open(pklfile,'wb') as f:
+            pickle.dump(self,f) 
           
+    #def to_xarray(self,xarrayfile):
+        
+
     def getDataSetDict(self):
         return self.dataSetDict
     
