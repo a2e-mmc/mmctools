@@ -17,24 +17,21 @@ import os, glob
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+import netCDF4
+import xarray
 
-
-def _is_netcdf(wrfdata):
-    return hasattr(wrfdata,'dimensions')
-def _is_xarray(wrfdata):
-    return hasattr(wrfdata,'dims')
 
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
     and xarray
     """
-    if _is_netcdf(wrfdata):
+    if isinstance(wrfdata, netCDF4.Dataset):
         try:
             return wrfdata.dimensions[dimname].size
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
-    elif _is_xarray(wrfdata):
+    elif isinstance(wrfdata, xarray.Dataset):
         try:
             return wrfdata.dims[dimname]
         except KeyError:
@@ -47,13 +44,13 @@ def _get_var(wrfdata,varname):
     """Returns the specified variable, with support for both netCDF4
     and xarray
     """
-    if _is_netcdf(wrfdata):
+    if isinstance(wrfdata, netCDF4.Dataset):
         try:
             return wrfdata.variables[varname][:]
         except KeyError:
             print('No variable {:s}'.format(varname))
             return None
-    elif _is_xarray(wrfdata):
+    elif isinstance(wrfdata, xarray.Dataset):
         try:
             return wrfdata.variables[varname].values
         except KeyError:
