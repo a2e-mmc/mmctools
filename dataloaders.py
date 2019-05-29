@@ -7,9 +7,17 @@ Based on https://github.com/NWTC/datatools/blob/master/wfip2.py
 import os,glob
 import numpy as np
 import pandas as pd
+import xarray
 
 
 reader_exceptions = (IOError, UnicodeDecodeError, AssertionError, ValueError)
+
+
+def _concat(datalist):
+    if isinstance(datalist[0], (pd.Series, pd.DataFrame)):
+        return pd.concat(datalist)
+    elif isinstance(datalist[0], (xarray.Dataset, xarray.DataArray)):
+        return xarray.concat(datalist)
 
 
 def read_dir(dpath='.',file_filter='*',
@@ -48,7 +56,7 @@ def read_dir(dpath='.',file_filter='*',
         print('No dataframes were read!')
         df = None
     else:
-        df = pd.concat(dataframes)
+        df = _concat(dataframes)
     return df
 
 
@@ -103,6 +111,6 @@ def read_date_dirs(dpath='.',dir_filter='*',
         print('No dataframes were read!')
         df = None
     else:
-        df = pd.concat(dataframes)
+        df = _concat(dataframes)
     return df
 
