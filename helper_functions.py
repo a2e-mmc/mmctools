@@ -144,13 +144,13 @@ def covariance(a,b,interval,resample=False):
         heatflux = covariance(df['Ts'],df['w'],'10min')
     """
     if resample:
-        a_mean = a.rolling(interval).mean()
-        b_mean = b.rolling(interval).mean()
-        ab_mean = (a*b).rolling(interval).mean()
-    else:
         a_mean = a.resample(interval).mean()
         b_mean = b.resample(interval).mean()
         ab_mean = (a*b).resample(interval).mean()
+    else:
+        a_mean = a.rolling(interval).mean()
+        b_mean = b.rolling(interval).mean()
+        ab_mean = (a*b).rolling(interval).mean()
     return ab_mean - a_mean*b_mean
 
 
