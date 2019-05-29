@@ -77,11 +77,7 @@ def get_height(wrfdata,timevarying=False,avgheight=False):
     ph  = _get_var(wrfdata,'PH') # dimensions: (Time, bottom_top_stag, south_north, west_east)
     phb = _get_var(wrfdata,'PHB') # dimensions: (Time, bottom_top_stag, south_north, west_east)
     hgt = _get_var(wrfdata,'HGT') # dimensions: (Time, south_north, west_east)
-    
-    # Convert hgt into 3D array by repeating it nz times along a new axis
-    hgt = np.repeat(hgt[:,np.newaxis, :, :], ph.shape[1], axis=1)
-
-    zs  = ((ph+phb)/9.81) - hgt
+    zs  = ((ph+phb)/9.81) - hgt[:,np.newaxis,:,:]
     z = unstagger(zs,axis=1)
     if timevarying:
         return z,zs
