@@ -17,26 +17,47 @@ import os, glob
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+import netCDF4
+import xarray
 
 
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
     and xarray
     """
-    if hasattr(wrfdata,'dimensions'):
+    if isinstance(wrfdata, netCDF4.Dataset):
         try:
             return wrfdata.dimensions[dimname].size
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
-    elif hasattr(wrfdata,'dims'):
+    elif isinstance(wrfdata, xarray.Dataset):
         try:
             return wrfdata.dims[dimname]
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
     else:
-        raise AttributeError('WRF data has no dimension attribute')
+        raise AttributeError('Unexpected WRF data type')
+
+def _get_var(wrfdata,varname):
+    """Returns the specified variable, with support for both netCDF4
+    and xarray
+    """
+    if isinstance(wrfdata, netCDF4.Dataset):
+        try:
+            return wrfdata.variables[varname][:]
+        except KeyError:
+            print('No variable {:s}'.format(varname))
+            return None
+    elif isinstance(wrfdata, xarray.Dataset):
+        try:
+            return wrfdata.variables[varname].values
+        except KeyError:
+            print('No variable {:s}'.format(varname))
+            return None
+    else:
+        raise AttributeError('Unexpected WRF data type')
 
 def get_wrf_dims(wrfdata):
     ''' Find the dimensions of the given WRF file'''
@@ -53,14 +74,10 @@ def get_height(wrfdata,timevarying=False,avgheight=False):
     `avgheight` is False, otherwise return the average height over all
     times.
     '''
-    ph  = wrfdata.variables['PH'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
-    phb = wrfdata.variables['PHB'][:] # dimensions: (Time, bottom_top_stag, south_north, west_east)
-    hgt = wrfdata.variables['HGT'][:] # dimensions: (Time, south_north, west_east)
-    
-    # Convert hgt into 3D array by repeating it nz times along a new axis
-    hgt = np.repeat(hgt[:,np.newaxis, :, :], ph.shape[1], axis=1)
-
-    zs  = ((ph+phb)/9.81) - hgt
+    ph  = _get_var(wrfdata,'PH') # dimensions: (Time, bottom_top_stag, south_north, west_east)
+    phb = _get_var(wrfdata,'PHB') # dimensions: (Time, bottom_top_stag, south_north, west_east)
+    hgt = _get_var(wrfdata,'HGT') # dimensions: (Time, south_north, west_east)
+    zs  = ((ph+phb)/9.81) - hgt[:,np.newaxis,:,:]
     z = unstagger(zs,axis=1)
     if timevarying:
         return z,zs
