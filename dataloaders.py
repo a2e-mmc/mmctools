@@ -13,11 +13,11 @@ import xarray
 reader_exceptions = (IOError, UnicodeDecodeError, AssertionError, ValueError)
 
 
-def _concat(datalist):
+def _concat(datalist,dim='Time'):
     if isinstance(datalist[0], (pd.Series, pd.DataFrame)):
         return pd.concat(datalist)
     elif isinstance(datalist[0], (xarray.Dataset, xarray.DataArray)):
-        return xarray.concat(datalist)
+        return xarray.concat(datalist, dim=dim)
 
 
 def read_dir(dpath='.',file_filter='*',
