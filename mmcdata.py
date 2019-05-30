@@ -9,8 +9,6 @@ associated location (lat/lon), time, and elevation characteristics of
 the data stream 
 """
 
-#import os
-#import sys
 from math import *
 import collections
 import numpy as np
@@ -20,8 +18,30 @@ from matplotlib import pyplot as plt
 from matplotlib import rcParams, cycler
 import matplotlib.dates as mdates
 from matplotlib.ticker import AutoMinorLocator
-#from scipy import interpolate
-#from sklearn import linear_model
+
+
+# legacy file format
+header = """INSTITUTION:{institution:s}
+   LOCATION:{location:s}
+   LATITUDE:{latitude:10.4f}
+  LONGITUDE:{longitude:10.4f}
+   CODENAME:{codename:s}
+   CODETYPE:{codetype:s}
+   CASENAME:{casename:s}
+  BENCHMARK:{benchmark:s}
+     LEVELS:{levels:7d}
+"""
+record = """
+       DATE:{date:s}
+       TIME:{time:s}
+FRICTION VELOCITY [m/s] = {ustar:10.5f}
+SURFACE ROUGHNESS [m]   = {z0:10.5f}
+SKIN TEMPERATURE [K]    = {T0:10.5f}
+SURFACE FLUX [Km/s]     = {qwall:10.5f}
+             Z [m]           U [m/s]           V [m/s]           W [m/s]            TH [K]           P [mbar]    TKE [m^2/s^2]   TAU11 [m^2/s^2]   TAU12 [m^2/s^2]   TAU13 [m^2/s^2]   TAU22 [m^2/s^2]   TAU23 [m^2/s^2]   TAU33 [m^2/s^2]      HFLUX [Km/s]
+"""
+datarow = 4*'{:18.3f}' + 2*'{:18.2f}' + '{:18.3f}' + 7*'{:18.5f}' + '\n'
+
 
 class MMCData():
     """A given set of 'observed' (via instrument or model) timeseries of
