@@ -54,8 +54,8 @@ class MMCData():
         """Read ascii data in the legacy MMC format from `asciifile` or
         pickled data in list form from `pklfile`. 
         """
-        self.dataSetDict = None
-        self.dataRecordDict = []
+        self.description = None
+        self.records = []
         self.dataDict = collections.defaultdict(list)
         if asciifile:
             with open(asciifile,'r') as f:
@@ -68,7 +68,7 @@ class MMCData():
                     pkldata = pickle.load(f)
             # first item is a dictionary with metadata
             self.dataSetLength = len(pkldata) - 1
-            self.dataSetDict = pkldata[0]
+            self.description = pkldata[0]
             if self.dataSetLength > 0:
                 #JAS: try to get all records... self.dataSetLength = len(pkldata)-1
                 self._process_data(pkldata[1:],**kwargs)
@@ -77,7 +77,7 @@ class MMCData():
 
     def _read_ascii(self,f):
         """Read entire legacy MMC file"""
-        self.dataSetDict = _read_ascii_header(f)
+        self.description = _read_ascii_header(f)
         self.dataSetLength = 0
         data = []
         while True:
@@ -85,13 +85,13 @@ class MMCData():
             if line == '':
                 break
             recordheader = _read_ascii_recordheader(f);
-            recordarray = _read_ascii_records(f,self.dataSetDict['levels'])
+            recordarray = _read_ascii_records(f,self.description['levels'])
             data.append([recordheader, recordarray])
             self.dataSetLength += 1
         return data
 
     def _process_data(self,data,convert_ft_to_m=False):
-        """Updates dataRecordDict, dataDict, and dataSetDict"""
+        """Updates dataset description, records, and dataDict"""
         time=[]
         datetime=[]
         z=[]
@@ -110,7 +110,7 @@ class MMCData():
         hflux=[]
         for record in data:
             recordheader, recordarray = record
-            self.dataRecordDict.append(recordheader)
+            self.records.append(recordheader)
             time.append(recordheader['time'].strip())
             dtstr = recordheader['date'] + "_" + recordheader['time'].strip()
             datetime.append(dt.datetime.strptime(dtstr, '%Y-%m-%d_%H:%M:%S'))
@@ -181,13 +181,13 @@ class MMCData():
         
 
     def getDataSetDict(self):
-        return self.dataSetDict
+        return self.description
     
     def getDataSetFieldShape(self):
         return self.dataDict['u'].shape
  
     def getRecordDict(self,recNum):
-        return self.dataRecordDict[recNum]
+        return self.records[recNum]
  
     def setRunningMeans(self,windowLength,levels):
     #def getDataSetRunningMean(self,windowLength,levels, start_datetime,stop_datetime):
