@@ -341,10 +341,39 @@ def extract_column_from_wrfdata(fpath, coords,
                                 additional_fields=[],
                                 verbose=False,
                                ):
-    '''
-    Extract a column of time-height data from a 4-dimensional WRF output file
-    '''
-    
+    """
+    Extract a column of time-height data for a specific site from a
+    4-dimensional WRF output file
+
+    The site specific data is obtained by applying a spatial filter to
+    the WRF data and subsequently interpolating to an equidistant set 
+    of vertical levels representing a microscale vertical grid.
+    The following spatial filtering types are supported:
+    - 'interpolate': interpolate to site coordinates
+    - 'nearest':     use nearest WRF grid point
+    - 'average':     average over an area with size L_filter x L_filter,
+                     centered around the site
+
+    Usage
+    ====
+    coords : list or tuple of length 2
+        Latitude and longitude of the site for which to extract data
+    Ztop : float
+        Top of the microscale grid [m]
+    Vres : float
+        Vertical grid resolution of the microscale grid [m]
+    T0 : float
+        Reference temperature for WRF perturbation temperature [K]
+    spatial_filter : 'interpolate', 'nearest' or 'average'
+        Type of spatial filtering
+    L_filter : float
+        Length scale for spatial averaging [m]
+    additional_fields : list
+        Additional fields to be processed
+    """
+    assert(spatial_filter in ['nearest','interpolate','average']),\
+            'Spatial filtering type "'+spatial_filter+'" not recognised'
+
     # Load WRF data
     xa = xarray.open_dataset(fpath)
     tdim, zdim, ydim, xdim = get_wrf_dims(xa)
