@@ -426,9 +426,11 @@ def extract_column_from_wrfdata(fpath, coords,
             print('The additional field "'+field+'" is not available and will be ignored.')
         else:
             if len(xa[field].dims) == 3:
-                fieldnames_3D.append(field)
+                if field not in fieldnames_3D:
+                    fieldnames_3D.append(field)
             elif len(xa[field].dims) == 4:
-                fieldnames_4D.append(field)
+                if field not in fieldnames_4D:
+                    fieldnames_4D.append(field)
             else:
                 raise Exception('Field "'+field+'" is not 3D or 4D, not sure how to process this field.')
     
