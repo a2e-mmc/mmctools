@@ -16,15 +16,37 @@ def BCs_to_sowfa(
                 fname,
                 df,
                 dateref,
-                field,
+                fieldname,
                 datefrom=None,
                 dateto=None,
                 fact=1.0
                 ):
-    '''
-    Write surface boundary conditions
-    to SOWFA readable onput file
-    '''
+    """
+    Write surface boundary conditions to SOWFA readable output file
+
+    Usage
+    =====
+    dpath : str
+        Folder to write files to
+    fname : str
+        Filename
+    df : pandas.DataFrame
+        Data (index should be called datetime)
+    dateref : str
+        Reference datetime, SOWFA uses seconds since this datetime
+    fieldname : str
+        Name of the field to be written out
+    datefrom : str
+        Start date of the period that will be written out, if None
+        start from the first timestamp in df
+    dateto : str
+        End date of the period that will be written out, if None end
+        with the last timestamp in df
+    fact : float
+        Scale factor for the field, e.g., to scale heat flux to follow
+        OpenFOAM sign convention that boundary fluxes are positive if
+        directed outward
+    """
 
     # Create folder dpath if needed
     if not os.path.isdir(dpath):
@@ -50,17 +72,17 @@ def BCs_to_sowfa(
     nt = ts.size
 
     # assert field exists and is complete
-    assert(field in df.columns), 'Field '+field+' not in df'
-    assert(~pd.isna(df[field]).any()), 'Field '+field+' is not complete (contains NaNs)'
+    assert(fieldname in df.columns), 'Field '+fieldname+' not in df'
+    assert(~pd.isna(df[fieldname]).any()), 'Field '+fieldname+' is not complete (contains NaNs)'
 
     # scale field with factor,
     # e.g., scale heat flux with fact=-1 to follow OpenFOAM sign convention
-    df[field] *= fact
+    df[fieldname] *= fact
 
     with open(os.path.join(dpath,fname),'w') as fid:
         fmt = ['    (%g', '%.12g)',]
         np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),
-                                      df[field].values.reshape((nt,1))
+                                      df[fieldname].values.reshape((nt,1))
                                       ),axis=1),fmt=fmt)
 
     return
@@ -75,10 +97,27 @@ def ICs_to_sowfa(
                 ymom = 'v',
                 temp = 'theta',
                 ):
-    '''
-    Write initial conditions at specified datetime
-    to SOWFA readable input file
-    '''
+    """
+    Write initial conditions at specified datetime to SOWFA readable
+    input file
+
+    Usage
+    =====
+    dpath : str
+        Folder to write files to
+    fname : str
+        Filename
+    df : pandas.DataFrame
+        Data (index should be called datetime)
+    datetime : str
+        Datetime of the initial conditions
+    xmom : str
+        Field name corresponding to the x-velocity
+    ymom : str
+        Field name corresponding to the y-velocity
+    temp : str
+        Field name corresponding to the potential temperature
+    """
 
     # Create folder dpath if needed
     if not os.path.isdir(dpath):
@@ -124,9 +163,34 @@ def timeheight_to_sowfa(
                     zmom = 'w',
                     temp = 'theta',
                     ):
-    '''
+    """
     Write time-height data to SOWFA readable input file
-    '''
+
+    Usage
+    =====
+    dpath : str
+        Folder to write files to
+    fname : str
+        Filename
+    df : pandas.DataFrame
+        Data (index should be called datetime)
+    dateref : str
+        Reference datetime, SOWFA uses seconds since this datetime
+    datefrom : str
+        Start date of the period that will be written out, if None
+        start from the first timestamp in df
+    dateto : str
+        End date of the period that will be written out, if None end
+        with the last timestamp in df
+    xmom : str
+        Field name corresponding to x momentum (field or tendency)
+    ymom : str
+        Field name corresponding to y momentum (field or tendency)
+    zmom : str
+        Field name corresponding to z momentum (field or tendency)
+    temp : str
+        Field name corresponding to potential temperature (field or tendency)
+    """
     
     # Create folder dpath if needed
     if not os.path.isdir(dpath):
