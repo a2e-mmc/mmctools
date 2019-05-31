@@ -310,3 +310,46 @@ def standard_output(df,output=None,**kwargs):
         else:
             raise NotImplementedError('Output extension {:s} not supported'.format(ext))
 
+def tilt_correction(u,v,w,
+                    reg_coefs=[[]],
+                    tilts=[[]]):
+    """Corrects sonic velocities for tilt given regularization
+    coefficients and tilt angles.
+
+    Based on JAS' implementation of Branko's correction from EOL 
+    description.
+    """
+    Nz,Nt = u.shape
+    assert u.shape == v.shape == w.shape
+    assert len(reg_coefs) == Nz
+    assert len(tilts) == Nz
+    for lvl in range(Nz):
+        a = reg_coefs[lvl][0]
+        b = reg_coefs[lvl][1]
+        c = reg_coefs[lvl][2]
+        tilt = tilts[lvl][0]
+        tiltaz = tilts[lvl][1]
+        #Wf = ( sin(tilt)*cos(tiltaz), sin(tilt)*sin(tiltaz), cos(tilt) )
+        wf1 = np.sin(tilt) * np.cos(tiltaz)
+        wf2 = np.sin(tilt) * np.sin(tiltaz)
+        wf3 = np.cos(tilt)
+        #U'f = ((cos(tilt), 0, -sin(tilt)*cos(tiltaz))
+        uf1 = np.cos(tilt)
+        uf2 = 0.
+        uf3 = -np.sin(tilt) * np.cos(tiltaz)
+        ufm = np.sqrt(uf1**2 + uf2**2 + uf3**2)
+        uf1 = uf1 / ufm
+        uf2 = uf2 / ufm
+        uf3 = uf3 / ufm
+        #vf = wf x uf
+        vf1 = wf2*uf3 - wf3*uf2
+        vf2 = wf3*uf1 - wf1*uf3
+        vf3 = wf1*uf2 - wf2*uf1
+        ug = uf1*u[lvl,:] + uf2*v[lvl,:] + uf3*(w[lvl,:] - a)
+        vg = vf1*u[lvl,:] + vf2*v[lvl,:] + vf3*(w[lvl,:] - a)
+        wg = wf1*u[lvl,:] + wf2*v[lvl,:] + wf3*(w[lvl,:] - a)
+        u[lvl,:] = ug
+        v[lvl,:] = vg
+        w[lvl,:] = wg
+    return u,v,w
+
