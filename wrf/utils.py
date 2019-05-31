@@ -530,13 +530,13 @@ def extract_column_from_wrfdata(fpath, coords,
     for field in fieldnames_3D:
         data_vars[field] = ('Time',
                             sitedata[field],
-                            {'description': xa[field].attrs['description'],
+                            {'description': xa[field].attrs['description'].lower(),
                              'units': xa[field].attrs['units']}
                            )
     for field in fieldnames_4D:
         data_vars[field] = (['Time','height'],
                             sitedata[field],
-                            {'description': xa[field].attrs['description'],
+                            {'description': xa[field].attrs['description'].lower(),
                              'units': xa[field].attrs['units']}
                            )
         
