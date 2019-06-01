@@ -13,7 +13,10 @@ from math import *
 import collections
 import numpy as np
 import datetime as dt
+import pandas as pd
+import xarray
 import pickle
+
 from matplotlib import pyplot as plt
 from matplotlib import rcParams, cycler
 import matplotlib.dates as mdates
@@ -177,8 +180,40 @@ class MMCData():
         with open(pklfile,'wb') as f:
             pickle.dump(self,f) 
           
-    #def to_xarray(self,xarrayfile):
-        
+    def to_xarray(self):
+        # returns an xarray instance with standard variables
+        coords = {
+            'datetime': xarray.DataArray(self.dataDict['datetime'],
+                                  name='datetime',
+                                  dims='num_samples'),
+            'height': xarray.DataArray(self.dataDict['z'],
+                                  name='height',
+                                  dims=['num_samples','num_levels'],
+                                  attrs={'units':'m'}),
+        }
+        data_vars = {
+            'u': xarray.DataArray(self.dataDict['u'],
+                                  name='west-east velocity',
+                                  dims=['num_samples','num_levels'],
+                                  attrs={'units':'m s-1'}),
+            'v': xarray.DataArray(self.dataDict['v'],
+                                  name='south-north velocity',
+                                  dims=['num_samples','num_levels'],
+                                  attrs={'units':'m s-1'}),
+            'w': xarray.DataArray(self.dataDict['w'],
+                                  name='vertical velocity',
+                                  dims=['num_samples','num_levels'],
+                                  attrs={'units':'m s-1'}),
+            'theta': xarray.DataArray(self.dataDict['theta'],
+                                  name='potential temperature',
+                                  dims=['num_samples','num_levels'],
+                                  attrs={'units':'K'}),
+            'pres': xarray.DataArray(self.dataDict['pres'],
+                                  name='pressure',
+                                  dims=['num_samples','num_levels'],
+                                  attrs={'units':'mbar'}),
+        }
+        return xarray.Dataset(data_vars,coords)
 
     def getDataSetDict(self):
         return self.description
