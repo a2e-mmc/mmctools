@@ -320,6 +320,12 @@ def tilt_correction(u,v,w,
     Based on JAS' implementation of Branko's correction from EOL 
     description.
     """
+    if isinstance(u,pd.DataFrame):
+        u = u.values
+    if isinstance(v,pd.DataFrame):
+        v = v.values
+    if isinstance(w,pd.DataFrame):
+        w = w.values
     if len(u.shape) == 1:
         Nt = 1
         Nz = len(u)
