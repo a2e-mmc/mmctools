@@ -11,13 +11,23 @@ import xarray
 
 
 reader_exceptions = (IOError, UnicodeDecodeError, AssertionError, ValueError)
+netcdf_time_names = ['Time','time','datetime']
 
-
-def _concat(datalist,dim='Time'):
+def _concat(datalist):
     if isinstance(datalist[0], (pd.Series, pd.DataFrame)):
         return pd.concat(datalist)
     elif isinstance(datalist[0], (xarray.Dataset, xarray.DataArray)):
-        return xarray.concat(datalist, dim=dim)
+        dim = None
+        for timename in netcdf_time_names:
+            if timename in datalist[0].coords:
+                dim = timename
+                break
+        if dim is None:
+            print('Unable to concatenate data arrays; time dimension not one of',
+                  netcdf_time_names)
+            return datalist
+        else:
+            return xarray.concat(datalist, dim=dim)
 
 
 def read_dir(dpath='.',file_filter='*',
@@ -28,7 +38,7 @@ def read_dir(dpath='.',file_filter='*',
     """Wrapper around pandas read_csv() or data reader function. 
     
     Additional readers:
-    - metmast
+    - measurements/metmast
     - measurements/radar
     - measurements/lidar
     - measurements/sodar
@@ -69,7 +79,7 @@ def read_date_dirs(dpath='.',dir_filter='*',
     """Wrapper around pandas read_csv() or data reader function. 
 
     Additional readers:
-    - metmast
+    - measurements/metmast
     - measurements/radar
     - measurements/lidar
     - measurements/sodar
