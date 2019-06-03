@@ -30,6 +30,44 @@ def _concat(datalist):
             return xarray.concat(datalist, dim=dim)
 
 
+def read_files(filelist=[],
+               reader=pd.read_csv,
+               sort=True,
+               verbose=False,
+               **kwargs):
+    """Wrapper around pandas read_csv() or data reader function. 
+    
+    Additional readers:
+    - metmast
+    - measurements/radar
+    - measurements/lidar
+    - measurements/sodar
+    
+    Returns concatenated dataframe made up of dataframes read from text
+    files in specified list. 
+
+    Additional keyword arguments are passed to the data reader.
+    """
+    dataframes = []
+    if sort:
+        filelist.sort()
+    for fpath in filelist:
+        if not os.path.isfile(fpath): continue
+        if verbose:
+            print('Reading '+fpath)
+        try:
+            df = reader(fpath,verbose=verbose,**kwargs)
+        except reader_exceptions as err:
+            print(err,'while reading',fpath)
+        dataframes.append(df)
+    if len(dataframes) == 0:
+        print('No dataframes were read!')
+        df = None
+    else:
+        df = _concat(dataframes)
+    return df
+
+
 def read_dir(dpath='.',file_filter='*',
              reader=pd.read_csv,
              sort=True,
@@ -43,7 +81,7 @@ def read_dir(dpath='.',file_filter='*',
     - measurements/lidar
     - measurements/sodar
     
-    Returns concatenated dataframe made up of dataframes read from CSV
+    Returns concatenated dataframe made up of dataframes read from text
     files in specified directory. Filenames may be filtered with the 
     file_filter argument, which is used to select files with globbing.
 
@@ -85,7 +123,7 @@ def read_date_dirs(dpath='.',dir_filter='*',
     - measurements/sodar
     
     Return concatenated dataframe made up of dataframes read from
-    CSV files contained in _subdirectories with the expected date
+    text files contained in _subdirectories with the expected date
     format_. 
 
     Extra keyword arguments are passed to the data reader.
