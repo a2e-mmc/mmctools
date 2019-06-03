@@ -314,21 +314,28 @@ def tilt_correction(u,v,w,
                     reg_coefs=[[]],
                     tilts=[[]]):
     """Corrects sonic velocities for tilt given regularization
-    coefficients and tilt angles.
+    coefficients and tilt angles. Velocities should have dimensions
+    (time,height) or (height,).
 
     Based on JAS' implementation of Branko's correction from EOL 
     description.
     """
-    Nz,Nt = u.shape
+    if len(u.shape) == 1:
+        Nt = 1
+        Nz = len(u)
+        u = u[np.newaxis,:]
+        v = v[np.newaxis,:]
+        w = w[np.newaxis,:]
+    elif len(u.shape) == 2:
+        Nt,Nz = u.shape
+    else:
+        raise IndexError('Unexpected number of dimensions in u')
     assert u.shape == v.shape == w.shape
     assert len(reg_coefs) == Nz
     assert len(tilts) == Nz
     for lvl in range(Nz):
-        a = reg_coefs[lvl][0]
-        b = reg_coefs[lvl][1]
-        c = reg_coefs[lvl][2]
-        tilt = tilts[lvl][0]
-        tiltaz = tilts[lvl][1]
+        a,b,c = reg_coefs[lvl]
+        tilt, tiltaz = tilts[lvl]
         #Wf = ( sin(tilt)*cos(tiltaz), sin(tilt)*sin(tiltaz), cos(tilt) )
         wf1 = np.sin(tilt) * np.cos(tiltaz)
         wf2 = np.sin(tilt) * np.sin(tiltaz)
@@ -345,11 +352,14 @@ def tilt_correction(u,v,w,
         vf1 = wf2*uf3 - wf3*uf2
         vf2 = wf3*uf1 - wf1*uf3
         vf3 = wf1*uf2 - wf2*uf1
-        ug = uf1*u[lvl,:] + uf2*v[lvl,:] + uf3*(w[lvl,:] - a)
-        vg = vf1*u[lvl,:] + vf2*v[lvl,:] + vf3*(w[lvl,:] - a)
-        wg = wf1*u[lvl,:] + wf2*v[lvl,:] + wf3*(w[lvl,:] - a)
-        u[lvl,:] = ug
-        v[lvl,:] = vg
-        w[lvl,:] = wg
-    return u,v,w
+        ug = uf1*u[:,lvl] + uf2*v[:,lvl] + uf3*(w[:,lvl] - a)
+        vg = vf1*u[:,lvl] + vf2*v[:,lvl] + vf3*(w[:,lvl] - a)
+        wg = wf1*u[:,lvl] + wf2*v[:,lvl] + wf3*(w[:,lvl] - a)
+        u[:,lvl] = ug
+        v[:,lvl] = vg
+        w[:,lvl] = wg
+    if Nt == 1:
+        return u.squeeze(),v.squeeze(),w.squeeze()
+    else:
+        return u,v,w
 
