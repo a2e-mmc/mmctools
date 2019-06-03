@@ -187,40 +187,40 @@ class MMCData():
         df = self.to_xarray().to_dataframe()
         # the resulting dataframe has an integer multiindex formed by
         # range(num_samples) and range(num_levels)
-        df = df.reset_index().drop(columns=['num_samples','num_levels'])
+        df = df.reset_index().drop(columns=['Time','bottom_top'])
         return df.set_index(['datetime','height'])
           
-    def to_xarray(self):
+    def to_xarray(self,timedim='Time',heightdim='bottom_top'):
         """return an xarray dataset with standard variables"""
         coords = {
             'datetime': xarray.DataArray(self.dataDict['datetime'],
                                   name='datetime',
-                                  dims='num_samples'),
+                                  dims=timedim),
             'height': xarray.DataArray(self.dataDict['z'],
                                   name='height',
-                                  dims=['num_samples','num_levels'],
+                                  dims=[timedim, heightdim],
                                   attrs={'units':'m'}),
         }
         data_vars = {
             'u': xarray.DataArray(self.dataDict['u'],
                                   name='west-east velocity',
-                                  dims=['num_samples','num_levels'],
+                                  dims=[timedim, heightdim],
                                   attrs={'units':'m s-1'}),
             'v': xarray.DataArray(self.dataDict['v'],
                                   name='south-north velocity',
-                                  dims=['num_samples','num_levels'],
+                                  dims=[timedim, heightdim],
                                   attrs={'units':'m s-1'}),
             'w': xarray.DataArray(self.dataDict['w'],
                                   name='vertical velocity',
-                                  dims=['num_samples','num_levels'],
+                                  dims=[timedim, heightdim],
                                   attrs={'units':'m s-1'}),
             'theta': xarray.DataArray(self.dataDict['theta'],
                                   name='potential temperature',
-                                  dims=['num_samples','num_levels'],
+                                  dims=[timedim, heightdim],
                                   attrs={'units':'K'}),
             'pres': xarray.DataArray(self.dataDict['pres'],
                                   name='pressure',
-                                  dims=['num_samples','num_levels'],
+                                  dims=[timedim, heightdim],
                                   attrs={'units':'mbar'}),
         }
         return xarray.Dataset(data_vars,coords)
