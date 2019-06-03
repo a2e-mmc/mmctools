@@ -176,12 +176,22 @@ class MMCData():
         self.dataDict['shear_mean'] = np.zeros(self.dataDict['u'].shape)
 
     def to_pickle(self,pklfile):
-        # pickle the entire class instance
+        """pickle the entire class instance"""
         with open(pklfile,'wb') as f:
             pickle.dump(self,f) 
+
+    def to_dataframe(self):
+        """return a multi-indexed pandas dataframe with standard
+        variables
+        """
+        df = self.to_xarray().to_dataframe()
+        # the resulting dataframe has an integer multiindex formed by
+        # range(num_samples) and range(num_levels)
+        df = df.reset_index().drop(columns=['num_samples','num_levels'])
+        return df.set_index(['datetime','height'])
           
     def to_xarray(self):
-        # returns an xarray instance with standard variables
+        """return an xarray dataset with standard variables"""
         coords = {
             'datetime': xarray.DataArray(self.dataDict['datetime'],
                                   name='datetime',
