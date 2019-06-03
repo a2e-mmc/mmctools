@@ -80,15 +80,15 @@ class MMCData():
 
     def _read_ascii(self,f):
         """Read entire legacy MMC file"""
-        self.description = _read_ascii_header(f)
+        self.description = read_ascii_header(f)
         self.dataSetLength = 0
         data = []
         while True:
             line = f.readline()
             if line == '':
                 break
-            recordheader = _read_ascii_recordheader(f);
-            recordarray = _read_ascii_records(f,self.description['levels'])
+            recordheader = read_ascii_recordheader(f);
+            recordarray = read_ascii_records(f,self.description['levels'])
             data.append([recordheader, recordarray])
             self.dataSetLength += 1
         return data
@@ -342,7 +342,7 @@ class MMCData():
 
 ### Readers for legacy MMC data
 
-def _read_ascii_header(f):
+def read_ascii_header(f):
     """Read header from legacy MMC file, called by _read_ascii()"""
     head1 = f.readline()
     head2 = f.readline()
@@ -380,7 +380,7 @@ def _read_ascii_header(f):
 
     return fileheader
 
-def _read_ascii_recordheader(f):
+def read_ascii_recordheader(f):
     """Read a record from legacy MMC file, called by _read_ascii()"""
     try:
         head1 = f.readline()
@@ -430,7 +430,7 @@ def _read_ascii_recordheader(f):
 
     return recordheader
 
-def _read_ascii_records(f,Nlevels):
+def read_ascii_records(f,Nlevels):
     """Read specified number of records from legacy MMC file, called
     by _read_ascii().
     """
