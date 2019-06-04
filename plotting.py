@@ -137,10 +137,10 @@ def plot_timeheight(datasets,
 
 
 def plot_timehistory_at_height(datasets,
-                     fields,
-                     height,
-                     xlimits=None,
-                     ):
+                               fields,
+                               height,
+                               xlimits=None,
+                               ):
 
     if isinstance(fields,str):
         fields = [fields,]
@@ -189,6 +189,7 @@ def plot_timehistory_at_height(datasets,
     axs[-1].xaxis.set_major_locator(mdates.DayLocator())
     axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
     axs[-1].set_xlabel(r'UTC time')
+
     if not xlimits is None:
         axs[-1].set_xlim(xlimits)
 
@@ -203,9 +204,70 @@ def plot_timehistory_at_height(datasets,
     return fig, axs
 
 
-def plot_timehistory_at_heights():
-    print('do something')
-    return
+def plot_timehistory_at_heights(datasets,
+                                fields,
+                                heights,
+                                xlimits=None
+                                ):
+
+    if isinstance(fields,str):
+        fields = [fields,]
+    if isinstance(datasets,pd.DataFrame):
+        datasets = {'Dataset': datasets}
+
+    Nfields   = len(fields)
+    Ndatasets = len(datasets)
+
+    fig,axs = plt.subplots(nrows=Nfields*Ndatasets,sharex=True,figsize=(11,3*Nfields*Ndatasets))
+
+    for i,dfname in enumerate(datasets):
+        df = datasets[dfname]
+        timevalues = df.index.unique().get_values()
+        heightvalues = df['height'].unique()
+
+        # Create list with available fields only
+        available_fields = []
+        for field in fields:
+            if field in df.columns:
+                available_fields.append(field)
+        assert(len(available_fields)>0), 'Dataset '+dfname+' does not contain any of the requested fields'
+
+        df_pivot = df.pivot(columns='height',values=available_fields)
+
+        if Ndatasets > 1:
+            ax[i*Nfields].set_title(dfname)
+
+        for j,field in enumerate(fields):
+            # Skip loop if field not available
+            if not field in available_fields:
+                continue
+
+            axi = i*Nfields + j
+            for z in heights:
+                axs[axi].plot_date(timevalues,
+                            interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(z),
+                            '-',label='z = {:.1f} m'.format(z),linewidth=2)
+            axs[axi].grid(True,which='both')
+            axs[axi].set_ylabel(fieldLabels[field])
+
+    axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=3))
+    axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+    axs[-1].xaxis.set_major_locator(mdates.DayLocator())
+    axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+    axs[-1].set_xlabel(r'UTC time')
+
+    if not xlimits is None:
+        axs[-1].set_xlim(xlimits)
+
+    # Number sub figures as a, b, c, ...
+    if len(axs) > 1:
+        for i,ax in enumerate(axs):
+            ax.text(-0.14,1.0,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
+
+    # Add legend    
+    leg = axs[0].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+
+    return fig, axs
 
 
 def plot_profile(datasets,
