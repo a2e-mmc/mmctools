@@ -10,6 +10,16 @@ from scipy.interpolate import interp1d
 from scipy.signal import welch
 
 # TODO:
+# - Fix FutureWarning:
+#   .../python3.6/site-packages/pandas/plotting/_converter.py:129: FutureWarning:
+#   Using an implicitly registered datetime converter for a matplotlib plotting
+#   method. The converter was registered by pandas on import. Future versions of
+#   pandas will require you to explicitly register matplotlib converters.
+#
+#   To register the converters:
+#        >>> from pandas.plotting import register_matplotlib_converters
+#            >>> register_matplotlib_converters()
+#              warnings.warn(msg, FutureWarning)
 # - Allow custom colors/styles/markers?
 
 
@@ -155,7 +165,7 @@ def plot_timehistory_at_height(datasets,
     # Loop over datasets and fields 
     for j,dfname in enumerate(datasets):
         df = datasets[dfname]
-        times = df.index.unique().get_values()
+        times = df.index.unique()
         heights = df['height'].unique()
 
         # Create list with available fields only
@@ -222,7 +232,7 @@ def plot_timehistory_at_heights(datasets,
 
     for i,dfname in enumerate(datasets):
         df = datasets[dfname]
-        timevalues = df.index.unique().get_values()
+        timevalues = df.index.unique()
         heightvalues = df['height'].unique()
 
         # Create list with available fields only
