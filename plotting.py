@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pandas as pd
 from scipy.interpolate import interp1d
+from scipy.signal import welch
 
 # TODO:
 # - Allow custom colors/styles/markers?
@@ -292,9 +293,81 @@ def plot_profile_evolution():
     return
 
 
-def plot_spectrum():
-    print('do something')
-    return
+def plot_spectrum(datasets,
+                  times,
+                  fields,
+                  height,
+                  Tperiod=3600.0,
+                  Twindow=600.0,
+                  ):
+
+    fieldLabels = {'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
+                   'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
+                   'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
+                   'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
+                   }
+
+
+    if isinstance(fields,str):
+        fields = [fields,]
+    if isinstance(times,str):
+        times = [times,]
+    if isinstance(datasets,pd.DataFrame):
+        datasets = {'Dataset': datasets}
+
+    Ntimes = len(times)
+    Nfields = len(fields)
+
+    #Order plots depending on number of datasets and fields
+    nrows, ncols = _calc_nrows_ncols(Ntimes,Nfields)
+    fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
+    if ncols*nrows==1:
+        axs = [ax,]
+    else:
+        axs = ax.ravel()
+
+    fig.subplots_adjust(wspace=0.3,hspace=0.5)
+
+    # Loop over datasets, fields and times 
+    for j, dfname in enumerate(datasets):
+        df = datasets[dfname]
+        heightvalues = df['height'].unique()
+        timevalues   = df.index.unique()
+        dt = (timevalues[1]-timevalues[0]) / pd.Timedelta(1,unit='s')     #Sampling rate in seconds
+        fielddata = df.pivot(columns='height',values=fields)
+
+        for k, field in enumerate(fields):
+            for i, tstart in enumerate(times):
+                axi = k*Ntimes + i
+                
+                # axes mark up
+                if j==0:
+                    axs[axi].set_title(pd.to_datetime(tstart).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
+                    axs[axi].set_xlabel('f [Hz]')
+
+                # Plot data
+                istart = np.where(timevalues==pd.to_datetime(tstart))[0][0]
+                signal = interp1d(heightvalues,fielddata[field].interpolate(method='linear').values,axis=1,fill_value="extrapolate")(height)
+                f, P = welch(signal[istart:istart+np.int(Tperiod/dt)],fs=1./dt,nperseg=np.int(Twindow/dt),
+                            detrend='linear',window='hanning',scaling='density')
+
+                axs[axi].loglog(f[1:],P[1:],label = dfname)
+    
+    for r in range(nrows):
+        try:
+            axs[r*ncols].set_ylabel(fieldLabels[fields[r]])
+        except KeyError:
+            pass
+
+    # Number sub figures as a, b, c, ...
+    if len(axs) > 1:
+        for i,ax in enumerate(axs):
+            ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
+
+    # Add legend
+    leg = axs[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
+
+    return fig, axs
 
 
 def _calc_nrows_ncols(N1,N2):
