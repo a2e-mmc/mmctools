@@ -26,6 +26,7 @@ fieldLabels = {'wspd': r'Wind speed [m/s]',
                'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
                }
 
+
 def plot_timeheight(datasets,
                     fields,
                     vlimits=None,
@@ -53,30 +54,11 @@ def plot_timeheight(datasets,
     Nfields = len(fields)
 
     #Order plots depending on number of datasets and fields
-    if Ndatasets==1 or Nfields==1:
-        ncols = max([Ndatasets,Nfields])
-        if ncols > 3 and ncols%2 == 0:
-            ncols = int(ncols/2)
-            nrows = 2
-        else:
-            nrows=1
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(6.4*ncols,4.8*nrows))
-        if ncols*nrows==1:
-            axs = [ax,]
-        else:
-            axs = ax.ravel()
-    elif Ndatasets<=3 and Nfields<=4:
-        ncols = Ndatasets
-        nrows = Nfields
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(6.4*ncols,4.8*nrows))
-        axs = ax.ravel()
+    nrows, ncols = _calc_nrows_ncols(Ndatasets,Nfields)
+    fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(6.4*ncols,4.8*nrows))
+    if ncols*nrows==1:
+        axs = [ax,]
     else:
-        nrows = Ndatasets
-        ncols = Nfields
-        if ncols > 3 and ncols%2 == 0:
-            ncols = int(ncols/2)
-            nrows *= 2
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(6.4*ncols,4.8*nrows))
         axs = ax.ravel()
 
     fig.subplots_adjust(wspace=0.4,hspace=0.4)
@@ -225,31 +207,12 @@ def plot_profile(datasets,
     Ntimes = len(times)
     Nfields = len(fields)
 
-    #Order plots depending on number of times and fields
-    if Ntimes==1 or Nfields==1:
-        ncols = max([Ntimes,Nfields])
-        if ncols > 3 and ncols%2 == 0:
-            ncols = int(ncols/2)
-            nrows = 2
-        else:
-            nrows=1
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
-        if ncols*nrows==1:
-            axs = [ax,]
-        else:
-            axs = ax.ravel()
-    elif Ntimes<=3 and Nfields<=4:
-        ncols = Ntimes
-        nrows = Nfields
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
-        axs = ax.ravel()
+    #Order plots depending on number of datasets and fields
+    nrows, ncols = _calc_nrows_ncols(Ntimes,Nfields)
+    fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
+    if ncols*nrows==1:
+        axs = [ax,]
     else:
-        nrows = Ntimes
-        ncols = Nfields
-        if ncols > 3 and ncols%2 == 0:
-            ncols = int(ncols/2)
-            nrows *= 2
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
         axs = ax.ravel()
 
     fig.subplots_adjust(wspace=0.2,hspace=0.4)
@@ -316,3 +279,23 @@ def plot_profile_evolution():
 def plot_spectrum():
     print('do something')
     return
+
+
+def _calc_nrows_ncols(N1,N2):
+    if N1==1 or N2==1:
+        ncols = max([N1,N2])
+        if ncols > 3 and ncols%2 == 0:
+            ncols = int(ncols/2)
+            nrows = 2
+        else:
+            nrows=1
+    elif N1<=3 and N2<=4:
+        ncols = N1
+        nrows = N2
+    else:
+        nrows = N1
+        ncols = N2
+        if ncols > 3 and ncols%2 == 0:
+            ncols = int(ncols/2)
+            nrows *= 2
+    return nrows, ncols
