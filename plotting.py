@@ -38,7 +38,7 @@ def plot_timeheight(datasets,
     if isinstance(datasets,pd.DataFrame):
         datasets = {'Dataset': datasets}
 
-    if vlimits == None:
+    if vlimits is None:
         vlimits = {}
         for field in fields:
             vlimits[field] = [ min([df[field].min() for df in datasets.values()]),
@@ -60,7 +60,7 @@ def plot_timeheight(datasets,
             nrows = 2
         else:
             nrows=1
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(6.4*ncols,4.8*nrows))
+        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(6.4*ncols,4.8*nrows))
         if ncols*nrows==1:
             axs = [ax,]
         else:
@@ -68,7 +68,7 @@ def plot_timeheight(datasets,
     elif Ndatasets<=3 and Nfields<=4:
         ncols = Ndatasets
         nrows = Nfields
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(6.4*ncols,4.8*nrows))
+        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(6.4*ncols,4.8*nrows))
         axs = ax.ravel()
     else:
         nrows = Ndatasets
@@ -76,10 +76,10 @@ def plot_timeheight(datasets,
         if ncols > 3 and ncols%2 == 0:
             ncols = int(ncols/2)
             nrows *= 2
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(6.4*ncols,4.8*nrows))
+        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(6.4*ncols,4.8*nrows))
         axs = ax.ravel()
 
-    fig.subplots_adjust(wspace=0.2,hspace=0.4)
+    fig.subplots_adjust(wspace=0.4,hspace=0.4)
 
     # Loop over datasets, fields and times 
     for j, dfname in enumerate(datasets):
@@ -104,7 +104,6 @@ def plot_timeheight(datasets,
                 continue
 
             axi = j*Nfields + k
-            ax[axi].set_title(dfname)
 
             fieldvalues = df_pivot[field].values 
             im = axs[axi].pcolormesh(Ts,Zs,fieldvalues.T,
@@ -117,15 +116,23 @@ def plot_timeheight(datasets,
             except KeyError:
                 pass
 
-    for ax in axs:
-        ax.set_xlabel(r'UTC time')
-        ax.set_ylabel(r'Height [m]')
-        ax.xaxis_date()
-        ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=12))
-        ax.xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M'))
-        ax.xaxis.set_major_locator(mdates.DayLocator())
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('\n%d-%b'))
+            # axis mark up
+            axs[axi].set_title(dfname)
+            axs[axi].set_xlabel(r'UTC time')
+            axs[axi].xaxis_date()
+            axs[axi].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=12))
+            axs[axi].xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M'))
+            axs[axi].xaxis.set_major_locator(mdates.DayLocator())
+            axs[axi].xaxis.set_major_formatter(mdates.DateFormatter('\n%d-%b'))
 
+    # Add y labels
+    for r in range(nrows): 
+        axs[r*ncols].set_ylabel(r'Height [m]')
+    
+    # Number sub figures as a, b, c, ...
+    if len(axs) > 1:
+        for i,ax in enumerate(axs):
+            ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
     return fig, ax
 
