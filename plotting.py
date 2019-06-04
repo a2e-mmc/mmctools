@@ -29,9 +29,10 @@ fieldLabels = {'wspd': r'Wind speed [m/s]',
 
 def plot_timeheight(datasets,
                     fields,
-                    vlimits=None,
+                    vlimits={},
                     xlimits=None,
-                    colorscheme=None,
+                    ylimits=None,
+                    colorscheme={},
                     ):
 
     if isinstance(fields,str):
@@ -39,16 +40,26 @@ def plot_timeheight(datasets,
     if isinstance(datasets,pd.DataFrame):
         datasets = {'Dataset': datasets}
 
-    if vlimits is None:
-        vlimits = {}
-        for field in fields:
-            vlimits[field] = [ min([df[field].min() for df in datasets.values()]),
-                               max([df[field].max() for df in datasets.values()]) ]
-
-    if colorscheme == None:
-        cmap = mpl.cm.get_cmap('viridis')
+    if isinstance(vlimits, (list, tuple)):
+        assert(len(fields)==1), 'Unclear to what field vlimits corresponds'
+        vlimits = {fields[0]:vlimits}
     else:
-        cmap = mpl.cm.get_cmap(colorscheme)
+        for field in fields:
+            # Calculate missing vlimits
+            if field not in vlimits.keys():
+                vlimits[field] = [ min([df[field].min() for df in datasets.values()]),
+                                   max([df[field].max() for df in datasets.values()]) ]
+
+    cmap = {}
+    if isinstance(colorscheme, str):
+        assert(len(fields)==1), 'Unclear to what field colorscheme corresponds'
+        cmap[fields[0]] = mpl.cm.get_cmap(colorscheme)
+    else:
+        for field in fields:
+            # Set missing colorschemes to viridis
+            if field not in colorscheme.keys():
+                colorscheme[field] = 'viridis'
+            cmap[field] = mpl.cm.get_cmap(colorscheme[field])
 
     Ndatasets = len(datasets)
     Nfields = len(fields)
@@ -90,7 +101,7 @@ def plot_timeheight(datasets,
             fieldvalues = df_pivot[field].values 
             im = axs[axi].pcolormesh(Ts,Zs,fieldvalues.T,
                           vmin=vlimits[field][0],vmax=vlimits[field][1],
-                          cmap=cmap,
+                          cmap=cmap[field],
                           shading='flat')
             cbar = fig.colorbar(im,ax=axs[axi],shrink=1.0)
             try:
@@ -106,6 +117,11 @@ def plot_timeheight(datasets,
             axs[axi].xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M'))
             axs[axi].xaxis.set_major_locator(mdates.DayLocator())
             axs[axi].xaxis.set_major_formatter(mdates.DateFormatter('\n%d-%b'))
+
+    if not xlimits is None:
+        axs[-1].set_xlim(xlimits)
+    if not ylimits is None:
+        axs[-1].set_ylim(ylimits)
 
     # Add y labels
     for r in range(nrows): 
