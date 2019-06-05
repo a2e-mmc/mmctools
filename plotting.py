@@ -40,9 +40,9 @@ fieldLabels = {'wspd': r'Wind speed [m/s]',
 
 def plot_timeheight(datasets,
                     fields,
-                    vlimits={},
-                    xlimits=None,
-                    ylimits=None,
+                    fieldlimits={},
+                    timelimits=None,
+                    heightlimits=None,
                     colorscheme={},
                     ):
 
@@ -51,14 +51,14 @@ def plot_timeheight(datasets,
     if isinstance(datasets,pd.DataFrame):
         datasets = {'Dataset': datasets}
 
-    if isinstance(vlimits, (list, tuple)):
-        assert(len(fields)==1), 'Unclear to what field vlimits corresponds'
-        vlimits = {fields[0]:vlimits}
+    if isinstance(fieldlimits, (list, tuple)):
+        assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
+        fieldlimits = {fields[0]:fieldlimits}
     else:
         for field in fields:
-            # Calculate missing vlimits
-            if field not in vlimits.keys():
-                vlimits[field] = [ min([df[field].min() for df in datasets.values()]),
+            # Calculate missing fieldlimits
+            if field not in fieldlimits.keys():
+                fieldlimits[field] = [ min([df[field].min() for df in datasets.values()]),
                                    max([df[field].max() for df in datasets.values()]) ]
 
     cmap = {}
@@ -111,7 +111,7 @@ def plot_timeheight(datasets,
 
             fieldvalues = df_pivot[field].values 
             im = axs[axi].pcolormesh(Ts,Zs,fieldvalues.T,
-                          vmin=vlimits[field][0],vmax=vlimits[field][1],
+                          vmin=fieldlimits[field][0],vmax=fieldlimits[field][1],
                           cmap=cmap[field],
                           shading='flat')
             cbar = fig.colorbar(im,ax=axs[axi],shrink=1.0)
@@ -129,10 +129,10 @@ def plot_timeheight(datasets,
             axs[axi].xaxis.set_major_locator(mdates.DayLocator())
             axs[axi].xaxis.set_major_formatter(mdates.DateFormatter('\n%d-%b'))
 
-    if not xlimits is None:
-        axs[-1].set_xlim(xlimits)
-    if not ylimits is None:
-        axs[-1].set_ylim(ylimits)
+    if not timelimits is None:
+        axs[-1].set_xlim(timelimits)
+    if not heightlimits is None:
+        axs[-1].set_ylim(heightlimits)
 
     # Add y labels
     for r in range(nrows): 
@@ -149,13 +149,18 @@ def plot_timeheight(datasets,
 def plot_timehistory_at_height(datasets,
                                fields,
                                height,
-                               xlimits=None,
+                               timelimits=None,
+                               fieldlimits = {},
                                ):
 
     if isinstance(fields,str):
         fields = [fields,]
     if isinstance(datasets,pd.DataFrame):
         datasets = {'Dataset': datasets}
+
+    if isinstance(fieldlimits, (list, tuple)):
+        assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
+        fieldlimits = {fields[0]:fieldlimits}
 
     Nfields = len(fields)
 
@@ -189,6 +194,10 @@ def plot_timehistory_at_height(datasets,
                     axs[i].set_ylabel(fieldLabels[field])
                 except KeyError:
                     pass
+                try:
+                    axs[i].set_ylim(fieldlimits[field])
+                except KeyError:
+                    pass
 
             signal = interp1d(heights,df_pivot[field].values,axis=1,fill_value="extrapolate")(height)
             axs[i].plot_date(times,signal,linewidth=2,label=dfname,linestyle='-',marker=None)
@@ -200,8 +209,8 @@ def plot_timehistory_at_height(datasets,
     axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
     axs[-1].set_xlabel(r'UTC time')
 
-    if not xlimits is None:
-        axs[-1].set_xlim(xlimits)
+    if not timelimits is None:
+        axs[-1].set_xlim(timelimits)
 
     # Number sub figures as a, b, c, ...
     if len(axs) > 1:
@@ -217,13 +226,18 @@ def plot_timehistory_at_height(datasets,
 def plot_timehistory_at_heights(datasets,
                                 fields,
                                 heights,
-                                xlimits=None
+                                timelimits=None,
+                                fieldlimits = {}
                                 ):
 
     if isinstance(fields,str):
         fields = [fields,]
     if isinstance(datasets,pd.DataFrame):
         datasets = {'Dataset': datasets}
+
+    if isinstance(fieldlimits, (list, tuple)):
+        assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
+        fieldlimits = {fields[0]:fieldlimits}
 
     Nfields   = len(fields)
     Ndatasets = len(datasets)
@@ -258,7 +272,14 @@ def plot_timehistory_at_heights(datasets,
                             interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(z),
                             '-',label='z = {:.1f} m'.format(z),linewidth=2)
             axs[axi].grid(True,which='both')
-            axs[axi].set_ylabel(fieldLabels[field])
+            try:
+                axs[axi].set_ylabel(fieldLabels[field])
+            except KeyError:
+                pass
+            try:
+                axs[axi].set_ylim(fieldlimits[field])
+            except KeyError:
+                pass
 
     axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=3))
     axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
@@ -266,8 +287,8 @@ def plot_timehistory_at_heights(datasets,
     axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
     axs[-1].set_xlabel(r'UTC time')
 
-    if not xlimits is None:
-        axs[-1].set_xlim(xlimits)
+    if not timelimits is None:
+        axs[-1].set_xlim(timelimits)
 
     # Number sub figures as a, b, c, ...
     if len(axs) > 1:
@@ -283,7 +304,8 @@ def plot_timehistory_at_heights(datasets,
 def plot_profile(datasets,
                  fields,
                  times,
-                 ylimits=None,
+                 fieldlimits = {},
+                 heightlimits=None,
                 ):
 
     if isinstance(fields,str):
@@ -292,6 +314,10 @@ def plot_profile(datasets,
         times = [times,]
     if isinstance(datasets,pd.DataFrame):
         datasets = {'Dataset': datasets}
+
+    if isinstance(fieldlimits, (list, tuple)):
+        assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
+        fieldlimits = {fields[0]:fieldlimits}
 
     Ntimes = len(times)
     Nfields = len(fields)
@@ -337,13 +363,17 @@ def plot_profile(datasets,
                         axs[axi].set_xlabel(fieldLabels[field])
                     except KeyError:
                         pass
+                    try:
+                        axs[axi].set_xlim(fieldlimits[field])
+                    except KeyError:
+                        pass
                 
                 # Plot data
                 fieldvalues = df_pivot[field].loc[time].values
                 axs[axi].plot(fieldvalues,heightvalues,linewidth=2,label=dfname)
     
-    if not ylimits is None:
-        axs[0].set_ylim(ylimits)
+    if not heightlimits is None:
+        axs[0].set_ylim(heightlimits)
 
     # Add y labels
     for r in range(nrows): 
@@ -361,10 +391,11 @@ def plot_profile(datasets,
 
 
 def plot_profile_evolution(datasets,
-                    fields,
-                    times,
-                    ylimits=None,
-                    ):
+                           fields,
+                           times,
+                           fieldlimits = {},
+                           heightlimits=None,
+                           ):
 
     if isinstance(fields,str):
         fields = [fields,]
@@ -372,6 +403,10 @@ def plot_profile_evolution(datasets,
         times = [times,]
     if isinstance(datasets,pd.DataFrame):
         datasets = {'Dataset': datasets}
+
+    if isinstance(fieldlimits, (list, tuple)):
+        assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
+        fieldlimits = {fields[0]:fieldlimits}
 
     Ndatasets = len(datasets)
     Nfields = len(fields)
@@ -414,14 +449,18 @@ def plot_profile_evolution(datasets,
                 axs[axi].set_xlabel(fieldLabels[field])
             except KeyError:
                 pass
+            try:
+                axs[axi].set_xlim(fieldlimits[field])
+            except KeyError:
+                pass
 
             for time in times:
                 # Plot data
                 fieldvalues = df_pivot[field].loc[time].values
                 axs[axi].plot(fieldvalues,heightvalues,linewidth=2,label=pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'))
     
-    if not ylimits is None:
-        axs[0].set_ylim(ylimits)
+    if not heightlimits is None:
+        axs[0].set_ylim(heightlimits)
 
     # Add y labels
     for r in range(nrows): 
@@ -444,6 +483,8 @@ def plot_spectrum(datasets,
                   height,
                   Tperiod=3600.0,
                   Twindow=600.0,
+                  freqlimits = None,
+                  fieldlimits = {},
                   ):
 
     fieldLabels = {'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
@@ -459,6 +500,10 @@ def plot_spectrum(datasets,
         times = [times,]
     if isinstance(datasets,pd.DataFrame):
         datasets = {'Dataset': datasets}
+
+    if isinstance(fieldlimits, (list, tuple)):
+        assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
+        fieldlimits = {fields[0]:fieldlimits}
 
     Ntimes = len(times)
     Nfields = len(fields)
@@ -503,6 +548,13 @@ def plot_spectrum(datasets,
             axs[r*ncols].set_ylabel(fieldLabels[fields[r]])
         except KeyError:
             pass
+        try:
+            axs[r*ncols].set_ylim(fieldlimits[fields[r]])
+        except KeyError:
+            pass
+
+    if not freqlimits is None:
+        axs[0].set_xlim(freqlimits)
 
     # Number sub figures as a, b, c, ...
     if len(axs) > 1:
