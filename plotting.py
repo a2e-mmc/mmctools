@@ -794,7 +794,6 @@ def plot_spectrum(datasets,
                 # Axes mark up
                 if j==0:
                     axs[axi].set_title(pd.to_datetime(tstart).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
-                    axs[axi].set_xlabel('f [Hz]')
 
                 # Compute frequency spectrum
                 istart = np.where(timevalues==pd.to_datetime(tstart))[0][0]
@@ -805,6 +804,10 @@ def plot_spectrum(datasets,
                 # Plot data
                 axs[axi].loglog(f[1:],P[1:],label = dfname)
    
+
+    # Set frequency label
+    for c in range(ncols):
+        axs[ncols*(nrows-1)+c].set_xlabel('f [Hz]')
 
     # Specify field label and field limits if specified 
     for r in range(nrows):
