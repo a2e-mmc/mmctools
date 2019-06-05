@@ -121,7 +121,8 @@ def plot_timeheight(datasets,
                 pass
 
             # axis mark up
-            axs[axi].set_title(dfname)
+            if len(datasets)>1:
+                axs[axi].set_title(dfname)
             axs[axi].set_xlabel(r'UTC time')
             axs[axi].xaxis_date()
             axs[axi].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=12))
@@ -217,8 +218,9 @@ def plot_timehistory_at_height(datasets,
         for i,ax in enumerate(axs):
             ax.text(-0.14,1.0,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
-    # Add legend    
-    leg = axs[0].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+    # Add legend
+    if len(datasets)>1:
+        leg = axs[0].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig, axs
 
@@ -295,7 +297,7 @@ def plot_timehistory_at_heights(datasets,
         for i,ax in enumerate(axs):
             ax.text(-0.14,1.0,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
-    # Add legend    
+    # Add legend
     leg = axs[0].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig, axs
@@ -357,8 +359,10 @@ def plot_profile(datasets,
                 
                 # axes mark up
                 if j==0:
-                    axs[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
                     axs[axi].grid(True,which='both')
+                    # Set title if mutliple datasets are compared
+                    if len(datasets)>1:
+                        axs[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
                     try:
                         axs[axi].set_xlabel(fieldLabels[field])
                     except KeyError:
@@ -385,7 +389,8 @@ def plot_profile(datasets,
             ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
     
     # Add legend
-    leg = axs[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+    if len(datasets)>1:
+        leg = axs[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig,axs
 
@@ -443,8 +448,9 @@ def plot_profile_evolution(datasets,
             axi = j*Nfields + k
             
             # axes mark up
-            axs[axi].set_title(dfname)
             axs[axi].grid(True,which='both')
+            if len(datasets)>1:
+                axs[axi].set_title(dfname)
             try:
                 axs[axi].set_xlabel(fieldLabels[field])
             except KeyError:
@@ -510,7 +516,7 @@ def plot_spectrum(datasets,
 
     #Order plots depending on number of datasets and fields
     nrows, ncols = _calc_nrows_ncols(Ntimes,Nfields)
-    fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
+    fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(4*ncols,5*nrows))
     if ncols*nrows==1:
         axs = [ax,]
     else:
@@ -562,7 +568,8 @@ def plot_spectrum(datasets,
             ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
     # Add legend
-    leg = axs[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
+    if len(datasets)>1:
+        leg = axs[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
 
     return fig, axs
 
