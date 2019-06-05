@@ -360,9 +360,82 @@ def plot_profile(datasets,
     return fig,axs
 
 
-def plot_profile_evolution():
-    print('do something')
-    return
+def plot_profile_evolution(datasets,
+                    fields,
+                    times,
+                    ylimits=None,
+                    ):
+
+    if isinstance(fields,str):
+        fields = [fields,]
+    if isinstance(times,str):
+        times = [times,]
+    if isinstance(datasets,pd.DataFrame):
+        datasets = {'Dataset': datasets}
+
+    Ndatasets = len(datasets)
+    Nfields = len(fields)
+
+    #Order plots depending on number of datasets and fields
+    nrows, ncols = _calc_nrows_ncols(Ndatasets,Nfields)
+    fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
+    if ncols*nrows==1:
+        axs = [ax,]
+    else:
+        axs = ax.ravel()
+
+    fig.subplots_adjust(wspace=0.2,hspace=0.4)
+
+    # Loop over datasets, fields and times 
+    for j, dfname in enumerate(datasets):
+        df = datasets[dfname]
+        heightvalues = df['height'].unique()
+
+        # Create list with available fields only
+        available_fields = []
+        for field in fields:
+            if field in df.columns:
+                available_fields.append(field)
+        assert(len(available_fields)>0), 'Dataset '+dfname+' does not contain any of the requested fields'
+
+
+        df_pivot = df.pivot(columns='height',values=available_fields)
+
+        for k, field in enumerate(fields):
+            # Skip loop if field not available
+            if not field in available_fields:
+                continue
+            axi = j*Nfields + k
+            
+            # axes mark up
+            axs[axi].set_title(dfname)
+            axs[axi].grid(True,which='both')
+            try:
+                axs[axi].set_xlabel(fieldLabels[field])
+            except KeyError:
+                pass
+
+            for time in times:
+                # Plot data
+                fieldvalues = df_pivot[field].loc[time].values
+                axs[axi].plot(fieldvalues,heightvalues,linewidth=2,label=pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'))
+    
+    if not ylimits is None:
+        axs[0].set_ylim(ylimits)
+
+    # Add y labels
+    for r in range(nrows): 
+        axs[r*ncols].set_ylabel(r'Height [m]')
+    
+    # Number sub figures as a, b, c, ...
+    if len(axs) > 1:
+        for i,ax in enumerate(axs):
+            ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
+    
+    # Add legend
+    leg = axs[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+
+    return fig,axs
 
 
 def plot_spectrum(datasets,
