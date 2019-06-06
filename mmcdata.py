@@ -1,7 +1,7 @@
 """
-MMC_Data.py
+mmcdata.py
  
-This Python source defines the MMC_Data class 
+This Python source defines the MMCData class 
 
 An instance of this class is a given set of 'observed' (via instrument
 or model) timeseries of U,V,W, and other state variables, along with
@@ -9,39 +9,92 @@ associated location (lat/lon), time, and elevation characteristics of
 the data stream 
 """
 
-#import os
-#import sys
 from math import *
 import collections
 import numpy as np
 import datetime as dt
-#import pickle
+import pandas as pd
+import xarray
+import pickle
+
 from matplotlib import pyplot as plt
 from matplotlib import rcParams, cycler
 import matplotlib.dates as mdates
 from matplotlib.ticker import AutoMinorLocator
-#from scipy import interpolate
-#from sklearn import linear_model
 
-class MMC_Data():
+
+# legacy file format
+header = """INSTITUTION:{institution:s}
+   LOCATION:{location:s}
+   LATITUDE:{latitude:10.4f}
+  LONGITUDE:{longitude:10.4f}
+   CODENAME:{codename:s}
+   CODETYPE:{codetype:s}
+   CASENAME:{casename:s}
+  BENCHMARK:{benchmark:s}
+     LEVELS:{levels:7d}
+"""
+record = """
+       DATE:{date:s}
+       TIME:{time:s}
+FRICTION VELOCITY [m/s] = {ustar:10.5f}
+SURFACE ROUGHNESS [m]   = {z0:10.5f}
+SKIN TEMPERATURE [K]    = {T0:10.5f}
+SURFACE FLUX [Km/s]     = {qwall:10.5f}
+             Z [m]           U [m/s]           V [m/s]           W [m/s]            TH [K]           P [mbar]    TKE [m^2/s^2]   TAU11 [m^2/s^2]   TAU12 [m^2/s^2]   TAU13 [m^2/s^2]   TAU22 [m^2/s^2]   TAU23 [m^2/s^2]   TAU33 [m^2/s^2]      HFLUX [Km/s]
+"""
+datarow = 4*'{:18.3f}' + 2*'{:18.2f}' + '{:18.3f}' + 7*'{:18.5f}' + '\n'
+
+
+class MMCData():
     """A given set of 'observed' (via instrument or model) timeseries of
     U,V,W, and other state variables and any 'derived' (via calculation
     methods) data like mean, perturbation, variance, correlations, etc...
     that are attributes (could be defined or missing a value) in a given
-    MMC_Data instance
+    MMCData instance
     """
-    def __init__(self,pklData={},**kwargs):
+    def __init__(self,asciifile=None,pklfile=None,pkldata=None,**kwargs):
+        """Read ascii data in the legacy MMC format from `asciifile` or
+        pickled data in list form from `pklfile`. 
+        """
+        self.description = None
+        self.records = []
         self.dataDict = collections.defaultdict(list)
-        
-        #JAS_Trying to get all records... self.dataSetLength = len(pklData)-1
-        self.dataSetLength = len(pklData)
-        self.dataSetDict = pklData[0]
-        self.dataRecordDict = []
-        if self.dataSetLength > 0:
-            self._read(pklData,**kwargs)
+        if asciifile:
+            with open(asciifile,'r') as f:
+                data = self._read_ascii(f)
+            if self.dataSetLength > 0:
+                self._process_data(data,**kwargs)
+        elif pklfile or pkldata:
+            if pkldata is None:
+                with open(pklfile,'rb') as f:
+                    pkldata = pickle.load(f)
+            # first item is a dictionary with metadata
+            self.dataSetLength = len(pkldata) - 1
+            self.description = pkldata[0]
+            if self.dataSetLength > 0:
+                #JAS: try to get all records... self.dataSetLength = len(pkldata)-1
+                self._process_data(pkldata[1:],**kwargs)
+        else:
+            raise ValueError('Need to specify asciifile, pklfile, or pkldata')
 
-    def _read(self,pklData,convert_ft_to_m=False):
-        """Updates dataRecordDict, dataDict, and dataSetDict"""
+    def _read_ascii(self,f):
+        """Read entire legacy MMC file"""
+        self.description = read_ascii_header(f)
+        self.dataSetLength = 0
+        data = []
+        while True:
+            line = f.readline()
+            if line == '':
+                break
+            recordheader = read_ascii_recordheader(f);
+            recordarray = read_ascii_records(f,self.description['levels'])
+            data.append([recordheader, recordarray])
+            self.dataSetLength += 1
+        return data
+
+    def _process_data(self,data,convert_ft_to_m=False):
+        """Updates dataset description, records, and dataDict"""
         time=[]
         datetime=[]
         z=[]
@@ -58,26 +111,27 @@ class MMC_Data():
         tau23=[]
         tau33=[]
         hflux=[]
-        for i in range(1,self.dataSetLength):
-            self.dataRecordDict.append(pklData[i][0])
-            time.append(pklData[i][0]['time'])
-            #datetime.append((dt.datetime.strptime(pklData[i][0]['date']+"_"+pklData[i][0]['time'].strip(), '%Y-%m-%d_%H:%M:%S') - dt.datetime(1970,1,1)).total_seconds())
-            dtstr = pklData[i][0]['date'] + "_" + pklData[i][0]['time'].strip()
+        for record in data:
+            recordheader, recordarray = record
+            self.records.append(recordheader)
+            time.append(recordheader['time'].strip())
+            dtstr = recordheader['date'] + "_" + recordheader['time'].strip()
             datetime.append(dt.datetime.strptime(dtstr, '%Y-%m-%d_%H:%M:%S'))
-            z.append(pklData[i][1][:,0])
-            u.append(pklData[i][1][:,1])
-            v.append(pklData[i][1][:,2])
-            w.append(pklData[i][1][:,3])
-            theta.append(pklData[i][1][:,4])
-            pres.append(pklData[i][1][:,5])
-            tke.append(pklData[i][1][:,6])
-            tau11.append(pklData[i][1][:,7])
-            tau12.append(pklData[i][1][:,8])
-            tau13.append(pklData[i][1][:,9])
-            tau22.append(pklData[i][1][:,10])
-            tau23.append(pklData[i][1][:,11])
-            tau33.append(pklData[i][1][:,12])
-            hflux.append(pklData[i][1][:,13])
+            z.append(recordarray[:,0])
+            u.append(recordarray[:,1])
+            v.append(recordarray[:,2])
+            w.append(recordarray[:,3])
+            theta.append(recordarray[:,4])
+            pres.append(recordarray[:,5])
+            tke.append(recordarray[:,6])
+            tau11.append(recordarray[:,7])
+            tau12.append(recordarray[:,8])
+            tau13.append(recordarray[:,9])
+            tau22.append(recordarray[:,10])
+            tau23.append(recordarray[:,11])
+            tau33.append(recordarray[:,12])
+            hflux.append(recordarray[:,13])
+        assert len(z) == self.dataSetLength
 
         # Re-cast fields as numpy arrays and add to 'dataDict' object attribute 
         self.dataDict['datetime'] = np.asarray(datetime)
@@ -100,7 +154,8 @@ class MMC_Data():
         self.dataDict['tau23'] = np.asarray(tau23)
         self.dataDict['tau33'] = np.asarray(tau33)
         self.dataDict['hflux'] = np.asarray(hflux)
-        self.dataDict['wspd']  = np.sqrt(np.square(self.dataDict['u'])+np.square(self.dataDict['v']))
+        self.dataDict['wspd']  = np.sqrt(self.dataDict['u']**2
+                                       + self.dataDict['v']**2)
         self.dataDict['wdir']  = (270.0-np.arctan2(self.dataDict['v'],self.dataDict['u'])*180./np.pi)%360 
         #Declare and initialize to 0 the *_mean arrays
         self.dataDict['u_mean']     = np.zeros(self.dataDict['u'].shape)
@@ -119,16 +174,65 @@ class MMC_Data():
         self.dataDict['wspd_mean']  = np.zeros(self.dataDict['u'].shape)
         self.dataDict['wdir_mean']  = np.zeros(self.dataDict['u'].shape)
         self.dataDict['shear_mean'] = np.zeros(self.dataDict['u'].shape)
- 
+
+    def to_pickle(self,pklfile):
+        """pickle the entire class instance"""
+        with open(pklfile,'wb') as f:
+            pickle.dump(self,f) 
+
+    def to_dataframe(self):
+        """return a multi-indexed pandas dataframe with standard
+        variables
+        """
+        df = self.to_xarray().to_dataframe()
+        # the resulting dataframe has an integer multiindex formed by
+        # range(num_samples) and range(num_levels)
+        df = df.reset_index().drop(columns=['Time','bottom_top'])
+        return df.set_index(['datetime','height'])
           
+    def to_xarray(self,timedim='Time',heightdim='bottom_top'):
+        """return an xarray dataset with standard variables"""
+        coords = {
+            'datetime': xarray.DataArray(self.dataDict['datetime'],
+                                  name='datetime',
+                                  dims=timedim),
+            'height': xarray.DataArray(self.dataDict['z'],
+                                  name='height',
+                                  dims=[timedim, heightdim],
+                                  attrs={'units':'m'}),
+        }
+        data_vars = {
+            'u': xarray.DataArray(self.dataDict['u'],
+                                  name='west-east velocity',
+                                  dims=[timedim, heightdim],
+                                  attrs={'units':'m s-1'}),
+            'v': xarray.DataArray(self.dataDict['v'],
+                                  name='south-north velocity',
+                                  dims=[timedim, heightdim],
+                                  attrs={'units':'m s-1'}),
+            'w': xarray.DataArray(self.dataDict['w'],
+                                  name='vertical velocity',
+                                  dims=[timedim, heightdim],
+                                  attrs={'units':'m s-1'}),
+            'theta': xarray.DataArray(self.dataDict['theta'],
+                                  name='potential temperature',
+                                  dims=[timedim, heightdim],
+                                  attrs={'units':'K'}),
+            'pres': xarray.DataArray(self.dataDict['pres'],
+                                  name='pressure',
+                                  dims=[timedim, heightdim],
+                                  attrs={'units':'mbar'}),
+        }
+        return xarray.Dataset(data_vars,coords)
+
     def getDataSetDict(self):
-        return self.dataSetDict
+        return self.description
     
     def getDataSetFieldShape(self):
         return self.dataDict['u'].shape
  
     def getRecordDict(self,recNum):
-        return self.dataRecordDict[recNum]
+        return self.records[recNum]
  
     def setRunningMeans(self,windowLength,levels):
     #def getDataSetRunningMean(self,windowLength,levels, start_datetime,stop_datetime):
@@ -235,7 +339,117 @@ class MMC_Data():
 
 #####END OF the MMC_CLASS
 
+
+### Readers for legacy MMC data
+
+def read_ascii_header(f):
+    """Read header from legacy MMC file, called by _read_ascii()"""
+    head1 = f.readline()
+    head2 = f.readline()
+    head3 = f.readline()
+    head4 = f.readline()
+    head5 = f.readline()
+    head6 = f.readline()
+    head7 = f.readline()
+    head8 = f.readline()
+    head9 = f.readline()
+    lab = head1[12:25].strip()
+    print("lab: {:s}".format(lab))
+    location = head2[12:25].strip()
+    latitude = float(head3[12:25].strip())
+    longitude = float(head4[12:25].strip())
+    codename = head5[12:25].strip()
+    print("codename: {:s}".format(codename))
+    codetype = head6[12:25].strip()
+    casename = head7[12:25].strip()
+    benchmark = head8[12:25].strip()
+    levels = int(head9[12:25].strip())
+    print("levels: {:d}".format(levels))
+
+    fileheader = {
+        'lab':lab,
+        'location':location,
+        'latitude':latitude,
+        'longitude':longitude,
+        'codename':codename,
+        'codetype':codetype,
+        'casename':casename,
+        'benchmark':benchmark,
+        'levels':levels,
+    }
+
+    return fileheader
+
+def read_ascii_recordheader(f):
+    """Read a record from legacy MMC file, called by _read_ascii()"""
+    try:
+        head1 = f.readline()
+        head2 = f.readline()
+        head3 = f.readline()
+        head4 = f.readline()
+        head5 = f.readline()
+        head6 = f.readline()
+        head7 = f.readline()
+        date  = head1[12:22]
+        time  = head2[12:22]
+        ustar = float(head3[26:36].strip())
+        z0    = float(head4[26:36].strip())
+        tskin = float(head5[26:36])
+        hflux = float(head6[26:36])
+        varlist = head7.split()
+
+        varnames=[]
+        varunits=[]
+
+        for i in range(len(varlist)):
+            if (i % 2) == 0:
+                varnames.append(varlist[i])
+            if (i % 2) == 1:
+                varunits.append(varlist[i])
+
+        recordheader = {
+            'date':date,
+            'time':time,
+            'ustar':ustar,
+            'z0':z0,
+            'tskin':tskin,
+            'hflux':hflux,
+            'varnames':varnames,
+            'varunits':varunits,
+        }
+
+    except:
+        print("Error in readrecordheader... Check your datafile for bad records!!\n Lines read are")
+        print("head1 = ",head1)
+        print("head2 = ",head2)
+        print("head3 = ",head3)
+        print("head4 = ",head4)
+        print("head5 = ",head5)
+        print("head6 = ",head6)
+        print("head7 = ",head7)
+
+    return recordheader
+
+def read_ascii_records(f,Nlevels):
+    """Read specified number of records from legacy MMC file, called
+    by _read_ascii().
+    """
+    record=[]
+    for i in range(Nlevels):
+        line = f.readline()
+        #data = map(float,line.split())
+        for data in map(float,line.split()):
+            record.append(data)
+        #print("len(data) = {:d}",len(data))
+        #record.append(data)
+        #print("len(record) = {:d}",len(record))
+    recordarray=np.array(record).reshape(Nlevels,floor(len(record)/Nlevels))
+    #print("recordarray.shape = ",recordarray.shape)
+    return recordarray
+
+
 ### Utility functions for MMC class
+
 def linearly_interpolate_nans(y):
     # Fit a linear regression to the non-nan y values
 

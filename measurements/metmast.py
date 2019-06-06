@@ -310,3 +310,62 @@ def standard_output(df,output=None,**kwargs):
         else:
             raise NotImplementedError('Output extension {:s} not supported'.format(ext))
 
+def tilt_correction(u,v,w,
+                    reg_coefs=[[]],
+                    tilts=[[]]):
+    """Corrects sonic velocities for tilt given regularization
+    coefficients and tilt angles. Velocities should have dimensions
+    (time,height) or (height,).
+
+    Based on JAS' implementation of Branko's correction from EOL 
+    description.
+    """
+    if isinstance(u,pd.DataFrame):
+        u = u.values
+    if isinstance(v,pd.DataFrame):
+        v = v.values
+    if isinstance(w,pd.DataFrame):
+        w = w.values
+    if len(u.shape) == 1:
+        Nt = 1
+        Nz = len(u)
+        u = u[np.newaxis,:]
+        v = v[np.newaxis,:]
+        w = w[np.newaxis,:]
+    elif len(u.shape) == 2:
+        Nt,Nz = u.shape
+    else:
+        raise IndexError('Unexpected number of dimensions in u')
+    assert u.shape == v.shape == w.shape
+    assert len(reg_coefs) == Nz
+    assert len(tilts) == Nz
+    for lvl in range(Nz):
+        a,b,c = reg_coefs[lvl]
+        tilt, tiltaz = tilts[lvl]
+        #Wf = ( sin(tilt)*cos(tiltaz), sin(tilt)*sin(tiltaz), cos(tilt) )
+        wf1 = np.sin(tilt) * np.cos(tiltaz)
+        wf2 = np.sin(tilt) * np.sin(tiltaz)
+        wf3 = np.cos(tilt)
+        #U'f = ((cos(tilt), 0, -sin(tilt)*cos(tiltaz))
+        uf1 = np.cos(tilt)
+        uf2 = 0.
+        uf3 = -np.sin(tilt) * np.cos(tiltaz)
+        ufm = np.sqrt(uf1**2 + uf2**2 + uf3**2)
+        uf1 = uf1 / ufm
+        uf2 = uf2 / ufm
+        uf3 = uf3 / ufm
+        #vf = wf x uf
+        vf1 = wf2*uf3 - wf3*uf2
+        vf2 = wf3*uf1 - wf1*uf3
+        vf3 = wf1*uf2 - wf2*uf1
+        ug = uf1*u[:,lvl] + uf2*v[:,lvl] + uf3*(w[:,lvl] - a)
+        vg = vf1*u[:,lvl] + vf2*v[:,lvl] + vf3*(w[:,lvl] - a)
+        wg = wf1*u[:,lvl] + wf2*v[:,lvl] + wf3*(w[:,lvl] - a)
+        u[:,lvl] = ug
+        v[:,lvl] = vg
+        w[:,lvl] = wg
+    if Nt == 1:
+        return u.squeeze(),v.squeeze(),w.squeeze()
+    else:
+        return u,v,w
+
