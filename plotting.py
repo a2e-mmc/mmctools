@@ -253,12 +253,13 @@ def plot_timehistory_at_height(datasets,
     Nheights = len(heights)
 
     if stack_by is None:
-        if Ndatasets>1 and Nheights>1:
+        if Nheights>1:
             stack_by = 'heights'
-        elif Ndatasets>1:
-            stack_by = 'datasets'
         else:
-            stack_by = 'heights'
+            stack_by = 'datasets'
+    else:
+        assert(stack_by in ['heights','datasets']), 'Error: stack by "'\
+            +stack_by+'" not recognized, choose either "heights" or "datasets"'
 
     if stack_by=='heights':
         nrows = Nfields*Ndatasets
