@@ -121,7 +121,7 @@ def plot_timeheight(datasets,
     fig.subplots_adjust(wspace=0.4,hspace=0.4)
 
     # Loop over datasets, fields and times 
-    for j, dfname in enumerate(datasets):
+    for i, dfname in enumerate(datasets):
         df = datasets[dfname]
 
         heightvalues = df['height'].unique()
@@ -138,13 +138,13 @@ def plot_timeheight(datasets,
         # Pivot all fields ion a dataset at once
         df_pivot = df.pivot(columns='height',values=available_fields)
 
-        for k, field in enumerate(fields):
+        for j, field in enumerate(fields):
             # Skip loop if field not available
             if not field in available_fields:
                 continue
 
-            # Index of axis corresponding to dataset j and field k
-            axi = j*Nfields + k
+            # Index of axis corresponding to dataset i and field j
+            axi = i*Nfields + j
 
             # Plot data
             fieldvalues = df_pivot[field].values 
@@ -269,7 +269,7 @@ def plot_timehistory_at_height(datasets,
     if Nfields==1: axs = [axs,]
 
     # Loop over datasets and fields 
-    for j,dfname in enumerate(datasets):
+    for i,dfname in enumerate(datasets):
         df = datasets[dfname]
         timevalues = df.index.unique()
         heightvalues = df['height'].unique()
@@ -284,7 +284,7 @@ def plot_timehistory_at_height(datasets,
         # Pivot all fields in a dataset at once
         df_pivot = df.pivot(columns='height',values=available_fields)
 
-        for i,field in enumerate(fields):
+        for j, field in enumerate(fields):
             # Skip loop if field not available
             if not field in available_fields:
                 continue
@@ -293,13 +293,23 @@ def plot_timehistory_at_height(datasets,
             for k, height in enumerate(heights):
                 # Axis order, label and title depend on value of stack_by 
                 if stack_by=='heights':
-                    axi = j*Nfields + i
+                    # Index of axis corresponding to field j and dataset i 
+                    axi = i*Nfields + j
+
+                    # Use height as label
                     label = 'z = {:.1f} m'.format(height)
+
+                    # Set title if multiple datasets are compared
                     if Ndatasets>1:
                         axs[axi].set_title(dfname)
                 else:
-                    axi = k*Nfields + i
+                    # Index of axis corresponding to field j and height k
+                    axi = k*Nfields + j
+
+                    # Use datasetname as label
                     label = dfname
+
+                    # Set title if multiple heights are compared
                     if Nheights>1:
                         axs[axi].set_title('z = {:.1f} m'.format(height))
 
@@ -339,7 +349,7 @@ def plot_timehistory_at_height(datasets,
         for i,ax in enumerate(axs):
             ax.text(-0.14,1.0,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
-    # Add legend if more than one dataset
+    # Add legend if more than one entry
     if (stack_by=='datasets' and Ndatasets>1) or (stack_by=='heights' and Nheights>1):
         leg = axs[0].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
@@ -351,10 +361,16 @@ def plot_profile(datasets,
                  times,
                  fieldlimits={},
                  heightlimits=None,
+                 stack_by=None,
                 ):
     """
-    Plot vertical profile at various times for different datasets and
-    fields, using a subplot per time and per field
+    Plot vertical profile at specified time(s) for various dataset(s)
+    and/or field(s).
+
+    By default, data for multiple datasets or multiple times are
+    stacked in a single subplot. When multiple datasets and multiple
+    times are specified together, times are stacked in a subplot
+    per field and per dataset.
 
     Usage
     =====
@@ -373,6 +389,8 @@ def plot_profile(datasets,
         Missing fieldlimits are set automatically
     heightlimits : list or tuple
         Height axis limits
+    stack_by : str
+        Stack by 'times' or by 'datasets'
     """
 
     # If any of fields or times is a single instance,
@@ -394,10 +412,24 @@ def plot_profile(datasets,
         fieldlimits = {fields[0]:fieldlimits}
 
     #Order plots depending on number of times and fields
-    Ntimes = len(times)
+    Ndatasets = len(datasets)
     Nfields = len(fields)
+    Ntimes = len(times)
 
-    nrows, ncols = _calc_nrows_ncols(Ntimes,Nfields)
+    if stack_by is None:
+        if Ntimes>1:
+            stack_by = 'times'
+        else:
+            stack_by = 'datasets'
+    else:
+        assert(stack_by in ['times','datasets']), 'Error: stack by "'\
+            +stack_by+'" not recognized, choose either "times" or "datasets"'
+
+    if stack_by=='times':
+        nrows, ncols = _calc_nrows_ncols(Ndatasets,Nfields)
+    else:
+        nrows, ncols = _calc_nrows_ncols(Ntimes,Nfields)
+
     fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
     if ncols*nrows==1:
         axs = [ax,]
@@ -408,7 +440,7 @@ def plot_profile(datasets,
     fig.subplots_adjust(wspace=0.2,hspace=0.4)
 
     # Loop over datasets, fields and times 
-    for j, dfname in enumerate(datasets):
+    for i, dfname in enumerate(datasets):
         df = datasets[dfname]
         heightvalues = df['height'].unique()
 
@@ -422,36 +454,51 @@ def plot_profile(datasets,
         # Pivot all fields in a dataset at once
         df_pivot = df.pivot(columns='height',values=available_fields)
 
-        for k, field in enumerate(fields):
+        for j, field in enumerate(fields):
             # Skip loop if field not available
             if not field in available_fields:
                 continue
 
-            for i, time in enumerate(times):
-                # Index of axis corresponding to field k and time i
-                axi = k*Ntimes + i
-                
-                # axes mark up
-                if j==0:
-                    axs[axi].grid(True,which='both')
+            for k, time in enumerate(times):
+                # Axis order, label and title depend on value of stack_by 
+                if stack_by=='times':
+                    # Index of axis corresponding to field j and dataset i
+                    axi = j*Ndatasets + i
+                    
+                    # Use time as label
+                    label = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+
                     # Set title if multiple datasets are compared
-                    if len(datasets)>1:
+                    if Ndatasets>1:
+                        axs[axi].set_title(dfname)
+                else:
+                    # Index of axis corresponding to field j and time k
+                    axi = j*Ntimes + k
+
+                    # Use datasetname as label
+                    label = dfname
+
+                    # Set title if multiple times are compared
+                    if Ntimes>1:
                         axs[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
-                    # Set field label if known
-                    try:
-                        axs[axi].set_xlabel(fieldLabels[field])
-                    except KeyError:
-                        pass
-                    # Set field limits if specified
-                    try:
-                        axs[axi].set_xlim(fieldlimits[field])
-                    except KeyError:
-                        pass
                 
                 # Plot data
                 fieldvalues = df_pivot[field].loc[time].values
-                axs[axi].plot(fieldvalues,heightvalues,linewidth=2,label=dfname)
+                axs[axi].plot(fieldvalues,heightvalues,linewidth=2,label=label)
+
+                # Set field label if known
+                try:
+                    axs[axi].set_xlabel(fieldLabels[field])
+                except KeyError:
+                    pass
+                # Set field limits if specified
+                try:
+                    axs[axi].set_xlim(fieldlimits[field])
+                except KeyError:
+                    pass
     
+    for ax in axs:
+        ax.grid(True,which='both')
 
     # Set height limits if specified
     if not heightlimits is None:
@@ -466,134 +513,9 @@ def plot_profile(datasets,
         for i,ax in enumerate(axs):
             ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
     
-    # Add legend if more than one dataset
-    if len(datasets)>1:
+    # Add legend if more than one entry
+    if (stack_by=='datasets' and Ndatasets>1) or (stack_by=='times' and Ntimes>1):
         leg = axs[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
-
-    return fig,axs
-
-
-def plot_profile_evolution(datasets,
-                           fields,
-                           times,
-                           fieldlimits={},
-                           heightlimits=None,
-                           ):
-    """
-    Plot time evolution of vertical profiles for different datasets and
-    fields, using a subplot per time and per field
-
-    Usage
-    =====
-    datasets : pandas.DataFrame or dict 
-        Dataset(s). If more than one set, datasets should
-        be a dictionary with entries <dataset_name>: dataset
-    fields : str or list
-        Fieldname(s) corresponding to particular column(s) of
-        the datasets
-    times : str, list
-        Time(s) for which vertical profiles are plotted
-    fieldlimits : list or tuple, or dict
-        Value range for the various fields. If only one field is 
-        plotted, fieldlimits can be a list or tuple. Otherwise, it
-        should be a dictionary with entries <fieldname>: fieldlimit.
-        Missing fieldlimits are set automatically
-    heightlimits : list or tuple
-        Height axis limits
-    """
-
-    # If any of fields or times is a single instance,
-    # convert to a list
-    if isinstance(fields,str):
-        fields = [fields,]
-    if isinstance(times,str):
-        times = [times,]
-
-    # If a single dataset is provided, convert to a dictionary
-    # under a generic key 'Dataset'
-    if isinstance(datasets,pd.DataFrame):
-        datasets = {'Dataset': datasets}
-
-    # If one set of fieldlimits is specified, check number of fields
-    # and convert to dictionary
-    if isinstance(fieldlimits, (list, tuple)):
-        assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
-        fieldlimits = {fields[0]:fieldlimits}
-
-    #Order plots depending on number of datasets and fields
-    Ndatasets = len(datasets)
-    Nfields = len(fields)
-
-    nrows, ncols = _calc_nrows_ncols(Ndatasets,Nfields)
-    fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
-    if ncols*nrows==1:
-        axs = [ax,]
-    else:
-        axs = ax.ravel()
-
-    # Adjust subplot spacing
-    fig.subplots_adjust(wspace=0.2,hspace=0.4)
-
-    # Loop over datasets, fields and times 
-    for j, dfname in enumerate(datasets):
-        df = datasets[dfname]
-        heightvalues = df['height'].unique()
-
-        # Create list with available fields only
-        available_fields = []
-        for field in fields:
-            if field in df.columns:
-                available_fields.append(field)
-        assert(len(available_fields)>0), 'Dataset '+dfname+' does not contain any of the requested fields'
-
-        # Pivot all fields of a dataset at once
-        df_pivot = df.pivot(columns='height',values=available_fields)
-
-        for k, field in enumerate(fields):
-            # Skip loop if field not available
-            if not field in available_fields:
-                continue
-
-            # Index of axis corresponding to dataset j and field k
-            axi = j*Nfields + k
-            
-            # Axes mark up
-            axs[axi].grid(True,which='both')
-            # Set title if multiple datasets are compared
-            if len(datasets)>1:
-                axs[axi].set_title(dfname)
-            # Set field label if known
-            try:
-                axs[axi].set_xlabel(fieldLabels[field])
-            except KeyError:
-                pass
-            # Set field limits if specified
-            try:
-                axs[axi].set_xlim(fieldlimits[field])
-            except KeyError:
-                pass
-
-            for time in times:
-                # Plot data
-                fieldvalues = df_pivot[field].loc[time].values
-                axs[axi].plot(fieldvalues,heightvalues,linewidth=2,label=pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'))
-    
-
-    # Set height limits if specified 
-    if not heightlimits is None:
-        axs[0].set_ylim(heightlimits)
-
-    # Add y labels
-    for r in range(nrows): 
-        axs[r*ncols].set_ylabel(r'Height [m]')
-    
-    # Number sub figures as a, b, c, ...
-    if len(axs) > 1:
-        for i,ax in enumerate(axs):
-            ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
-    
-    # Add legend
-    leg = axs[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig,axs
 
