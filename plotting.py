@@ -44,6 +44,7 @@ def plot_timeheight(datasets,
                     fieldlimits={},
                     heightlimits=None,
                     timelimits=None,
+                    labelsubplots=False,
                     ):
     """
     Plot time-height contours for different datasets and fields
@@ -70,6 +71,8 @@ def plot_timeheight(datasets,
         Height axis limits
     timelimits : list or tuple
         Time axis limits
+    labelsubplots : bool
+        Label subplots as (a), (b), (c), ...
     """
 
     # If fields is a single instance,
@@ -185,7 +188,7 @@ def plot_timeheight(datasets,
         ax.set_ylabel(r'Height [m]')
     
     # Number sub figures as a, b, c, ...
-    if len(axs) > 1:
+    if labelsubplots and len(axs) > 1:
         for i,ax in enumerate(axs):
             ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
@@ -198,6 +201,7 @@ def plot_timehistory_at_height(datasets,
                                fieldlimits={},
                                timelimits=None,
                                stack_by=None,
+                               labelsubplots=False,
                                ):
     """
     Plot time history at specified height(s) for various dataset(s)
@@ -227,6 +231,8 @@ def plot_timehistory_at_height(datasets,
         Time axis limits
     stack_by : str
         Stack by 'heights' or by 'datasets'
+    labelsubplots : bool
+        Label subplots as (a), (b), (c), ...
     """
 
     # If any of fields or heights is a single instance,
@@ -345,7 +351,7 @@ def plot_timehistory_at_height(datasets,
         axs[-1].set_xlim(timelimits)
 
     # Number sub figures as a, b, c, ...
-    if len(axs) > 1:
+    if labelsubplots and len(axs) > 1:
         for i,ax in enumerate(axs):
             ax.text(-0.14,1.0,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
@@ -362,6 +368,7 @@ def plot_profile(datasets,
                  fieldlimits={},
                  heightlimits=None,
                  stack_by=None,
+                 labelsubplots=False,
                 ):
     """
     Plot vertical profile at specified time(s) for various dataset(s)
@@ -391,6 +398,8 @@ def plot_profile(datasets,
         Height axis limits
     stack_by : str
         Stack by 'times' or by 'datasets'
+    labelsubplots : bool
+        Label subplots as (a), (b), (c), ...
     """
 
     # If any of fields or times is a single instance,
@@ -509,7 +518,7 @@ def plot_profile(datasets,
         axs[r*ncols].set_ylabel(r'Height [m]')
     
     # Number sub figures as a, b, c, ...
-    if len(axs) > 1:
+    if labelsubplots and len(axs) > 1:
         for i,ax in enumerate(axs):
             ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
     
@@ -528,6 +537,7 @@ def plot_spectrum(datasets,
                   Tsegment=600.0,
                   fieldlimits={},
                   freqlimits=None,
+                  labelsubplots=False,
                   ):
     """
     Plot frequency spectrum at a given height for different datasets,
@@ -563,6 +573,8 @@ def plot_spectrum(datasets,
         Missing fieldlimits are set automatically
     freqlimits : list or tuple
         Frequency axis limits
+    labelsubplots : bool
+        Label subplots as (a), (b), (c), ...
     """
 
     # Some custom field labels for frequency spectra
