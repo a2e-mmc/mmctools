@@ -37,6 +37,8 @@ fieldLabels = {'wspd': r'Wind speed [m/s]',
                'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
                }
 
+# Default color cycle
+default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 def plot_timeheight(datasets,
                     fields,
@@ -138,7 +140,7 @@ def plot_timeheight(datasets,
                 available_fields.append(field)
         assert(len(available_fields)>0), 'Dataset '+dfname+' does not contain any of the requested fields'
 
-        # Pivot all fields ion a dataset at once
+        # Pivot all fields in a dataset at once
         df_pivot = df.pivot(columns='height',values=available_fields)
 
         for j, field in enumerate(fields):
@@ -200,6 +202,7 @@ def plot_timehistory_at_height(datasets,
                                heights,
                                fieldlimits={},
                                timelimits=None,
+                               colormap=None,
                                stack_by=None,
                                labelsubplots=False,
                                ):
@@ -229,6 +232,8 @@ def plot_timehistory_at_height(datasets,
         Missing fieldlimits are set automatically
     timelimits : list or tuple
         Time axis limits
+    colormap : str
+        Colormap used when stacking heights
     stack_by : str
         Stack by 'heights' or by 'datasets'
     labelsubplots : bool
@@ -308,6 +313,13 @@ def plot_timehistory_at_height(datasets,
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
                         axs[axi].set_title(dfname)
+
+                    # Set colors
+                    if colormap is not None:
+                        cmap = mpl.cm.get_cmap(colormap)
+                        color = cmap(k/(Nheights-1))
+                    else:
+                        color = default_colors[k]
                 else:
                     # Index of axis corresponding to field j and height k
                     axi = k*Nfields + j
@@ -319,9 +331,12 @@ def plot_timehistory_at_height(datasets,
                     if Nheights>1:
                         axs[axi].set_title('z = {:.1f} m'.format(height))
 
+                    # Set colors
+                    color = default_colors[i]
+
                 # Plot data
                 signal = interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(height)
-                axs[axi].plot_date(timevalues,signal,linewidth=2,label=label,linestyle='-',marker=None)
+                axs[axi].plot_date(timevalues,signal,linewidth=2,label=label,linestyle='-',marker=None,color=color)
 
                 # Set field label if known
                 try:
@@ -367,6 +382,7 @@ def plot_profile(datasets,
                  times,
                  fieldlimits={},
                  heightlimits=None,
+                 colormap=None,
                  stack_by=None,
                  labelsubplots=False,
                 ):
@@ -396,6 +412,8 @@ def plot_profile(datasets,
         Missing fieldlimits are set automatically
     heightlimits : list or tuple
         Height axis limits
+    colormap : str
+        Colormap used when stacking times
     stack_by : str
         Stack by 'times' or by 'datasets'
     labelsubplots : bool
@@ -480,6 +498,13 @@ def plot_profile(datasets,
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
                         axs[axi].set_title(dfname)
+
+                    # Set colors
+                    if colormap is not None:
+                        cmap = mpl.cm.get_cmap(colormap)
+                        color = cmap(k/(Ntimes-1))
+                    else:
+                        color = default_colors[k]
                 else:
                     # Index of axis corresponding to field j and time k
                     axi = j*Ntimes + k
@@ -490,10 +515,13 @@ def plot_profile(datasets,
                     # Set title if multiple times are compared
                     if Ntimes>1:
                         axs[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
+
+                    # Set color
+                    color = default_colors[i]
                 
                 # Plot data
                 fieldvalues = df_pivot[field].loc[time].values
-                axs[axi].plot(fieldvalues,heightvalues,linewidth=2,label=label)
+                axs[axi].plot(fieldvalues,heightvalues,linewidth=2,label=label,color=color)
 
                 # Set field label if known
                 try:
