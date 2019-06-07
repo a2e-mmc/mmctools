@@ -110,10 +110,9 @@ def plot_timeheight(datasets,
     Ndatasets = len(datasets)
     Nfields = len(fields)
 
-    nrows, ncols = _calc_nrows_ncols(Ndatasets,Nfields)
-    fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(6.4*ncols,4.8*nrows))
+    fig,ax = plt.subplots(nrows=Ndatasets*Nfields,ncols=1,sharex=True,sharey=True,figsize=(12.0,4.0*Ndatasets*Nfields))
 
-    if ncols*nrows==1:
+    if Ndatasets*Nfields==1:
         axs = [ax,]
     else:
         axs = ax.ravel()
@@ -162,13 +161,6 @@ def plot_timeheight(datasets,
             except KeyError:
                 pass
 
-            # Axis mark up
-            axs[axi].set_xlabel(r'UTC time')
-            axs[axi].xaxis_date()
-            axs[axi].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=12))
-            axs[axi].xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M'))
-            axs[axi].xaxis.set_major_locator(mdates.DayLocator())
-            axs[axi].xaxis.set_major_formatter(mdates.DateFormatter('\n%d-%b'))
             # Set title if more than one dataset
             if len(datasets)>1:
                 axs[axi].set_title(dfname)
@@ -180,9 +172,17 @@ def plot_timeheight(datasets,
     if not heightlimits is None:
         axs[-1].set_ylim(heightlimits)
 
+    # Axis mark up
+    axs[-1].set_xlabel(r'UTC time')
+    axs[-1].xaxis_date()
+    axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=3))
+    axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M'))
+    axs[-1].xaxis.set_major_locator(mdates.DayLocator())
+    axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%d-%b'))
+
     # Add y labels
-    for r in range(nrows): 
-        axs[r*ncols].set_ylabel(r'Height [m]')
+    for ax in axs: 
+        ax.set_ylabel(r'Height [m]')
     
     # Number sub figures as a, b, c, ...
     if len(axs) > 1:
