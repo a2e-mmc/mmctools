@@ -149,6 +149,7 @@ def plot_timeheight(datasets,
         for j, field in enumerate(fields):
             # Skip loop if field not available
             if not field in available_fields:
+                print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
             # Index of axis corresponding to dataset i and field j
@@ -304,6 +305,7 @@ def plot_timehistory_at_height(datasets,
         for j, field in enumerate(fields):
             # Skip loop if field not available
             if not field in available_fields:
+                print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
 
@@ -490,6 +492,7 @@ def plot_profile(datasets,
         for j, field in enumerate(fields):
             # Skip loop if field not available
             if not field in available_fields:
+                print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
             for k, time in enumerate(times):
@@ -672,6 +675,7 @@ def plot_spectrum(datasets,
         for k, field in enumerate(fields):
             # Skip loop if field not available
             if not field in available_fields:
+                print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
             for i, tstart in enumerate(times):
