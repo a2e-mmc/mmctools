@@ -122,6 +122,9 @@ def plot_timeheight(datasets,
     else:
         axs = ax.ravel()
 
+    # Initialise list of colorbars
+    cbars = []
+
     # Adjust subplot spacing
     fig.subplots_adjust(wspace=0.4,hspace=0.4)
 
@@ -165,6 +168,8 @@ def plot_timeheight(datasets,
                 cbar.set_label(fieldLabels[field])
             except KeyError:
                 pass
+            # Save colorbar
+            cbars.append(cbar)
 
             # Set title if more than one dataset
             if len(datasets)>1:
@@ -195,7 +200,7 @@ def plot_timeheight(datasets,
         for i,ax in enumerate(axs):
             ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
-    return fig, ax
+    return fig, axs, cbars
 
 
 def plot_timehistory_at_height(datasets,
