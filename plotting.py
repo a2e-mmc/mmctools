@@ -171,11 +171,6 @@ def plot_timeheight(datasets,
                 axs[axi].set_title(dfname)
 
 
-    # Set time and height limits if specified
-    if not timelimits is None:
-        axs[-1].set_xlim(timelimits)
-    if not heightlimits is None:
-        axs[-1].set_ylim(heightlimits)
 
     # Axis mark up
     axs[-1].set_xlabel(r'UTC time')
@@ -184,6 +179,12 @@ def plot_timeheight(datasets,
     axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H:%M'))
     axs[-1].xaxis.set_major_locator(mdates.DayLocator())
     axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%d-%b'))
+
+    # Set time and height limits if specified
+    if not timelimits is None:
+        axs[-1].set_xlim(timelimits)
+    if not heightlimits is None:
+        axs[-1].set_ylim(heightlimits)
 
     # Add y labels
     for ax in axs: 
