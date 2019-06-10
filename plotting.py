@@ -181,7 +181,7 @@ def plot_timeheight(datasets,
     # Axis mark up
     axs[-1].set_xlabel(r'UTC time')
     axs[-1].xaxis_date()
-    axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=3))
+    axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
     axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
     axs[-1].xaxis.set_major_locator(mdates.DayLocator())
     axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
@@ -363,7 +363,7 @@ def plot_timehistory_at_height(datasets,
         ax.yaxis.grid()
     
     # Format time axis
-    axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=3))
+    axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
     axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
     axs[-1].xaxis.set_major_locator(mdates.DayLocator())
     axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
@@ -716,7 +716,7 @@ def plot_spectrum(datasets,
         axs[0].set_xlim(freqlimits)
 
     # Number sub figures as a, b, c, ...
-    if len(axs) > 1:
+    if labelsubplots and len(axs) > 1:
         for i,ax in enumerate(axs):
             ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
