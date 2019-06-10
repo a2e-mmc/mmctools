@@ -21,6 +21,7 @@ from scipy.signal import welch
 #            >>> register_matplotlib_converters()
 #              warnings.warn(msg, FutureWarning)
 # - Allow custom colors/styles/markers?
+# - Separate out calculation of spectra?
 
 # Standard field labels
 fieldLabels = {'wspd': r'Wind speed [m/s]',
