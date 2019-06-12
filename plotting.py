@@ -208,7 +208,7 @@ def plot_timeheight(datasets,
     # Number sub figures as a, b, c, ...
     if labelsubplots and len(axs) > 1:
         for i,ax in enumerate(axs):
-            ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
+            ax.text(-0.14,1.0,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
     return fig, axs, cbars
 
