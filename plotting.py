@@ -48,6 +48,7 @@ def plot_timeheight(datasets,
                     heightlimits=None,
                     timelimits=None,
                     labelsubplots=False,
+                    **kwargs
                     ):
     """
     Plot time-height contours for different datasets and fields
@@ -76,6 +77,12 @@ def plot_timeheight(datasets,
         Time axis limits
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    **kwargs : other keyword arguments
+        Options that are passed on to the actual plotting function.
+        Note that these options should be the same for all datasets and
+        fields and can not be used to set dataset or field specific
+        limits, colorschemes, norms, etc.
+        Example uses include setting shading, rasterized, etc.
     """
 
     # If fields is a single instance,
@@ -161,7 +168,8 @@ def plot_timeheight(datasets,
             im = axs[axi].pcolormesh(Ts,Zs,fieldvalues.T,
                           vmin=fieldlimits[field][0],vmax=fieldlimits[field][1],
                           cmap=cmap[field],
-                          shading='flat')
+                          **kwargs
+                          )
 
             # Colorbar mark up
             cbar = fig.colorbar(im,ax=axs[axi],shrink=1.0)
@@ -200,7 +208,7 @@ def plot_timeheight(datasets,
     # Number sub figures as a, b, c, ...
     if labelsubplots and len(axs) > 1:
         for i,ax in enumerate(axs):
-            ax.text(-0.14,-0.18,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
+            ax.text(-0.14,1.0,'('+chr(i+97)+')',transform=ax.transAxes,size=16)
 
     return fig, axs, cbars
 
@@ -213,6 +221,7 @@ def plot_timehistory_at_height(datasets,
                                colormap=None,
                                stack_by=None,
                                labelsubplots=False,
+                               **kwargs
                                ):
     """
     Plot time history at specified height(s) for various dataset(s)
@@ -246,6 +255,12 @@ def plot_timehistory_at_height(datasets,
         Stack by 'heights' or by 'datasets'
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    **kwargs : other keyword arguments
+        Options that are passed on to the actual plotting function.
+        Note that these options should be the same for all datasets,
+        fields and heights, and they can not be used to set dataset,
+        field or height specific colors, limits, etc.
+        Example uses include setting linestyle/width, marker, etc.
     """
 
     # If any of fields or heights is a single instance,
@@ -345,7 +360,7 @@ def plot_timehistory_at_height(datasets,
 
                 # Plot data
                 signal = interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(height)
-                axs[axi].plot_date(timevalues,signal,linewidth=2,label=label,linestyle='-',marker=None,color=color)
+                axs[axi].plot_date(timevalues,signal,label=label,color=color,**kwargs)
 
                 # Set field label if known
                 try:
@@ -394,6 +409,7 @@ def plot_profile(datasets,
                  colormap=None,
                  stack_by=None,
                  labelsubplots=False,
+                 **kwargs
                 ):
     """
     Plot vertical profile at specified time(s) for various dataset(s)
@@ -427,6 +443,12 @@ def plot_profile(datasets,
         Stack by 'times' or by 'datasets'
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    **kwargs : other keyword arguments
+        Options that are passed on to the actual plotting function.
+        Note that these options should be the same for all datasets,
+        fields and times, and they can not be used to set dataset,
+        field or time specific colors, limits, etc.
+        Example uses include setting linestyle/width, marker, etc.
     """
 
     # If any of fields or times is a single instance,
@@ -530,8 +552,8 @@ def plot_profile(datasets,
                     color = default_colors[i]
                 
                 # Plot data
-                fieldvalues = df_pivot[field].loc[time].values
-                axs[axi].plot(fieldvalues,heightvalues,linewidth=2,label=label,color=color)
+                fieldvalues = df_pivot[field].loc[time].values.squeeze()
+                axs[axi].plot(fieldvalues,heightvalues,label=label,color=color,**kwargs)
 
                 # Set field label if known
                 try:
@@ -576,6 +598,7 @@ def plot_spectrum(datasets,
                   fieldlimits={},
                   freqlimits=None,
                   labelsubplots=False,
+                  **kwargs
                   ):
     """
     Plot frequency spectrum at a given height for different datasets,
@@ -613,6 +636,12 @@ def plot_spectrum(datasets,
         Frequency axis limits
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    **kwargs : other keyword arguments
+        Options that are passed on to the actual plotting function.
+        Note that these options should be the same for all datasets,
+        fields and times, and they can not be used to set dataset,
+        field or time specific colors, limits, etc.
+        Example uses include setting linestyle/width, marker, etc.
     """
 
     # Some custom field labels for frequency spectra
@@ -694,7 +723,7 @@ def plot_spectrum(datasets,
                             detrend='linear',window='hanning',scaling='density')
 
                 # Plot data
-                axs[axi].loglog(f[1:],P[1:],label = dfname)
+                axs[axi].loglog(f[1:],P[1:],label=dfname,**kwargs)
    
 
     # Set frequency label
