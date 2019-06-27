@@ -552,7 +552,7 @@ def plot_profile(datasets,
                     color = default_colors[i]
                 
                 # Plot data
-                fieldvalues = df_pivot[field].loc[time].values
+                fieldvalues = df_pivot[field].loc[time].values.squeeze()
                 axs[axi].plot(fieldvalues,heightvalues,label=label,color=color,**kwargs)
 
                 # Set field label if known
