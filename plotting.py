@@ -300,7 +300,7 @@ def plot_timehistory_at_height(datasets,
     else:
         nrows = Nfields*Nheights
     fig,axs = plt.subplots(nrows=nrows,sharex=True,figsize=(12,3.0*nrows))
-    if Nfields==1: axs = [axs,]
+    if nrows==1: axs = [axs,]
 
     # Loop over datasets and fields 
     for i,dfname in enumerate(datasets):
