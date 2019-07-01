@@ -24,19 +24,26 @@ from scipy.signal import welch
 # - Separate out calculation of spectra?
 
 # Standard field labels
-fieldLabels = {'wspd': r'Wind speed [m/s]',
-               'wdir': r'Wind direction $[^\circ]$',
-               'thetav': r'$\theta_v$ [K]',
-               'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-               'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-               'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-               'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-               'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-               'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-               'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
-               'TI': r'TI $[-]$',
-               'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
-               }
+standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
+                        'wdir': r'Wind direction $[^\circ]$',
+                        'thetav': r'$\theta_v$ [K]',
+                        'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+                        'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+                        'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+                        'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+                        'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+                        'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+                        'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
+                        'TI': r'TI $[-]$',
+                        'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
+                        }
+
+# Standard field labels for frequency spectra
+standard_spectrumlabels = {'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
+                           'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
+                           'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
+                           'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
+                           }
 
 # Default color cycle
 default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -47,6 +54,7 @@ def plot_timeheight(datasets,
                     fieldlimits={},
                     heightlimits=None,
                     timelimits=None,
+                    fieldlabels={},
                     labelsubplots=False,
                     **kwargs
                     ):
@@ -75,6 +83,10 @@ def plot_timeheight(datasets,
         Height axis limits
     timelimits : list or tuple
         Time axis limits
+    fieldlabels : str or dict
+        Custom field labels. If only one field is plotted, fieldlabels
+        can be a string. Otherwise it should be a dictionary with
+        entries <fieldname>: fieldlabel
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
     **kwargs : other keyword arguments
@@ -118,6 +130,15 @@ def plot_timeheight(datasets,
             if field not in colorscheme.keys():
                 colorscheme[field] = 'viridis'
             cmap[field] = mpl.cm.get_cmap(colorscheme[field])
+
+    # If one fieldlabel is specified, check number of fields
+    if isinstance(fieldlabels, str):
+        assert(len(fields)==1), 'Unclear to what field fieldlabels corresponds'
+        fieldlabels = {fields[0]: fieldlabels}
+
+    # Concatenate custom and standard field labels
+    # (custom field labels overwrite standard fields labels if existent)
+    fieldlabels = {**standard_fieldlabels, **fieldlabels}        
 
     #Order plots depending on number of datasets and fields
     Ndatasets = len(datasets)
@@ -175,7 +196,7 @@ def plot_timeheight(datasets,
             cbar = fig.colorbar(im,ax=axs[axi],shrink=1.0)
             # Set field label if known
             try:
-                cbar.set_label(fieldLabels[field])
+                cbar.set_label(fieldlabels[field])
             except KeyError:
                 pass
             # Save colorbar
@@ -218,6 +239,7 @@ def plot_timehistory_at_height(datasets,
                                heights,
                                fieldlimits={},
                                timelimits=None,
+                               fieldlabels={},
                                colormap=None,
                                stack_by=None,
                                labelsubplots=False,
@@ -249,6 +271,10 @@ def plot_timehistory_at_height(datasets,
         Missing fieldlimits are set automatically
     timelimits : list or tuple
         Time axis limits
+    fieldlabels : str or dict
+        Custom field labels. If only one field is plotted, fieldlabels
+        can be a string. Otherwise it should be a dictionary with
+        entries <fieldname>: fieldlabel
     colormap : str
         Colormap used when stacking heights
     stack_by : str
@@ -280,6 +306,15 @@ def plot_timehistory_at_height(datasets,
     if isinstance(fieldlimits, (list, tuple)):
         assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
         fieldlimits = {fields[0]:fieldlimits}
+
+    # If one fieldlabel is specified, check number of fields
+    if isinstance(fieldlabels, str):
+        assert(len(fields)==1), 'Unclear to what field fieldlabels corresponds'
+        fieldlabels = {fields[0]: fieldlabels}
+
+    # Concatenate custom and standard field labels
+    # (custom field labels overwrite standard fields labels if existent)
+    fieldlabels = {**standard_fieldlabels, **fieldlabels}
 
     # Set up subplot grid
     Ndatasets = len(datasets)
@@ -364,7 +399,7 @@ def plot_timehistory_at_height(datasets,
 
                 # Set field label if known
                 try:
-                    axs[axi].set_ylabel(fieldLabels[field])
+                    axs[axi].set_ylabel(fieldlabels[field])
                 except KeyError:
                     pass
                 # Set field limits if specified
@@ -406,6 +441,7 @@ def plot_profile(datasets,
                  times,
                  fieldlimits={},
                  heightlimits=None,
+                 fieldlabels={},
                  colormap=None,
                  stack_by=None,
                  labelsubplots=False,
@@ -437,6 +473,10 @@ def plot_profile(datasets,
         Missing fieldlimits are set automatically
     heightlimits : list or tuple
         Height axis limits
+    fieldlabels : str or dict
+        Custom field labels. If only one field is plotted, fieldlabels
+        can be a string. Otherwise it should be a dictionary with
+        entries <fieldname>: fieldlabel
     colormap : str
         Colormap used when stacking times
     stack_by : str
@@ -468,6 +508,15 @@ def plot_profile(datasets,
     if isinstance(fieldlimits, (list, tuple)):
         assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
         fieldlimits = {fields[0]:fieldlimits}
+
+    # If one fieldlabel is specified, check number of fields
+    if isinstance(fieldlabels, str):
+        assert(len(fields)==1), 'Unclear to what field fieldlabels corresponds'
+        fieldlabels = {fields[0]: fieldlabels}
+
+    # Concatenate custom and standard field labels
+    # (custom field labels overwrite standard fields labels if existent)
+    fieldlabels = {**standard_fieldlabels, **fieldlabels}
 
     #Order plots depending on number of times and fields
     Ndatasets = len(datasets)
@@ -557,7 +606,7 @@ def plot_profile(datasets,
 
                 # Set field label if known
                 try:
-                    axs[axi].set_xlabel(fieldLabels[field])
+                    axs[axi].set_xlabel(fieldlabels[field])
                 except KeyError:
                     pass
                 # Set field limits if specified
@@ -597,6 +646,7 @@ def plot_spectrum(datasets,
                   Tsegment=600.0,
                   fieldlimits={},
                   freqlimits=None,
+                  fieldlabels={},
                   labelsubplots=False,
                   **kwargs
                   ):
@@ -634,6 +684,10 @@ def plot_spectrum(datasets,
         Missing fieldlimits are set automatically
     freqlimits : list or tuple
         Frequency axis limits
+    fieldlabels : str or dict
+        Custom field labels. If only one field is plotted, fieldlabels
+        can be a string. Otherwise it should be a dictionary with
+        entries <fieldname>: fieldlabel
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
     **kwargs : other keyword arguments
@@ -643,13 +697,6 @@ def plot_spectrum(datasets,
         field or time specific colors, limits, etc.
         Example uses include setting linestyle/width, marker, etc.
     """
-
-    # Some custom field labels for frequency spectra
-    fieldSpectrumLabels = {'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
-                           'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
-                           'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
-                           'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
-                           }
 
     # If any of fields or times is a single instance,
     # convert to a list
@@ -668,6 +715,15 @@ def plot_spectrum(datasets,
     if isinstance(fieldlimits, (list, tuple)):
         assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
         fieldlimits = {fields[0]:fieldlimits}
+
+    # If one fieldlabel is specified, check number of fields
+    if isinstance(fieldlabels, str):
+        assert(len(fields)==1), 'Unclear to what field fieldlabels corresponds'
+        fieldlabels = {fields[0]: fieldlabels}
+
+    # Concatenate custom and standard field labels
+    # (custom field labels overwrite standard fields labels if existent)
+    fieldlabels = {**standard_spectrumlabels, **fieldlabels}
 
     #Order plots depending on number of datasets and fields
     Ntimes = len(times)
@@ -733,7 +789,7 @@ def plot_spectrum(datasets,
     # Specify field label and field limits if specified 
     for r in range(nrows):
         try:
-            axs[r*ncols].set_ylabel(fieldSpectrumLabels[fields[r]])
+            axs[r*ncols].set_ylabel(fieldlabels[fields[r]])
         except KeyError:
             pass
         try:
