@@ -215,7 +215,7 @@ def plot_timeheight(datasets,
 
             # Set title if more than one dataset
             if len(datasets)>1:
-                ax[axi].set_title(dfname)
+                ax[axi].set_title(dfname,fontsize=16)
 
 
 
@@ -400,7 +400,7 @@ def plot_timehistory_at_height(datasets,
 
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
-                        ax[axi].set_title(dfname)
+                        ax[axi].set_title(dfname,fontsize=16)
 
                     # Set colors
                     if colormap is not None:
@@ -417,7 +417,7 @@ def plot_timehistory_at_height(datasets,
 
                     # Set title if multiple heights are compared
                     if Nheights>1:
-                        ax[axi].set_title('z = {:.1f} m'.format(height))
+                        ax[axi].set_title('z = {:.1f} m'.format(height),fontsize=16)
 
                     # Set colors
                     color = default_colors[i]
@@ -621,7 +621,7 @@ def plot_profile(datasets,
 
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
-                        ax[axi].set_title(dfname)
+                        ax[axi].set_title(dfname,fontsize=16)
 
                     # Set colors
                     if colormap is not None:
