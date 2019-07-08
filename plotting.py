@@ -57,6 +57,7 @@ def plot_timeheight(datasets,
                     timelimits=None,
                     fieldlabels={},
                     labelsubplots=False,
+                    showcolorbars=True,
                     **kwargs
                     ):
     """
@@ -95,6 +96,8 @@ def plot_timeheight(datasets,
         entries <fieldname>: fieldlabel
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    showcolorbars : bool
+        Show colorbar per subplot
     **kwargs : other keyword arguments
         Options that are passed on to the actual plotting function.
         Note that these options should be the same for all datasets and
@@ -204,14 +207,15 @@ def plot_timeheight(datasets,
                           )
 
             # Colorbar mark up
-            cbar = fig.colorbar(im,ax=ax[axi],shrink=1.0)
-            # Set field label if known
-            try:
-                cbar.set_label(fieldlabels[field])
-            except KeyError:
-                pass
-            # Save colorbar
-            cbars.append(cbar)
+            if showcolorbars:
+                cbar = fig.colorbar(im,ax=ax[axi],shrink=1.0)
+                # Set field label if known
+                try:
+                    cbar.set_label(fieldlabels[field])
+                except KeyError:
+                    pass
+                # Save colorbar
+                cbars.append(cbar)
 
             # Set title if more than one dataset
             if len(datasets)>1:
