@@ -383,8 +383,12 @@ def plot_timehistory_at_height(datasets,
                 available_fields.append(field)
         assert(len(available_fields)>0), 'Dataset '+dfname+' does not contain any of the requested fields'
 
-        # Pivot all fields in a dataset at once
-        df_pivot = df.pivot(columns='height',values=available_fields)
+        # If any of the requested heights is not available,
+        # pivot the dataframe to allow interpolation.
+        # Pivot all fields in a dataset at once to reduce computation time
+        if not all([h in heightvalues for h in heights]):
+            df_pivot = df.pivot(columns='height',values=available_fields)
+            print('Pivoting '+dfname)
 
         for j, field in enumerate(fields):
             # Skip loop if field not available
@@ -427,7 +431,10 @@ def plot_timehistory_at_height(datasets,
                     color = default_colors[i]
 
                 # Plot data
-                signal = interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(height)
+                if height in heightvalues:
+                    signal = df.loc[df.height==height,field].values
+                else:
+                    signal = interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(height)
                 ax[axi].plot_date(timevalues,signal,label=label,color=color,**kwargs)
 
                 # Set field label if known
