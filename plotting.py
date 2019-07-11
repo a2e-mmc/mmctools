@@ -10,16 +10,6 @@ from scipy.interpolate import interp1d
 from scipy.signal import welch
 
 # TODO:
-# - Fix FutureWarning:
-#   .../python3.6/site-packages/pandas/plotting/_converter.py:129: FutureWarning:
-#   Using an implicitly registered datetime converter for a matplotlib plotting
-#   method. The converter was registered by pandas on import. Future versions of
-#   pandas will require you to explicitly register matplotlib converters.
-#
-#   To register the converters:
-#        >>> from pandas.plotting import register_matplotlib_converters
-#            >>> register_matplotlib_converters()
-#              warnings.warn(msg, FutureWarning)
 # - Allow custom colors/styles/markers?
 # - Separate out calculation of spectra?
 
@@ -176,7 +166,7 @@ def plot_timeheight(datasets,
         df = datasets[dfname]
 
         heightvalues = df['height'].unique()
-        timevalues = mdates.date2num(df.index.unique().get_values())
+        timevalues = mdates.date2num(df.index.unique().values) # Convert to days since 0001-01-01 00:00 UTC, plus one
         Ts,Zs = np.meshgrid(timevalues,heightvalues,indexing='xy')
 
         # Create list with available fields only
@@ -309,6 +299,12 @@ def plot_timehistory_at_height(datasets,
         field or height specific colors, limits, etc.
         Example uses include setting linestyle/width, marker, etc.
     """
+    # Avoid FutureWarning concerning the use of an implicitly registered
+    # datetime converter for a matplotlib plotting method. The converter
+    # was registered by pandas on import. Future versions of pandas will
+    # require explicit registration of matplotlib converters, as done here.
+    from pandas.plotting import register_matplotlib_converters
+    register_matplotlib_converters()
 
     # If any of fields or heights is a single instance,
     # convert to a list
@@ -373,7 +369,7 @@ def plot_timehistory_at_height(datasets,
     # Loop over datasets and fields 
     for i,dfname in enumerate(datasets):
         df = datasets[dfname]
-        timevalues = df.index.unique()
+        timevalues = df.index.unique().values
         heightvalues = df['height'].unique()
 
         # Create list with available fields only
