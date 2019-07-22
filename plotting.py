@@ -306,6 +306,8 @@ def plot_timehistory_at_height(datasets,
     for i,dfname in enumerate(datasets):
         df = datasets[dfname]
         timevalues = df.index.unique()
+        if isinstance(timevalues, pd.TimedeltaIndex):
+            timevalues = timevalues.total_seconds()
         heightvalues = df['height'].unique()
 
         # Create list with available fields only
