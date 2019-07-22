@@ -379,12 +379,15 @@ def plot_timehistory_at_height(datasets,
         ax.yaxis.grid()
     
     # Format time axis
-    axs[-1].xaxis_date()
-    axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
-    axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-    axs[-1].xaxis.set_major_locator(mdates.DayLocator())
-    axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
-    axs[-1].set_xlabel(r'UTC time')
+    if isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
+        axs[-1].xaxis_date()
+        axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
+        axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+        axs[-1].xaxis.set_major_locator(mdates.DayLocator())
+        axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+        axs[-1].set_xlabel(r'UTC time')
+    else:
+        axs[-1].set_xlabel('time [s]')
 
     # Set time limits if specified
     if not timelimits is None:
