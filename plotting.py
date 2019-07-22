@@ -360,7 +360,7 @@ def plot_timehistory_at_height(datasets,
 
                 # Plot data
                 signal = interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(height)
-                axs[axi].plot_date(timevalues,signal,label=label,color=color,**kwargs)
+                axs[axi].plot(timevalues,signal,label=label,color=color,**kwargs)
 
                 # Set field label if known
                 try:
@@ -379,6 +379,7 @@ def plot_timehistory_at_height(datasets,
         ax.yaxis.grid()
     
     # Format time axis
+    axs[-1].xaxis_date()
     axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
     axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
     axs[-1].xaxis.set_major_locator(mdates.DayLocator())
