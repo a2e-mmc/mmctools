@@ -434,8 +434,10 @@ def plot_profile(datasets,
     fields : str or list
         Fieldname(s) corresponding to particular column(s) of
         the datasets
-    times : str, list
-        Time(s) for which vertical profiles are plotted
+    times : str, int, float, list
+        Time(s) for which vertical profiles are plotted, specified as
+        either datetime strings or numerical values (seconds, e.g.,
+        simulation time).
     fieldlimits : list or tuple, or dict
         Value range for the various fields. If only one field is 
         plotted, fieldlimits can be a list or tuple. Otherwise, it
