@@ -455,7 +455,7 @@ def plot_profile(datasets,
     # convert to a list
     if isinstance(fields,str):
         fields = [fields,]
-    if isinstance(times,str):
+    if isinstance(times,(str,int,float,np.number)):
         times = [times,]
 
     # If a single dataset is provided, convert to a dictionary
@@ -525,7 +525,10 @@ def plot_profile(datasets,
                     axi = j*Ndatasets + i
                     
                     # Use time as label
-                    label = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                    if isinstance(time, (int,float,np.number)):
+                        label = '{:g} s'.format(time)
+                    else:
+                        label = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
 
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
@@ -546,7 +549,11 @@ def plot_profile(datasets,
 
                     # Set title if multiple times are compared
                     if Ntimes>1:
-                        axs[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
+                        if isinstance(time, (int,float,np.number)):
+                            tstr = '{:g} s'.format(time)
+                        else:
+                            tstr = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                        axs[axi].set_title(tstr, fontsize=16)
 
                     # Set color
                     color = default_colors[i]
