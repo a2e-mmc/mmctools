@@ -306,6 +306,8 @@ def plot_timehistory_at_height(datasets,
     for i,dfname in enumerate(datasets):
         df = datasets[dfname]
         timevalues = df.index.unique()
+        if isinstance(timevalues, pd.TimedeltaIndex):
+            timevalues = timevalues.total_seconds()
         heightvalues = df['height'].unique()
 
         # Create list with available fields only
@@ -360,7 +362,7 @@ def plot_timehistory_at_height(datasets,
 
                 # Plot data
                 signal = interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(height)
-                axs[axi].plot_date(timevalues,signal,label=label,color=color,**kwargs)
+                axs[axi].plot(timevalues,signal,label=label,color=color,**kwargs)
 
                 # Set field label if known
                 try:
@@ -379,11 +381,15 @@ def plot_timehistory_at_height(datasets,
         ax.yaxis.grid()
     
     # Format time axis
-    axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
-    axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-    axs[-1].xaxis.set_major_locator(mdates.DayLocator())
-    axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
-    axs[-1].set_xlabel(r'UTC time')
+    if isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
+        axs[-1].xaxis_date()
+        axs[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
+        axs[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+        axs[-1].xaxis.set_major_locator(mdates.DayLocator())
+        axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+        axs[-1].set_xlabel(r'UTC time')
+    else:
+        axs[-1].set_xlabel('time [s]')
 
     # Set time limits if specified
     if not timelimits is None:
@@ -428,8 +434,10 @@ def plot_profile(datasets,
     fields : str or list
         Fieldname(s) corresponding to particular column(s) of
         the datasets
-    times : str, list
-        Time(s) for which vertical profiles are plotted
+    times : str, int, float, list
+        Time(s) for which vertical profiles are plotted, specified as
+        either datetime strings or numerical values (seconds, e.g.,
+        simulation time).
     fieldlimits : list or tuple, or dict
         Value range for the various fields. If only one field is 
         plotted, fieldlimits can be a list or tuple. Otherwise, it
@@ -455,7 +463,7 @@ def plot_profile(datasets,
     # convert to a list
     if isinstance(fields,str):
         fields = [fields,]
-    if isinstance(times,str):
+    if isinstance(times,(str,int,float,np.number)):
         times = [times,]
 
     # If a single dataset is provided, convert to a dictionary
@@ -525,7 +533,10 @@ def plot_profile(datasets,
                     axi = j*Ndatasets + i
                     
                     # Use time as label
-                    label = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                    if isinstance(time, (int,float,np.number)):
+                        label = '{:g} s'.format(time)
+                    else:
+                        label = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
 
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
@@ -546,7 +557,11 @@ def plot_profile(datasets,
 
                     # Set title if multiple times are compared
                     if Ntimes>1:
-                        axs[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
+                        if isinstance(time, (int,float,np.number)):
+                            tstr = '{:g} s'.format(time)
+                        else:
+                            tstr = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                        axs[axi].set_title(tstr, fontsize=16)
 
                     # Set color
                     color = default_colors[i]
