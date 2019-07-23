@@ -10,7 +10,6 @@ from scipy.interpolate import interp1d
 from scipy.signal import welch
 
 # TODO:
-# - Allow custom colors/styles/markers?
 # - Separate out calculation of spectra?
 
 # Standard field labels
@@ -48,6 +47,7 @@ def plot_timeheight(datasets,
                     fieldlabels={},
                     labelsubplots=False,
                     showcolorbars=True,
+                    datasetkwargs={},
                     **kwargs
                     ):
     """
@@ -88,6 +88,11 @@ def plot_timeheight(datasets,
         Label subplots as (a), (b), (c), ...
     showcolorbars : bool
         Show colorbar per subplot
+    datasetkwargs : dict
+        Dataset-specific options that are passed on to the actual
+        plotting function. These options overwrite general options
+        specified through **kwargs. The argument should be a dictionary
+        with entries <dataset_name>: {**kwargs}
     **kwargs : other keyword arguments
         Options that are passed on to the actual plotting function.
         Note that these options should be the same for all datasets and
@@ -144,6 +149,9 @@ def plot_timeheight(datasets,
     # Create new figure and axes if not specified
     if ax is None:
         fig,ax = plt.subplots(nrows=Ndatasets*Nfields,ncols=1,sharex=True,sharey=True,figsize=(12.0,4.0*Ndatasets*Nfields))
+        # Adjust subplot spacing
+        fig.subplots_adjust(wspace=0.4,hspace=0.4)
+
 
     # If ax is single subplot object, convert to list to allow slicing
     if not isinstance(ax,np.ndarray):
@@ -157,9 +165,6 @@ def plot_timeheight(datasets,
 
     # Initialise list of colorbars
     cbars = []
-
-    # Adjust subplot spacing
-    fig.subplots_adjust(wspace=0.4,hspace=0.4)
 
     # Loop over datasets, fields and times 
     for i, dfname in enumerate(datasets):
@@ -185,16 +190,28 @@ def plot_timeheight(datasets,
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
+            # Store plotting options in dictionary
+            plotting_properties = {
+                'vmin': fieldlimits[field][0],
+                'vmax': fieldlimits[field][1],
+                'cmap': cmap[field]
+                }
+
             # Index of axis corresponding to dataset i and field j
             axi = i*Nfields + j
 
-            # Plot data
+            # Extract data from dataframe
             fieldvalues = df_pivot[field].values 
-            im = ax[axi].pcolormesh(Ts,Zs,fieldvalues.T,
-                          vmin=fieldlimits[field][0],vmax=fieldlimits[field][1],
-                          cmap=cmap[field],
-                          **kwargs
-                          )
+
+            # Gather fieldlimits, colormap, general options and dataset-specific options
+            # (highest priority to dataset-specific options, then general options)
+            try:
+                plotting_properties = {**plotting_properties,**kwargs,**datasetkwargs[dfname]}
+            except KeyError:
+                plotting_properties = {**plotting_properties,**kwargs}
+
+            # Plot data
+            im = ax[axi].pcolormesh(Ts,Zs,fieldvalues.T,**plotting_properties)
 
             # Colorbar mark up
             if showcolorbars:
@@ -249,6 +266,7 @@ def plot_timehistory_at_height(datasets,
                                colormap=None,
                                stack_by=None,
                                labelsubplots=False,
+                               datasetkwargs={},
                                **kwargs
                                ):
     """
@@ -292,6 +310,11 @@ def plot_timehistory_at_height(datasets,
         Stack by 'heights' or by 'datasets'
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    datasetkwargs : dict
+        Dataset-specific options that are passed on to the actual
+        plotting function. These options overwrite general options
+        specified through **kwargs. The argument should be a dictionary
+        with entries <dataset_name>: {**kwargs}
     **kwargs : other keyword arguments
         Options that are passed on to the actual plotting function.
         Note that these options should be the same for all datasets,
@@ -394,13 +417,15 @@ def plot_timehistory_at_height(datasets,
 
 
             for k, height in enumerate(heights):
+                plotting_properties = {}
+
                 # Axis order, label and title depend on value of stack_by 
                 if stack_by=='heights':
                     # Index of axis corresponding to field j and dataset i 
                     axi = i*Nfields + j
 
                     # Use height as label
-                    label = 'z = {:.1f} m'.format(height)
+                    plotting_properties['label'] = 'z = {:.1f} m'.format(height)
 
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
@@ -409,29 +434,38 @@ def plot_timehistory_at_height(datasets,
                     # Set colors
                     if colormap is not None:
                         cmap = mpl.cm.get_cmap(colormap)
-                        color = cmap(k/(Nheights-1))
+                        plotting_properties['color'] = cmap(k/(Nheights-1))
                     else:
-                        color = default_colors[k]
+                        plotting_properties['color'] = default_colors[k]
                 else:
                     # Index of axis corresponding to field j and height k
                     axi = k*Nfields + j
 
                     # Use datasetname as label
-                    label = dfname
+                    plotting_properties['label'] = dfname
 
                     # Set title if multiple heights are compared
                     if Nheights>1:
                         ax[axi].set_title('z = {:.1f} m'.format(height),fontsize=16)
 
                     # Set colors
-                    color = default_colors[i]
+                    plotting_properties['color'] = default_colors[i]
 
-                # Plot data
+                # Extract data from dataframe
                 if height in heightvalues:
                     signal = df.loc[df.height==height,field].values
                 else:
                     signal = interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(height)
-                ax[axi].plot_date(timevalues,signal,label=label,color=color,**kwargs)
+                
+                # Gather label, color, general options and dataset-specific options
+                # (highest priority to dataset-specific options, then general options)
+                try:
+                    plotting_properties = {**plotting_properties,**kwargs,**datasetkwargs[dfname]}
+                except KeyError:
+                    plotting_properties = {**plotting_properties,**kwargs}
+                
+                # Plot data
+                ax[axi].plot_date(timevalues,signal,**plotting_properties)
 
                 # Set field label if known
                 try:
@@ -482,6 +516,7 @@ def plot_profile(datasets,
                  colormap=None,
                  stack_by=None,
                  labelsubplots=False,
+                 datasetkwargs={},
                  **kwargs
                 ):
     """
@@ -525,6 +560,11 @@ def plot_profile(datasets,
         Stack by 'times' or by 'datasets'
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    datasetkwargs : dict
+        Dataset-specific options that are passed on to the actual
+        plotting function. These options overwrite general options
+        specified through **kwargs. The argument should be a dictionary
+        with entries <dataset_name>: {**kwargs}
     **kwargs : other keyword arguments
         Options that are passed on to the actual plotting function.
         Note that these options should be the same for all datasets,
@@ -582,6 +622,8 @@ def plot_profile(datasets,
     # Create new figure and axes if not specified
     if ax is None:
         fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
+        # Adjust subplot spacing
+        fig.subplots_adjust(wspace=0.2,hspace=0.4)
 
     # If ax is single subplot object, convert to list to allow slicing
     if not isinstance(ax,np.ndarray):
@@ -592,9 +634,6 @@ def plot_profile(datasets,
 
     # Make sure ax has right size (important when using user-specified axes)
     assert(ax.size==nrows*ncols), 'Number of axes does not match number of datasets/times and fields'
-
-    # Adjust subplot spacing
-    fig.subplots_adjust(wspace=0.2,hspace=0.4)
 
     # Loop over datasets, fields and times 
     for i, dfname in enumerate(datasets):
@@ -618,13 +657,15 @@ def plot_profile(datasets,
                 continue
 
             for k, time in enumerate(times):
+                plotting_properties = {}
+
                 # Axis order, label and title depend on value of stack_by 
                 if stack_by=='times':
                     # Index of axis corresponding to field j and dataset i
                     axi = j*Ndatasets + i
                     
                     # Use time as label
-                    label = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                    plotting_properties['label'] = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
 
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
@@ -633,26 +674,35 @@ def plot_profile(datasets,
                     # Set colors
                     if colormap is not None:
                         cmap = mpl.cm.get_cmap(colormap)
-                        color = cmap(k/(Ntimes-1))
+                        plotting_properties['color'] = cmap(k/(Ntimes-1))
                     else:
-                        color = default_colors[k]
+                        plotting_properties['color'] = default_colors[k]
                 else:
                     # Index of axis corresponding to field j and time k
                     axi = j*Ntimes + k
 
                     # Use datasetname as label
-                    label = dfname
+                    plotting_properties['label'] = dfname
 
                     # Set title if multiple times are compared
                     if Ntimes>1:
                         ax[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
 
                     # Set color
-                    color = default_colors[i]
+                    plotting_properties['color'] = default_colors[i]
                 
-                # Plot data
+                # Extract data from dataframe
                 fieldvalues = df_pivot[field].loc[time].values.squeeze()
-                ax[axi].plot(fieldvalues,heightvalues,label=label,color=color,**kwargs)
+
+                # Gather label, color, general options and dataset-specific options
+                # (highest priority to dataset-specific options, then general options)
+                try:
+                    plotting_properties = {**plotting_properties,**kwargs,**datasetkwargs[dfname]}
+                except KeyError:
+                    plotting_properties = {**plotting_properties,**kwargs}
+
+                # Plot data
+                ax[axi].plot(fieldvalues,heightvalues,**plotting_properties)
 
                 # Set field label if known
                 try:
@@ -699,6 +749,7 @@ def plot_spectrum(datasets,
                   freqlimits=None,
                   fieldlabels={},
                   labelsubplots=False,
+                  datasetkwargs={},
                   **kwargs
                   ):
     """
@@ -746,6 +797,11 @@ def plot_spectrum(datasets,
         entries <fieldname>: fieldlabel
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    datasetkwargs : dict
+        Dataset-specific options that are passed on to the actual
+        plotting function. These options overwrite general options
+        specified through **kwargs. The argument should be a dictionary
+        with entries <dataset_name>: {**kwargs}
     **kwargs : other keyword arguments
         Options that are passed on to the actual plotting function.
         Note that these options should be the same for all datasets,
@@ -790,6 +846,8 @@ def plot_spectrum(datasets,
     # Create new figure and axes if not specified
     if ax is None:
         fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(4*ncols,5*nrows))
+        # Adjust subplot spacing
+        fig.subplots_adjust(wspace=0.3,hspace=0.5)
 
     # If ax is single subplot object, convert to list to allow slicing
     if not isinstance(ax,np.ndarray):
@@ -800,9 +858,6 @@ def plot_spectrum(datasets,
 
     # Make sure ax has right size (important when using user-specified axes)
     assert(ax.size==nrows*ncols), 'Number of axes does not match number of times and fields'
-
-    # Adjust subplot spacing
-    fig.subplots_adjust(wspace=0.3,hspace=0.5)
 
     # Loop over datasets, fields and times 
     for j, dfname in enumerate(datasets):
@@ -829,6 +884,8 @@ def plot_spectrum(datasets,
                 continue
 
             for i, tstart in enumerate(times):
+                plotting_properties = {'label':dfname}
+
                 # Index of axis corresponding to field k and time i
                 axi = k*Ntimes + i
                 
@@ -841,9 +898,16 @@ def plot_spectrum(datasets,
                 signal = interp1d(heightvalues,df_pivot[field].interpolate(method='linear').values,axis=1,fill_value="extrapolate")(height)
                 f, P = welch(signal[istart:istart+np.int(Tperiod/dt)],fs=1./dt,nperseg=np.int(Tsegment/dt),
                             detrend='linear',window='hanning',scaling='density')
+                
+                # Gather label, general options and dataset-specific options
+                # (highest priority to dataset-specific options, then general options)
+                try:
+                    plotting_properties = {**plotting_properties,**kwargs,**datasetkwargs[dfname]}
+                except KeyError:
+                    plotting_properties = {**plotting_properties,**kwargs}
 
                 # Plot data
-                ax[axi].loglog(f[1:],P[1:],label=dfname,**kwargs)
+                ax[axi].loglog(f[1:],P[1:],**plotting_properties)
    
 
     # Set frequency label
