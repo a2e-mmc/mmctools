@@ -417,7 +417,12 @@ def plot_timehistory_at_height(datasets,
 
 
             for k, height in enumerate(heights):
-                plotting_properties = {}
+                # Store plotting options in dictionary
+                # Set default linestyle to '-' and no markers
+                plotting_properties = {
+                    'linestyle':'-',
+                    'marker':None,
+                    }
 
                 # Axis order, label and title depend on value of stack_by 
                 if stack_by=='heights':
