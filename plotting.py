@@ -152,16 +152,11 @@ def plot_timeheight(datasets,
         # Adjust subplot spacing
         fig.subplots_adjust(wspace=0.4,hspace=0.4)
 
+    # Create flattened view of axes
+    axv = np.asarray(ax).reshape(-1)
 
-    # If ax is single subplot object, convert to list to allow slicing
-    if not isinstance(ax,np.ndarray):
-        ax = np.array([ax,])
-    # Else, flatten array to 1d
-    else:
-        ax = ax.ravel()
-
-    # Make sure ax has right size (important when using user-specified axes)
-    assert(ax.size==Ndatasets*Nfields), 'Number of axes does not match number of datasets and fields'
+    # Make sure axv has right size (important when using user-specified axes)
+    assert(axv.size==Ndatasets*Nfields), 'Number of axes does not match number of datasets and fields'
 
     # Initialise list of colorbars
     cbars = []
@@ -211,11 +206,11 @@ def plot_timeheight(datasets,
                 plotting_properties = {**plotting_properties,**kwargs}
 
             # Plot data
-            im = ax[axi].pcolormesh(Ts,Zs,fieldvalues.T,**plotting_properties)
+            im = axv[axi].pcolormesh(Ts,Zs,fieldvalues.T,**plotting_properties)
 
             # Colorbar mark up
             if showcolorbars:
-                cbar = fig.colorbar(im,ax=ax[axi],shrink=1.0)
+                cbar = fig.colorbar(im,ax=axv[axi],shrink=1.0)
                 # Set field label if known
                 try:
                     cbar.set_label(fieldlabels[field])
@@ -226,31 +221,31 @@ def plot_timeheight(datasets,
 
             # Set title if more than one dataset
             if len(datasets)>1:
-                ax[axi].set_title(dfname,fontsize=16)
+                axv[axi].set_title(dfname,fontsize=16)
 
 
 
     # Axis mark up
-    ax[-1].set_xlabel(r'UTC time')
-    ax[-1].xaxis_date()
-    ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
-    ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-    ax[-1].xaxis.set_major_locator(mdates.DayLocator())
-    ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+    axv[-1].set_xlabel(r'UTC time')
+    axv[-1].xaxis_date()
+    axv[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
+    axv[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+    axv[-1].xaxis.set_major_locator(mdates.DayLocator())
+    axv[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
 
     # Set time and height limits if specified
     if not timelimits is None:
-        ax[-1].set_xlim(timelimits)
+        axv[-1].set_xlim(timelimits)
     if not heightlimits is None:
-        ax[-1].set_ylim(heightlimits)
+        axv[-1].set_ylim(heightlimits)
 
     # Add y labels
-    for axi in ax: 
+    for axi in axv: 
         axi.set_ylabel(r'Height [m]')
     
     # Number sub figures as a, b, c, ...
-    if labelsubplots and len(ax) > 1:
-        for i,axi in enumerate(ax):
+    if labelsubplots and axv.size > 1:
+        for i,axi in enumerate(axv):
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     return fig, ax, cbars
@@ -379,15 +374,11 @@ def plot_timehistory_at_height(datasets,
     if ax is None:
         fig,ax = plt.subplots(nrows=nrows,sharex=True,figsize=(12.0,3.0*nrows))
 
-    # If ax is single subplot object, convert to list to allow slicing
-    if not isinstance(ax,np.ndarray):
-        ax = np.array([ax,])
-    # Else, flatten array to 1d
-    else:
-        ax = ax.ravel()
+    # Create flattened view of axes
+    axv = np.asarray(ax).reshape(-1)
 
-    # Make sure ax has right size (important when using user-specified axes)
-    assert(ax.size==nrows), 'Number of axes does not match number of datasets/heights and fields'
+    # Make sure axv has right size (important when using user-specified axes)
+    assert(axv.size==nrows), 'Number of axes does not match number of datasets/heights and fields'
 
     # Loop over datasets and fields 
     for i,dfname in enumerate(datasets):
@@ -434,7 +425,7 @@ def plot_timehistory_at_height(datasets,
 
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
-                        ax[axi].set_title(dfname,fontsize=16)
+                        axv[axi].set_title(dfname,fontsize=16)
 
                     # Set colors
                     if colormap is not None:
@@ -451,7 +442,7 @@ def plot_timehistory_at_height(datasets,
 
                     # Set title if multiple heights are compared
                     if Nheights>1:
-                        ax[axi].set_title('z = {:.1f} m'.format(height),fontsize=16)
+                        axv[axi].set_title('z = {:.1f} m'.format(height),fontsize=16)
 
                     # Set colors
                     plotting_properties['color'] = default_colors[i]
@@ -470,43 +461,43 @@ def plot_timehistory_at_height(datasets,
                     plotting_properties = {**plotting_properties,**kwargs}
                 
                 # Plot data
-                ax[axi].plot_date(timevalues,signal,**plotting_properties)
+                axv[axi].plot_date(timevalues,signal,**plotting_properties)
 
                 # Set field label if known
                 try:
-                    ax[axi].set_ylabel(fieldlabels[field])
+                    axv[axi].set_ylabel(fieldlabels[field])
                 except KeyError:
                     pass
                 # Set field limits if specified
                 try:
-                    ax[axi].set_ylim(fieldlimits[field])
+                    axv[axi].set_ylim(fieldlimits[field])
                 except KeyError:
                     pass
    
     # Set axis grid
-    for axi in ax:
+    for axi in axv:
         axi.xaxis.grid(True,which='minor')
         axi.yaxis.grid()
     
     # Format time axis
-    ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
-    ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-    ax[-1].xaxis.set_major_locator(mdates.DayLocator())
-    ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
-    ax[-1].set_xlabel(r'UTC time')
+    axv[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
+    axv[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+    axv[-1].xaxis.set_major_locator(mdates.DayLocator())
+    axv[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+    axv[-1].set_xlabel(r'UTC time')
 
     # Set time limits if specified
     if not timelimits is None:
-        ax[-1].set_xlim(timelimits)
+        axv[-1].set_xlim(timelimits)
 
     # Number sub figures as a, b, c, ...
-    if labelsubplots and len(ax) > 1:
-        for i,axi in enumerate(ax):
+    if labelsubplots and axv.size > 1:
+        for i,axi in enumerate(axv):
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Add legend if more than one entry
     if (stack_by=='datasets' and Ndatasets>1) or (stack_by=='heights' and Nheights>1):
-        leg = ax[0].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+        leg = axv[0].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig, ax
 
@@ -630,15 +621,11 @@ def plot_profile(datasets,
         # Adjust subplot spacing
         fig.subplots_adjust(wspace=0.2,hspace=0.4)
 
-    # If ax is single subplot object, convert to list to allow slicing
-    if not isinstance(ax,np.ndarray):
-        ax = np.array([ax,])
-    # Else, flatten array to 1d
-    else:
-        ax = ax.ravel()
+    # Create flattened view of axes
+    axv = np.asarray(ax).reshape(-1)
 
-    # Make sure ax has right size (important when using user-specified axes)
-    assert(ax.size==nrows*ncols), 'Number of axes does not match number of datasets/times and fields'
+    # Make sure axv has right size (important when using user-specified axes)
+    assert(axv.size==nrows*ncols), 'Number of axes does not match number of datasets/times and fields'
 
     # Loop over datasets, fields and times 
     for i, dfname in enumerate(datasets):
@@ -674,7 +661,7 @@ def plot_profile(datasets,
 
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
-                        ax[axi].set_title(dfname,fontsize=16)
+                        axv[axi].set_title(dfname,fontsize=16)
 
                     # Set colors
                     if colormap is not None:
@@ -691,7 +678,7 @@ def plot_profile(datasets,
 
                     # Set title if multiple times are compared
                     if Ntimes>1:
-                        ax[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
+                        axv[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
 
                     # Set color
                     plotting_properties['color'] = default_colors[i]
@@ -707,38 +694,38 @@ def plot_profile(datasets,
                     plotting_properties = {**plotting_properties,**kwargs}
 
                 # Plot data
-                ax[axi].plot(fieldvalues,heightvalues,**plotting_properties)
+                axv[axi].plot(fieldvalues,heightvalues,**plotting_properties)
 
                 # Set field label if known
                 try:
-                    ax[axi].set_xlabel(fieldlabels[field])
+                    axv[axi].set_xlabel(fieldlabels[field])
                 except KeyError:
                     pass
                 # Set field limits if specified
                 try:
-                    ax[axi].set_xlim(fieldlimits[field])
+                    axv[axi].set_xlim(fieldlimits[field])
                 except KeyError:
                     pass
     
-    for axi in ax:
+    for axi in axv:
         axi.grid(True,which='both')
 
     # Set height limits if specified
     if not heightlimits is None:
-        ax[0].set_ylim(heightlimits)
+        axv[0].set_ylim(heightlimits)
 
     # Add y labels
     for r in range(nrows): 
-        ax[r*ncols].set_ylabel(r'Height [m]')
+        axv[r*ncols].set_ylabel(r'Height [m]')
     
     # Number sub figures as a, b, c, ...
-    if labelsubplots and len(ax) > 1:
-        for i,axi in enumerate(ax):
+    if labelsubplots and axv.size > 1:
+        for i,axi in enumerate(axv):
             axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
     
     # Add legend if more than one entry
     if (stack_by=='datasets' and Ndatasets>1) or (stack_by=='times' and Ntimes>1):
-        leg = ax[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+        leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig,ax
 
@@ -854,15 +841,11 @@ def plot_spectrum(datasets,
         # Adjust subplot spacing
         fig.subplots_adjust(wspace=0.3,hspace=0.5)
 
-    # If ax is single subplot object, convert to list to allow slicing
-    if not isinstance(ax,np.ndarray):
-        ax = np.array([ax,])
-    # Else, flatten array to 1d
-    else:
-        ax = ax.ravel()
+    # Create flattened view of axes
+    axv = np.asarray(ax).reshape(-1)
 
-    # Make sure ax has right size (important when using user-specified axes)
-    assert(ax.size==nrows*ncols), 'Number of axes does not match number of times and fields'
+    # Make sure axv has right size (important when using user-specified axes)
+    assert(axv.size==nrows*ncols), 'Number of axes does not match number of times and fields'
 
     # Loop over datasets, fields and times 
     for j, dfname in enumerate(datasets):
@@ -896,7 +879,7 @@ def plot_spectrum(datasets,
                 
                 # Axes mark up
                 if j==0:
-                    ax[axi].set_title(pd.to_datetime(tstart).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
+                    axv[axi].set_title(pd.to_datetime(tstart).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
 
                 # Compute frequency spectrum
                 istart = np.where(timevalues==pd.to_datetime(tstart))[0][0]
@@ -912,36 +895,36 @@ def plot_spectrum(datasets,
                     plotting_properties = {**plotting_properties,**kwargs}
 
                 # Plot data
-                ax[axi].loglog(f[1:],P[1:],**plotting_properties)
+                axv[axi].loglog(f[1:],P[1:],**plotting_properties)
    
 
     # Set frequency label
     for c in range(ncols):
-        ax[ncols*(nrows-1)+c].set_xlabel('f [Hz]')
+        axv[ncols*(nrows-1)+c].set_xlabel('f [Hz]')
 
     # Specify field label and field limits if specified 
     for r in range(nrows):
         try:
-            ax[r*ncols].set_ylabel(fieldlabels[fields[r]])
+            axv[r*ncols].set_ylabel(fieldlabels[fields[r]])
         except KeyError:
             pass
         try:
-            ax[r*ncols].set_ylim(fieldlimits[fields[r]])
+            axv[r*ncols].set_ylim(fieldlimits[fields[r]])
         except KeyError:
             pass
 
     # Set frequency limits if specified
     if not freqlimits is None:
-        ax[0].set_xlim(freqlimits)
+        axv[0].set_xlim(freqlimits)
 
     # Number sub figures as a, b, c, ...
-    if labelsubplots and len(ax) > 1:
-        for i,axi in enumerate(ax):
+    if labelsubplots and axv.size > 1:
+        for i,axi in enumerate(axv):
             axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Add legend if more than one dataset
     if len(datasets)>1:
-        leg = ax[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
+        leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
 
     return fig, ax
 
