@@ -383,7 +383,9 @@ def plot_timehistory_at_height(datasets,
     # Loop over datasets and fields 
     for i,dfname in enumerate(datasets):
         df = datasets[dfname]
-        timevalues = df.index.unique().values
+        timevalues = df.index.unique()
+        if isinstance(timevalues, pd.TimedeltaIndex):
+            timevalues = timevalues.total_seconds()
         heightvalues = df['height'].unique()
 
         # Create list with available fields only
@@ -480,11 +482,15 @@ def plot_timehistory_at_height(datasets,
         axi.yaxis.grid()
     
     # Format time axis
-    axv[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
-    axv[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-    axv[-1].xaxis.set_major_locator(mdates.DayLocator())
-    axv[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
-    axv[-1].set_xlabel(r'UTC time')
+    if isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
+        axv[-1].xaxis_date()
+        axv[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
+        axv[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+        axv[-1].xaxis.set_major_locator(mdates.DayLocator())
+        axv[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+        axv[-1].set_xlabel(r'UTC time')
+    else:
+        axv[-1].set_xlabel('time [s]')
 
     # Set time limits if specified
     if not timelimits is None:
@@ -532,8 +538,10 @@ def plot_profile(datasets,
     fields : str or list
         Fieldname(s) corresponding to particular column(s) of
         the datasets
-    times : str, list
-        Time(s) for which vertical profiles are plotted
+    times : str, int, float, list
+        Time(s) for which vertical profiles are plotted, specified as
+        either datetime strings or numerical values (seconds, e.g.,
+        simulation time).
     fig : figure handle
         Custom figure handle. Should be specified together with ax
     ax : axes handle or numpy ndarray with axes handles
@@ -575,7 +583,7 @@ def plot_profile(datasets,
         fields = [fields,]
     Nfields = len(fields)
 
-    if isinstance(times,str):
+    if isinstance(times,(str,int,float,np.number)):
         times = [times,]
     Ntimes = len(times)
 
@@ -657,7 +665,10 @@ def plot_profile(datasets,
                     axi = j*Ndatasets + i
                     
                     # Use time as label
-                    plotting_properties['label'] = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                    if isinstance(time, (int,float,np.number)):
+                        plotting_properties['label'] = '{:g} s'.format(time)
+                    else:
+                        plotting_properties['label'] = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
 
                     # Set title if multiple datasets are compared
                     if Ndatasets>1:
@@ -678,7 +689,11 @@ def plot_profile(datasets,
 
                     # Set title if multiple times are compared
                     if Ntimes>1:
-                        axv[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
+                        if isinstance(time, (int,float,np.number)):
+                            tstr = '{:g} s'.format(time)
+                        else:
+                            tstr = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                        axv[axi].set_title(tstr, fontsize=16)
 
                     # Set color
                     plotting_properties['color'] = default_colors[i]
