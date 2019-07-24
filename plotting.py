@@ -157,12 +157,11 @@ def plot_timeheight(datasets,
     fieldlabels = {**standard_fieldlabels, **fieldlabels}        
 
     # Use ncols if specified and appropriate
-    if (not ncols is None) and (Ntotal%ncols == 0):
+    if Ntotal%ncols == 0:
         nrows = int(Ntotal/ncols)
     # Standard number of rows and columns
     else:
-        if not ncols is None:
-            print('Warning: Specified number of columns is not a true divisor of total number of subplots, ignoring ncols argument and reverting to standard number of rows and columns')
+        print('Warning: Specified number of columns is not a true divisor of total number of subplots, ignoring ncols argument and reverting to standard number of rows and columns')
         nrows = Ntotal
         ncols = 1
 
@@ -410,12 +409,11 @@ def plot_timehistory_at_height(datasets,
         Ntotal = Nfields*Nheights
 
     # Use ncols if specified and appropriate
-    if (not ncols is None) and (Ntotal%ncols == 0):
+    if Ntotal%ncols == 0:
         nrows = int(Ntotal/ncols)
     # Standard number of rows and columns
     else:
-        if not ncols is None:
-            print('Warning: Specified number of columns is not a true divisor of total number of subplots, ignoring ncols argument and reverting to standard number of rows and columns')
+        print('Warning: Specified number of columns is not a true divisor of total number of subplots, ignoring ncols argument and reverting to standard number of rows and columns')
         nrows = Ntotal
         ncols = 1
 
