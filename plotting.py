@@ -48,6 +48,8 @@ def plot_timeheight(datasets,
                     fieldlabels={},
                     labelsubplots=False,
                     showcolorbars=True,
+                    ncols=1,
+                    subfigsize=(12,4),
                     datasetkwargs={},
                     **kwargs
                     ):
@@ -89,6 +91,11 @@ def plot_timeheight(datasets,
         Label subplots as (a), (b), (c), ...
     showcolorbars : bool
         Show colorbar per subplot
+    ncols : int
+        Number of columns in axes grid, must be a true divisor of total
+        number of axes.
+    subfigsize : list or tuple
+        Standard size of subfigures
     datasetkwargs : dict
         Dataset-specific options that are passed on to the actual
         plotting function. These options overwrite general options
@@ -113,6 +120,8 @@ def plot_timeheight(datasets,
     if isinstance(datasets,pd.DataFrame):
         datasets = {'Dataset': datasets}
     Ndatasets = len(datasets)
+
+    Ntotal = Nfields * Ndatasets
 
     # If one set of fieldlimits is specified, check number of fields
     # and convert to dictionary
@@ -147,17 +156,38 @@ def plot_timeheight(datasets,
     # (custom field labels overwrite standard fields labels if existent)
     fieldlabels = {**standard_fieldlabels, **fieldlabels}        
 
+    # Use ncols if specified and appropriate
+    if (not ncols is None) and (Ntotal%ncols == 0):
+        nrows = int(Ntotal/ncols)
+    # Standard number of rows and columns
+    else:
+        if not ncols is None:
+            print('Warning: Specified number of columns is not a true divisor of total number of subplots, ignoring ncols argument and reverting to standard number of rows and columns')
+        nrows = Ntotal
+        ncols = 1
+
     # Create new figure and axes if not specified
     if ax is None:
-        fig,ax = plt.subplots(nrows=Ndatasets*Nfields,ncols=1,sharex=True,sharey=True,figsize=(12.0,4.0*Ndatasets*Nfields))
+        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(subfigsize[0]*ncols,subfigsize[1]*nrows))
         # Adjust subplot spacing
         fig.subplots_adjust(wspace=0.4,hspace=0.4)
+    else:
+        # Determine nrows and ncols in specified axes
+        try:
+            nrows,ncols = ax.shape
+        except AttributeError:
+            # Single axis
+            nrows,ncols = (1,1)
+        except ValueError:
+            # Assume single column (no way of knowing)
+            nrows = 2
+            ncols = 1
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
 
     # Make sure axv has right size (important when using user-specified axes)
-    assert(axv.size==Ndatasets*Nfields), 'Number of axes does not match number of datasets and fields'
+    assert(axv.size==Ntotal), 'Number of axes does not match number of datasets and fields'
 
     # Initialise list of colorbars
     cbars = []
@@ -227,12 +257,13 @@ def plot_timeheight(datasets,
 
 
     # Axis mark up
-    axv[-1].set_xlabel(r'UTC time')
     axv[-1].xaxis_date()
     axv[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
     axv[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
     axv[-1].xaxis.set_major_locator(mdates.DayLocator())
     axv[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+    for axi in axv[(nrows-1)*ncols:]:
+        axi.set_xlabel(r'UTC time')
 
     # Set time and height limits if specified
     if not timelimits is None:
@@ -262,6 +293,8 @@ def plot_timehistory_at_height(datasets,
                                colormap=None,
                                stack_by=None,
                                labelsubplots=False,
+                               ncols=1,
+                               subfigsize=(12,3),
                                datasetkwargs={},
                                **kwargs
                                ):
@@ -306,6 +339,11 @@ def plot_timehistory_at_height(datasets,
         Stack by 'heights' or by 'datasets'
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    ncols : int
+        Number of columns in axes grid, must be a true divisor of total
+        number of axes.
+    subfigsize : list or tuple
+        Standard size of subfigures
     datasetkwargs : dict
         Dataset-specific options that are passed on to the actual
         plotting function. These options overwrite general options
@@ -367,19 +405,42 @@ def plot_timehistory_at_height(datasets,
             +stack_by+'" not recognized, choose either "heights" or "datasets"'
 
     if stack_by=='heights':
-        nrows = Nfields*Ndatasets
+        Ntotal = Nfields*Ndatasets
     else:
-        nrows = Nfields*Nheights
+        Ntotal = Nfields*Nheights
+
+    # Use ncols if specified and appropriate
+    if (not ncols is None) and (Ntotal%ncols == 0):
+        nrows = int(Ntotal/ncols)
+    # Standard number of rows and columns
+    else:
+        if not ncols is None:
+            print('Warning: Specified number of columns is not a true divisor of total number of subplots, ignoring ncols argument and reverting to standard number of rows and columns')
+        nrows = Ntotal
+        ncols = 1
 
     # Create new figure and axes if not specified
     if ax is None:
-        fig,ax = plt.subplots(nrows=nrows,sharex=True,figsize=(12.0,3.0*nrows))
+        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,figsize=(subfigsize[0]*ncols,subfigsize[1]*nrows))
+        # Adjust subplot spacing
+        fig.subplots_adjust(wspace=0.4,hspace=0.4)
+    else:
+        # Determine nrows and ncols in specified axes
+        try:
+            nrows,ncols = ax.shape
+        except AttributeError:
+            # Single axis
+            nrows,ncols = (1,1)
+        except ValueError:
+            # Assume single column (no way of knowing)
+            nrows = 2
+            ncols = 1
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
 
     # Make sure axv has right size (important when using user-specified axes)
-    assert(axv.size==nrows), 'Number of axes does not match number of datasets/heights and fields'
+    assert(axv.size==Ntotal), 'Number of axes does not match number of datasets/heights and fields'
 
     # Loop over datasets and fields 
     for i,dfname in enumerate(datasets):
@@ -489,9 +550,12 @@ def plot_timehistory_at_height(datasets,
         axv[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
         axv[-1].xaxis.set_major_locator(mdates.DayLocator())
         axv[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
-        axv[-1].set_xlabel(r'UTC time')
+        tstr = 'UTC time'
     else:
-        axv[-1].set_xlabel('time [s]')
+        tstr = 'time [s]'
+
+    for axi in axv[(nrows-1)*ncols:]:
+        axi.set_xlabel(tstr)
 
     # Set time limits if specified
     if not timelimits is None:
@@ -504,7 +568,7 @@ def plot_timehistory_at_height(datasets,
 
     # Add legend if more than one entry
     if (stack_by=='datasets' and Ndatasets>1) or (stack_by=='heights' and Nheights>1):
-        leg = axv[0].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+        leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig, ax
 
@@ -521,6 +585,7 @@ def plot_profile(datasets,
                  labelsubplots=False,
                  fieldorder='C',
                  ncols=None,
+                 subfigsize=(4,5),
                  datasetkwargs={},
                  **kwargs
                 ):
@@ -575,6 +640,8 @@ def plot_profile(datasets,
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
+    subfigsize : list or tuple
+        Standard size of subfigures
     datasetkwargs : dict
         Dataset-specific options that are passed on to the actual
         plotting function. These options overwrite general options
@@ -650,10 +717,15 @@ def plot_profile(datasets,
         if fieldorder=='F':
             # Swap number of rows and columns
             nrows, ncols = ncols, nrows
+        
+        # By default, avoid single column
+        if ncols==1:
+            # Swap number of rows and columns
+            nrows, ncols = ncols, nrows
 
     # Create new figure and axes if not specified
     if ax is None:
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(4*ncols,5*nrows))
+        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharey=True,figsize=(subfigsize[0]*ncols,subfigsize[1]*nrows))
         # Adjust subplot spacing
         fig.subplots_adjust(wspace=0.2,hspace=0.4)
     else:
@@ -802,6 +874,7 @@ def plot_spectrum(datasets,
                   fieldlabels={},
                   labelsubplots=False,
                   datasetkwargs={},
+                  subfigsize=(4,5),
                   **kwargs
                   ):
     """
@@ -849,6 +922,8 @@ def plot_spectrum(datasets,
         entries <fieldname>: fieldlabel
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    subfigsize : list or tuple
+        Standard size of subfigures
     datasetkwargs : dict
         Dataset-specific options that are passed on to the actual
         plotting function. These options overwrite general options
@@ -897,7 +972,7 @@ def plot_spectrum(datasets,
 
     # Create new figure and axes if not specified
     if ax is None:
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(4*ncols,5*nrows))
+        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(subfigsize[0]*ncols,subfigsize[1]*nrows))
         # Adjust subplot spacing
         fig.subplots_adjust(wspace=0.3,hspace=0.5)
 
