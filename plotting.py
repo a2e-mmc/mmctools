@@ -11,6 +11,7 @@ from scipy.signal import welch
 
 # TODO:
 # - Separate out calculation of spectra?
+# - Specifying fieldlimits in plot_spectra doesn't make much sense with sharey=True
 
 # Standard field labels
 standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
