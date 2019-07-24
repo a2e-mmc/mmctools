@@ -134,7 +134,7 @@ def Ts_to_Tv(Ts,**kwargs):
     """
     
 
-def covariance(a,b,interval,resample=False):
+def covariance(a,b,interval='10min',resample=False):
     """Calculate covariance between two series (with datetime index) in
     the specified interval, where the interval is defined by a pandas
     offset string
@@ -143,6 +143,22 @@ def covariance(a,b,interval,resample=False):
     Example:
         heatflux = covariance(df['Ts'],df['w'],'10min')
     """
+    # handle multiindices
+    have_multiindex = False
+    if isinstance(a.index, pd.MultiIndex):
+        assert len(a.index.levels) == 2
+        # assuming levels 0 and 1 are time and height, respectively
+        a = a.unstack()
+        have_multiindex = True
+    if isinstance(b.index, pd.MultiIndex):
+        assert len(b.index.levels) == 2
+        # assuming levels 0 and 1 are time and height, respectively
+        b = b.unstack()
+        have_multiindex = True
+    # check index
+    assert isinstance(a.index, (pd.DatetimeIndex, pd.TimedeltaIndex, pd.PeriodIndex))
+    assert isinstance(b.index, (pd.DatetimeIndex, pd.TimedeltaIndex, pd.PeriodIndex))
+    # now, do the calculations
     if resample:
         a_mean = a.resample(interval).mean()
         b_mean = b.resample(interval).mean()
@@ -151,7 +167,11 @@ def covariance(a,b,interval,resample=False):
         a_mean = a.rolling(interval).mean()
         b_mean = b.rolling(interval).mean()
         ab_mean = (a*b).rolling(interval).mean()
-    return ab_mean - a_mean*b_mean
+    cov = ab_mean - a_mean*b_mean
+    if have_multiindex:
+        return cov.stack()
+    else:
+        return cov
 
 
 def power_law(z,zref=80.0,Uref=8.0,alpha=0.2):
