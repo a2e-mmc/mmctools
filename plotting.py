@@ -66,7 +66,7 @@ def plot_timeheight(datasets,
         the datasets
     fig : figure handle
         Custom figure handle. Should be specified together with ax
-    ax : axes handle or numpy ndarray with axes handles
+    ax : axes handle, or list or numpy ndarray with axes handles
         Customand axes handle(s).
         Size of ax should equal Ndatasets*Nfields
     colorscheme : str or dict
@@ -173,13 +173,12 @@ def plot_timeheight(datasets,
     else:
         # Determine nrows and ncols in specified axes
         try:
-            nrows,ncols = ax.shape
-        except AttributeError:
-            # Single axis
-            nrows,ncols = (1,1)
+            nrows,ncols = np.asarray(ax).shape
         except ValueError:
-            # Assume single column (no way of knowing)
-            nrows = 2
+            # ax array has only one dimension
+            # there is no way of knowing whether ax is a single row
+            # or a single column, so assuming the latter
+            nrows = np.asarray(ax).size
             ncols = 1
 
     # Create flattened view of axes
@@ -318,7 +317,7 @@ def plot_timehistory_at_height(datasets,
         Height(s) for which time history is plotted
     fig : figure handle
         Custom figure handle. Should be specified together with ax
-    ax : axes handle or numpy ndarray with axes handles
+    ax : axes handle, or list or numpy ndarray with axes handles
         Customand axes handle(s).
         Size of ax should equal Nfields * (Ndatasets or Nheights)
     fieldlimits : list or tuple, or dict
@@ -425,13 +424,12 @@ def plot_timehistory_at_height(datasets,
     else:
         # Determine nrows and ncols in specified axes
         try:
-            nrows,ncols = ax.shape
-        except AttributeError:
-            # Single axis
-            nrows,ncols = (1,1)
+            nrows,ncols = np.asarray(ax).shape
         except ValueError:
-            # Assume single column (no way of knowing)
-            nrows = 2
+            # ax array has only one dimension
+            # there is no way of knowing whether ax is a single row
+            # or a single column, so assuming the latter
+            nrows = np.asarray(ax).size
             ncols = 1
 
     # Create flattened view of axes
@@ -610,7 +608,7 @@ def plot_profile(datasets,
         simulation time).
     fig : figure handle
         Custom figure handle. Should be specified together with ax
-    ax : axes handle or numpy ndarray with axes handles
+    ax : axes handle, or list or numpy ndarray with axes handles
         Customand axes handle(s).
         Size of ax should equal Nfields * (Ndatasets or Ntimes)
     fieldlimits : list or tuple, or dict
@@ -729,13 +727,12 @@ def plot_profile(datasets,
     else:
         # Determine nrows and ncols in specified axes
         try:
-            nrows,ncols = ax.shape
-        except AttributeError:
-            # Single axis
-            nrows,ncols = (1,1)
+            nrows,ncols = np.asarray(ax).shape
         except ValueError:
-            # Assume single column (no way of knowing)
-            nrows = 2
+            # ax array has only one dimension
+            # there is no way of knowing whether ax is a single row
+            # or a single column, so assuming the latter
+            nrows = np.asarray(ax).size
             ncols = 1
 
     # Create flattened view of axes
@@ -899,7 +896,7 @@ def plot_spectrum(datasets,
         spectrum is computed.
     fig : figure handle
         Custom figure handle. Should be specified together with ax
-    ax : axes handle or numpy ndarray with axes handles
+    ax : axes handle, or list or numpy ndarray with axes handles
         Customand axes handle(s).
         Size of ax should equal Nfields * Ntimes
     Tperiod : float
@@ -973,6 +970,16 @@ def plot_spectrum(datasets,
         fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(subfigsize[0]*ncols,subfigsize[1]*nrows))
         # Adjust subplot spacing
         fig.subplots_adjust(wspace=0.3,hspace=0.5)
+    else:
+        # Determine nrows and ncols in specified axes
+        try:
+            nrows,ncols = np.asarray(ax).shape
+        except ValueError:
+            # ax array has only one dimension
+            # there is no way of knowing whether ax is a single row
+            # or a single column, so assuming the latter
+            nrows = np.asarray(ax).size
+            ncols = 1
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
