@@ -11,7 +11,6 @@ from scipy.signal import welch
 
 # TODO:
 # - Separate out calculation of spectra?
-# - Specifying fieldlimits in plot_spectra doesn't make much sense with sharey=True
 
 # Standard field labels
 standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
@@ -900,8 +899,9 @@ def plot_spectrum(datasets,
                   freqlimits=None,
                   fieldlabels={},
                   labelsubplots=False,
-                  datasetkwargs={},
+                  ncols=None,
                   subfigsize=(4,5),
+                  datasetkwargs={},
                   **kwargs
                   ):
     """
@@ -949,6 +949,9 @@ def plot_spectrum(datasets,
         entries <fieldname>: fieldlabel
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    ncols : int
+        Number of columns in axes grid, must be a true divisor of total
+        number of axes.
     subfigsize : list or tuple
         Standard size of subfigures
     datasetkwargs : dict
@@ -964,86 +967,60 @@ def plot_spectrum(datasets,
         Example uses include setting linestyle/width, marker, etc.
     """
 
-    # If any of fields or times is a single instance,
-    # convert to a list
-    if isinstance(fields,str):
-        fields = [fields,]
-    nfields = len(fields)
+    args = PlottingInput(
+        datasets=datasets,
+        fields=fields,
+        times=times,
+        fieldlimits=fieldlimits,
+        fieldlabels=fieldlabels,
+    )
 
-    if isinstance(times,str):
-        times = [times,]
-    ntimes = len(times)
-
-    # If a single dataset is provided, convert to a dictionary
-    # under a generic key 'Dataset'
-    if isinstance(datasets,pd.DataFrame):
-        datasets = {'Dataset': datasets}
-
-    # If one set of fieldlimits is specified, check number of fields
-    # and convert to dictionary
-    if isinstance(fieldlimits, (list, tuple)):
-        assert(len(fields)==1), 'Unclear to what field fieldlimits corresponds'
-        fieldlimits = {fields[0]:fieldlimits}
-
-    # If one fieldlabel is specified, check number of fields
-    if isinstance(fieldlabels, str):
-        assert(len(fields)==1), 'Unclear to what field fieldlabels corresponds'
-        fieldlabels = {fields[0]: fieldlabels}
+    nfields = len(args.fields)
+    ntimes = len(args.times)
+    ndatasets = len(args.datasets)
+    ntotal = nfields * ntimes
 
     # Concatenate custom and standard field labels
     # (custom field labels overwrite standard fields labels if existent)
-    fieldlabels = {**standard_spectrumlabels, **fieldlabels}
+    args.fieldlabels = {**standard_spectrumlabels, **args.fieldlabels}
 
-    # Set up subplot grid
-    nrows, ncols = _calc_nrows_ncols(ntimes,nfields)
-
-    # Create new figure and axes if not specified
-    if ax is None:
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=True,sharey=True,figsize=(subfigsize[0]*ncols,subfigsize[1]*nrows))
-        # Adjust subplot spacing
-        fig.subplots_adjust(wspace=0.3,hspace=0.5)
-    else:
-        # Determine nrows and ncols in specified axes
-        try:
-            nrows,ncols = np.asarray(ax).shape
-        except ValueError:
-            # ax array has only one dimension
-            # there is no way of knowing whether ax is a single row
-            # or a single column, so assuming the latter
-            nrows = np.asarray(ax).size
-            ncols = 1
+    fig, ax, nrows, ncols = _create_subplots_if_needed(
+                                    ntotal,
+                                    ncols,
+                                    default_ncols=ntimes,
+                                    avoid_single_column=True,
+                                    sharex=True,
+                                    subfigsize=subfigsize,
+                                    wspace=0.3,
+                                    hspace=0.5,
+                                    fig=fig,
+                                    ax=ax,
+                                    )
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
 
-    # Make sure axv has right size (important when using user-specified axes)
-    assert(axv.size==nrows*ncols), 'Number of axes does not match number of times and fields'
-
     # Loop over datasets, fields and times 
-    for j, dfname in enumerate(datasets):
-        df = datasets[dfname]
+    for j, dfname in enumerate(args.datasets):
+        df = args.datasets[dfname]
 
         heightvalues = df['height'].unique()
         timevalues   = df.index.unique()
         dt = (timevalues[1]-timevalues[0]) / pd.Timedelta(1,unit='s')     #Sampling rate in seconds
 
         # Create list with available fields only
-        available_fields = []
-        for field in fields:
-            if field in df.columns:
-                available_fields.append(field)
-        assert(len(available_fields)>0), 'Dataset '+dfname+' does not contain any of the requested fields'
+        available_fields = args.get_available_fields(dfname)
 
         # Pivot all fields of a dataset at once
         df_pivot = df.pivot(columns='height',values=available_fields)
 
-        for k, field in enumerate(fields):
+        for k, field in enumerate(args.fields):
             # Skip loop if field not available
             if not field in available_fields:
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
-            for i, tstart in enumerate(times):
+            for i, tstart in enumerate(args.times):
                 plotting_properties = {'label':dfname}
 
                 # Index of axis corresponding to field k and time i
@@ -1095,38 +1072,7 @@ def plot_spectrum(datasets,
             axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Add legend if more than one dataset
-    if len(datasets)>1:
+    if ndatasets>1:
         leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
 
     return fig, ax
-
-
-def _calc_nrows_ncols(N1,N2):
-    """
-    Determine number of rows and columns in a subplot grid.
-    """
-
-    if N1==1 or N2==1:
-        # Organize subplots in one row.
-        # If more than three columns, split over two
-        # two rows if total count is even
-        ncols = max([N1,N2])
-        if ncols > 3 and ncols%2 == 0:
-            ncols = int(ncols/2)
-            nrows = 2
-        else:
-            nrows=1
-    elif N1<=3 and N2<=4:
-        # Organize subplots in N1 columns and N2 rows
-        ncols = N1
-        nrows = N2
-    else:
-        # Organize subplots in N1 rows and N2 columns
-        # If more than three columns, split and divide
-        # each row over two rows if number of columns is even
-        nrows = N1
-        ncols = N2
-        if ncols > 3 and ncols%2 == 0:
-            ncols = int(ncols/2)
-            nrows *= 2
-    return nrows, ncols
