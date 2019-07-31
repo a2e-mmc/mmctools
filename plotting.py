@@ -12,7 +12,6 @@ from scipy.signal import welch
 # TODO:
 # - Separate out calculation of spectra?
 # - Specifying fieldlimits in plot_spectra doesn't make much sense with sharey=True
-# - Consider changing stack_by to stack_by_datasets
 
 # Standard field labels
 standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
@@ -412,7 +411,7 @@ def plot_timehistory_at_height(datasets,
                                timelimits=None,
                                fieldlabels={},
                                colormap=None,
-                               stack_by=None,
+                               stack_by_datasets=None,
                                labelsubplots=False,
                                ncols=1,
                                subfigsize=(12,3),
@@ -456,8 +455,8 @@ def plot_timehistory_at_height(datasets,
         entries <fieldname>: fieldlabel
     colormap : str
         Colormap used when stacking heights
-    stack_by : str
-        Stack by 'heights' or by 'datasets'
+    stack_by_datasets : bool
+        Stack by datasets if True, otherwise stack by heights
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
     ncols : int
@@ -501,19 +500,16 @@ def plot_timehistory_at_height(datasets,
     args.fieldlabels = {**standard_fieldlabels, **args.fieldlabels}
 
     # Set up subplot grid
-    if stack_by is None:
+    if stack_by_datasets is None:
         if nheights>1:
-            stack_by = 'heights'
+            stack_by_datasets = False
         else:
-            stack_by = 'datasets'
-    else:
-        assert(stack_by in ['heights','datasets']), 'Error: stack by "'\
-            +stack_by+'" not recognized, choose either "heights" or "datasets"'
+            stack_by_datasets = True
 
-    if stack_by=='heights':
-        ntotal = nfields*ndatasets
-    else:
+    if stack_by_datasets:
         ntotal = nfields*nheights
+    else:
+        ntotal = nfields*ndatasets
 
     fig, ax, nrows, ncols = _create_subplots_if_needed(
                                     ntotal,
@@ -560,8 +556,21 @@ def plot_timehistory_at_height(datasets,
                     'marker':None,
                     }
 
-                # Axis order, label and title depend on value of stack_by 
-                if stack_by=='heights':
+                # Axis order, label and title depend on value of stack_by_datasets 
+                if stack_by_datasets:
+                    # Index of axis corresponding to field j and height k
+                    axi = k*nfields + j
+
+                    # Use datasetname as label
+                    plotting_properties['label'] = dfname
+
+                    # Set title if multiple heights are compared
+                    if nheights>1:
+                        axv[axi].set_title('z = {:.1f} m'.format(height),fontsize=16)
+
+                    # Set colors
+                    plotting_properties['color'] = default_colors[i]
+                else:
                     # Index of axis corresponding to field j and dataset i 
                     axi = i*nfields + j
 
@@ -578,19 +587,6 @@ def plot_timehistory_at_height(datasets,
                         plotting_properties['color'] = cmap(k/(nheights-1))
                     else:
                         plotting_properties['color'] = default_colors[k]
-                else:
-                    # Index of axis corresponding to field j and height k
-                    axi = k*nfields + j
-
-                    # Use datasetname as label
-                    plotting_properties['label'] = dfname
-
-                    # Set title if multiple heights are compared
-                    if nheights>1:
-                        axv[axi].set_title('z = {:.1f} m'.format(height),fontsize=16)
-
-                    # Set colors
-                    plotting_properties['color'] = default_colors[i]
 
                 # Extract data from dataframe
                 if height in heightvalues:
@@ -648,7 +644,7 @@ def plot_timehistory_at_height(datasets,
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Add legend if more than one entry
-    if (stack_by=='datasets' and ndatasets>1) or (stack_by=='heights' and nheights>1):
+    if (stack_by_datasets and ndatasets>1) or (not stack_by_datasets and nheights>1):
         leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig, ax
@@ -662,7 +658,7 @@ def plot_profile(datasets,
                  heightlimits=None,
                  fieldlabels={},
                  colormap=None,
-                 stack_by=None,
+                 stack_by_datasets=None,
                  labelsubplots=False,
                  fieldorder='C',
                  ncols=None,
@@ -709,13 +705,13 @@ def plot_profile(datasets,
         entries <fieldname>: fieldlabel
     colormap : str
         Colormap used when stacking times
-    stack_by : str
-        Stack by 'times' or by 'datasets'
+    stack_by_datasets : bool
+        Stack by datasets if True, otherwise stack by times
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
     fieldorder : 'C' or 'F'
         Index ordering for assigning fields and datasets/times (depending
-        on stack_by) to axes grid (row by row). Fields is considered the
+        on stack_by_datasets) to axes grid (row by row). Fields is considered the
         first axis, so 'C' means fields change slowest, 'F' means fields
         change fastest.
     ncols : int
@@ -754,19 +750,16 @@ def plot_profile(datasets,
     args.fieldlabels = {**standard_fieldlabels, **args.fieldlabels}
 
     # Set up subplot grid
-    if stack_by is None:
+    if stack_by_datasets is None:
         if ntimes>1:
-            stack_by = 'times'
+            stack_by_datasets = False
         else:
-            stack_by = 'datasets'
-    else:
-        assert(stack_by in ['times','datasets']), 'Error: stack by "'\
-            +stack_by+'" not recognized, choose either "times" or "datasets"'
+            stack_by_datasets = True
 
-    if stack_by=='times':
-        ntotal = nfields * ndatasets
-    else:
+    if stack_by_datasets:
         ntotal = nfields * ntimes
+    else:
+        ntotal = nfields * ndatasets
 
     fig, ax, nrows, ncols = _create_subplots_if_needed(
                                     ntotal,
@@ -804,8 +797,28 @@ def plot_profile(datasets,
             for k, time in enumerate(args.times):
                 plotting_properties = {}
 
-                # Axis order, label and title depend on value of stack_by 
-                if stack_by=='times':
+                # Axis order, label and title depend on value of stack_by_datasets 
+                if stack_by_datasets:
+                    # Index of axis corresponding to field j and time k
+                    if args.fieldorder == 'C':
+                        axi = j*ntimes + k
+                    else:
+                        axi = k*nfields + j
+
+                    # Use datasetname as label
+                    plotting_properties['label'] = dfname
+
+                    # Set title if multiple times are compared
+                    if ntimes>1:
+                        if isinstance(time, (int,float,np.number)):
+                            tstr = '{:g} s'.format(time)
+                        else:
+                            tstr = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                        axv[axi].set_title(tstr, fontsize=16)
+
+                    # Set color
+                    plotting_properties['color'] = default_colors[i]
+                else:
                     # Index of axis corresponding to field j and dataset i
                     if args.fieldorder == 'C':
                         axi = j*ndatasets + i
@@ -828,26 +841,6 @@ def plot_profile(datasets,
                         plotting_properties['color'] = cmap(k/(ntimes-1))
                     else:
                         plotting_properties['color'] = default_colors[k]
-                else:
-                    # Index of axis corresponding to field j and time k
-                    if args.fieldorder == 'C':
-                        axi = j*ntimes + k
-                    else:
-                        axi = k*nfields + j
-
-                    # Use datasetname as label
-                    plotting_properties['label'] = dfname
-
-                    # Set title if multiple times are compared
-                    if ntimes>1:
-                        if isinstance(time, (int,float,np.number)):
-                            tstr = '{:g} s'.format(time)
-                        else:
-                            tstr = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
-                        axv[axi].set_title(tstr, fontsize=16)
-
-                    # Set color
-                    plotting_properties['color'] = default_colors[i]
                 
                 # Extract data from dataframe
                 fieldvalues = df_pivot[field].loc[time].values.squeeze()
@@ -890,7 +883,7 @@ def plot_profile(datasets,
             axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
     
     # Add legend if more than one entry
-    if (stack_by=='datasets' and ndatasets>1) or (stack_by=='times' and ntimes>1):
+    if (stack_by_datasets=='datasets' and ndatasets>1) or (stack_by_datasets=='times' and ntimes>1):
         leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig,ax
