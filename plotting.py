@@ -119,6 +119,13 @@ class PlottingInput(object):
         except AttributeError:
             pass
 
+        # Make sure fieldorder is recognized
+        try:
+            assert(self.fieldorder in ['C','F']), "Error: fieldorder '"\
+                +self.fieldorder+"' not recognized, must be either 'C' or 'F'"
+        except AttributeError:
+            pass
+
     def get_available_fields(self,dfname):
         """
         Return list of available fields for dataset 'dfname'
@@ -735,6 +742,7 @@ def plot_profile(datasets,
         times=times,
         fieldlimits=fieldlimits,
         fieldlabels=fieldlabels,
+        fieldorder=fieldorder,
     )
 
     nfields = len(args.fields)
@@ -755,9 +763,6 @@ def plot_profile(datasets,
         assert(stack_by in ['times','datasets']), 'Error: stack by "'\
             +stack_by+'" not recognized, choose either "times" or "datasets"'
 
-    assert(fieldorder in ['C','F']), "Error: fieldorder '"\
-        +fieldorder+"' not recognized, must be either 'C' or 'F'"
-
     if stack_by=='times':
         ntotal = nfields * ndatasets
     else:
@@ -767,7 +772,7 @@ def plot_profile(datasets,
                                     ntotal,
                                     ncols,
                                     default_ncols=int(ntotal/nfields),
-                                    fieldorder=fieldorder,
+                                    fieldorder=args.fieldorder,
                                     avoid_single_column=True,
                                     sharey=True,
                                     subfigsize=subfigsize,
@@ -802,7 +807,7 @@ def plot_profile(datasets,
                 # Axis order, label and title depend on value of stack_by 
                 if stack_by=='times':
                     # Index of axis corresponding to field j and dataset i
-                    if fieldorder == 'C':
+                    if args.fieldorder == 'C':
                         axi = j*ndatasets + i
                     else:
                         axi = i*nfields + j
@@ -825,7 +830,7 @@ def plot_profile(datasets,
                         plotting_properties['color'] = default_colors[k]
                 else:
                     # Index of axis corresponding to field j and time k
-                    if fieldorder == 'C':
+                    if args.fieldorder == 'C':
                         axi = j*ntimes + k
                     else:
                         axi = k*nfields + j
