@@ -172,22 +172,23 @@ def _create_subplots_if_needed(ntotal,
     """
 
     if ax is None:
-        # Use default number of columns if ncols is not specified or inappropriate
-        if ncols is None:
+        if not ncols is None:
+            # Use ncols if specified and appropriate
+            assert(ntotal%ncols==0), 'Error: Specified number of columns is not a true divisor of total number of subplots'
+            nrows = int(ntotal/ncols)
+        else:
+            # Defaut number of columns
             ncols = default_ncols
-        elif not ntotal%ncols == 0:
-            print('Warning: Specified number of columns is not a true divisor of total number of subplots, ignoring ncols argument and reverting to standard number of rows and columns')
-            ncols = default_ncols
-        nrows = int(ntotal/ncols)
+            nrows = int(ntotal/ncols)
+    
+            if fieldorder=='F':
+                # Swap number of rows and columns
+                nrows, ncols = ncols, nrows
+            
+            if avoid_single_column and ncols==1:
+                # Swap number of rows and columns
+                nrows, ncols = ncols, nrows
 
-        if fieldorder=='F':
-            # Swap number of rows and columns
-            nrows, ncols = ncols, nrows
-
-        if avoid_single_column and ncols==1:
-            # Swap number of rows and columns
-            nrows, ncols = ncols, nrows
-        
         # Create fig and ax with nrows and ncols
         fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=sharex,sharey=sharey,figsize=(subfigsize[0]*ncols,subfigsize[1]*nrows))
 
