@@ -297,8 +297,11 @@ def plot_timehistory_at_height(datasets,
         entries <fieldname>: fieldlabel
     cmap : str
         Colormap used when stacking heights
-    stack_by_datasets : bool
-        Stack by datasets if True, otherwise stack by heights
+    stack_by_datasets : bool (or None)
+        Flag to specify what is plotted ("stacked") together per subfigure.
+        If True, stack datasets together, otherwise stack by heights. If
+        None, stack_by_datasets will be set based on the number of heights
+        and datasets. 
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
     ncols : int
@@ -562,8 +565,11 @@ def plot_profile(datasets,
         entries <fieldname>: fieldlabel
     cmap : str
         Colormap used when stacking times
-    stack_by_datasets : bool
-        Stack by datasets if True, otherwise stack by times
+    stack_by_datasets : bool (or None)
+        Flag to specify what is plotted ("stacked") together per subfigure.
+        If True, stack datasets together, otherwise stack by times. If
+        None, stack_by_datasets will be set based on the number of times
+        and datasets. 
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
     fieldorder : 'C' or 'F'
