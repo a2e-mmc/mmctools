@@ -246,7 +246,7 @@ def plot_timehistory_at_height(datasets,
                                fieldlimits={},
                                timelimits=None,
                                fieldlabels={},
-                               colormap=None,
+                               cmap=None,
                                stack_by_datasets=None,
                                labelsubplots=False,
                                ncols=1,
@@ -295,7 +295,7 @@ def plot_timehistory_at_height(datasets,
         Custom field labels. If only one field is plotted, fieldlabels
         can be a string. Otherwise it should be a dictionary with
         entries <fieldname>: fieldlabel
-    colormap : str
+    cmap : str
         Colormap used when stacking heights
     stack_by_datasets : bool
         Stack by datasets if True, otherwise stack by heights
@@ -425,8 +425,8 @@ def plot_timehistory_at_height(datasets,
                         axv[axi].set_title(dfname,fontsize=16)
 
                     # Set colors
-                    if colormap is not None:
-                        cmap = mpl.cm.get_cmap(colormap)
+                    if cmap is not None:
+                        cmap = mpl.cm.get_cmap(cmap)
                         plotting_properties['color'] = cmap(k/(nheights-1))
                     else:
                         plotting_properties['color'] = default_colors[k]
@@ -511,7 +511,7 @@ def plot_profile(datasets,
                  fieldlimits={},
                  heightlimits=None,
                  fieldlabels={},
-                 colormap=None,
+                 cmap=None,
                  stack_by_datasets=None,
                  labelsubplots=False,
                  fieldorder='C',
@@ -560,7 +560,7 @@ def plot_profile(datasets,
         Custom field labels. If only one field is plotted, fieldlabels
         can be a string. Otherwise it should be a dictionary with
         entries <fieldname>: fieldlabel
-    colormap : str
+    cmap : str
         Colormap used when stacking times
     stack_by_datasets : bool
         Stack by datasets if True, otherwise stack by times
@@ -696,8 +696,8 @@ def plot_profile(datasets,
                         axv[axi].set_title(dfname,fontsize=16)
 
                     # Set colors
-                    if colormap is not None:
-                        cmap = mpl.cm.get_cmap(colormap)
+                    if cmap is not None:
+                        cmap = mpl.cm.get_cmap(cmap)
                         plotting_properties['color'] = cmap(k/(ntimes-1))
                     else:
                         plotting_properties['color'] = default_colors[k]
