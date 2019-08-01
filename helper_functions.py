@@ -156,8 +156,10 @@ def covariance(a,b,interval='10min',resample=False):
         b = b.unstack()
         have_multiindex = True
     # check index
-    assert isinstance(a.index, (pd.DatetimeIndex, pd.TimedeltaIndex, pd.PeriodIndex))
-    assert isinstance(b.index, (pd.DatetimeIndex, pd.TimedeltaIndex, pd.PeriodIndex))
+    if isinstance(interval, str):
+        # make sure we have a compatible index
+        assert isinstance(a.index, (pd.DatetimeIndex, pd.TimedeltaIndex, pd.PeriodIndex))
+        assert isinstance(b.index, (pd.DatetimeIndex, pd.TimedeltaIndex, pd.PeriodIndex))
     # now, do the calculations
     if resample:
         a_mean = a.resample(interval).mean()
