@@ -69,10 +69,15 @@ class PlottingInput(object):
         if isinstance(self.fields,str):
             self.fields = [self.fields,]
 
-        # If heights is single instance, convert to list
         try:
+            # If heights is single instance, convert to list
             if isinstance(self.heights,(int,float)):
                 self.heights = [self.heights,]
+            # If heights='all', retrieve heights from dataset
+            elif self.heights=='all':
+                self.heights = self.get_height_values(list(self.datasets)[0])
+                assert(all([np.allclose(self.get_height_values(dfname),self.heights) for dfname in self.datasets])), \
+                    "Error: the option heights='all' only works when all datasets have the same vertical levels"
         except AttributeError:
             pass
 
@@ -454,7 +459,7 @@ def plot_timeheight(datasets,
 
 def plot_timehistory_at_height(datasets,
                                fields,
-                               heights,
+                               heights='all',
                                fig=None,ax=None,
                                fieldlimits={},
                                timelimits=None,
@@ -484,8 +489,10 @@ def plot_timehistory_at_height(datasets,
     fields : str or list
         Fieldname(s) corresponding to particular column(s) of
         the datasets
-    heights : float or list
-        Height(s) for which time history is plotted
+    heights : float or list or 'all'
+        Height(s) for which time history is plotted. 'all' means the
+        time history for all heights in the datasets will be plotted
+        (in this case all datasets should have the same heights)
     fig : figure handle
         Custom figure handle. Should be specified together with ax
     ax : axes handle, or list or numpy ndarray with axes handles
