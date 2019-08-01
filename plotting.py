@@ -15,6 +15,8 @@ from scipy.signal import welch
 # Standard field labels
 standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
                         'wdir': r'Wind direction $[^\circ]$',
+                        'w': r'Vertical wind speed [m/s]',
+                        'theta': r'$\theta$ [K]',
                         'thetav': r'$\theta_v$ [K]',
                         'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
                         'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
@@ -41,233 +43,8 @@ default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 time_names = ['datetime','time','Time']
 height_names = ['height','heights','z']
 
-class PlottingInput(object):
-    """
-    Auxiliary class to collect input data and options for plotting
-    functions, and to check if the inputs are consistent
-    """
-
-    def __init__(self, datasets, fields, **argd):
-        # Add all arguments as class attributes
-        self.__dict__.update({'datasets':datasets,
-                              'fields':fields,
-                              **argd})
-
-        # Check consistency of all attributes
-        self._check_consistency()
-
-    def _check_consistency(self):
-        """
-        Check consistency of all input data
-        """
-        # If a single dataset is provided, convert to a dictionary
-        # under a generic key 'Dataset'
-        if isinstance(self.datasets,pd.DataFrame):
-            self.datasets = {'Dataset': self.datasets}
-
-        # If fields is a single instance, convert to a list
-        if isinstance(self.fields,str):
-            self.fields = [self.fields,]
-
-        try:
-            # If heights is single instance, convert to list
-            if isinstance(self.heights,(int,float)):
-                self.heights = [self.heights,]
-            # If heights='all', retrieve heights from dataset
-            elif self.heights=='all':
-                self.heights = self.get_height_values(list(self.datasets)[0])
-                assert(all([np.allclose(self.get_height_values(dfname),self.heights) for dfname in self.datasets])), \
-                    "Error: the option heights='all' only works when all datasets have the same vertical levels"
-        except AttributeError:
-            pass
-
-        # If times is single instance, convert to list
-        try:
-            if isinstance(self.times,(str,int,float,np.number)):
-                self.times = [self.times,]
-        except AttributeError:
-            pass
-
-        # Check if all datasets have at least one of the requested fields
-        for dfname in self.datasets:
-            df = self.datasets[dfname]
-            assert(any([field in df.columns for field in self.fields])), \
-                'Dataset '+dfname+' does not contain any of the requested fields'
-
-        # If one set of fieldlimits is specified, check number of fields
-        # and convert to dictionary
-        try:
-            if isinstance(self.fieldlimits, (list, tuple)):
-                assert(len(self.fields)==1), 'Unclear to what field fieldlimits corresponds'
-                self.fieldlimits = {self.fields[0]:self.fieldlimits}
-        except AttributeError:
-            self.fieldlimits = {}
-
-        # If one fieldlabel is specified, check number of fields
-        try:
-            if isinstance(self.fieldlabels, str):
-                assert(len(self.fields)==1), 'Unclear to what field fieldlabels corresponds'
-                self.fieldlabels = {self.fields[0]: self.fieldlabels}
-        except AttributeError:
-            self.fieldlabels = {}
-
-        # If one colorscheme is specified, check number of fields
-        try:
-            self.cmap = {}
-            if isinstance(self.colorschemes, str):
-                assert(len(self.fields)==1), 'Unclear to what field colorschemes corresponds'
-                self.cmap[self.fields[0]] = mpl.cm.get_cmap(self.colorschemes)
-            else:
-            # Set missing colorschemes to viridis
-                for field in self.fields:
-                    if field not in self.colorschemes.keys():
-                        self.colorschemes[field] = 'viridis'
-                    self.cmap[field] = mpl.cm.get_cmap(self.colorschemes[field])
-        except AttributeError:
-            pass
-
-        # Make sure fieldorder is recognized
-        try:
-            assert(self.fieldorder in ['C','F']), "Error: fieldorder '"\
-                +self.fieldorder+"' not recognized, must be either 'C' or 'F'"
-        except AttributeError:
-            pass
-
-
-    def get_available_fields(self,dfname):
-        """
-        Return list of available fields for dataset 'dfname'
-        """
-        available_fields = []
-        for field in self.fields:
-            if field in self.datasets[dfname].columns:
-                available_fields.append(field)
-        return available_fields
-
-
-    def set_missing_fieldlimits(self):
-        """
-        Set missing fieldlimits to min and max over all datasets
-        """
-        for field in self.fields:
-            if field not in self.fieldlimits.keys():
-                self.fieldlimits[field] = [ min([df[field].min() for df in self.datasets.values()]),
-                                            max([df[field].max() for df in self.datasets.values()]) ]
-
-
-    def get_height_values(self,dfname):
-        """
-        Return list of heights in dataset 'dfname'
-        """
-        df = self.datasets[dfname]
-        if isinstance(df.index,pd.MultiIndex):
-            # Assuming level 0 is time and level 1 is height
-            return df.index.get_level_values(1).unique().values
-        elif isinstance(df,pd.DataFrame):
-            for name in height_names:
-                if name in df.columns:
-                    return df[name].unique()
-            # No height name match
-            return None
-        else:
-            print('Error: unknown dataset type, could not determine height values')
-            return None
-
-
-    def get_time_values(self,dfname):
-        """
-        Return list of times in dataset 'dfname'
-        """
-        df = self.datasets[dfname]
-        # Assuming level 0 is always the time index
-        return df.index.get_level_values(0).unique()
-
-    def get_pivot_table(self,dfname,available_fields):
-        df = self.datasets[dfname]
-        if isinstance(df.index,pd.MultiIndex):
-            # Assuming level 0 is time and level 1 is height
-            return df[available_fields].unstack()
-        elif isinstance(df,pd.DataFrame):
-            for name in height_names:
-                if name in df.columns:
-                    return df.pivot(columns=name,values=available_fields)
-            # No height name match
-            return None
-        else:
-            print('Error: unknown dataset type')
-            return None
-
-
-def _create_subplots_if_needed(ntotal,
-                               ncols=None,
-                               default_ncols=1,
-                               fieldorder='C',
-                               avoid_single_column=False,
-                               sharex=False,
-                               sharey=False,
-                               subfigsize=(12,3),
-                               wspace=0.4,
-                               hspace=0.4,
-                               fig=None,
-                               ax=None
-                               ):
-    """
-    Auxiliary function to create fig and ax
-
-    If fig and ax are None:
-    - Set nrows and ncols based on ntotal and specified ncols,
-      accounting for fieldorder and avoid_single_column
-    - Create fig and ax with nrows and ncols, taking into account
-      sharex, sharey, subfigsize, wspace, hspace
-
-    If fig and ax are not None:
-    - Try to determine nrows and ncols from ax
-    - Check whether size of ax corresponds to ntotal
-    """
-
-    if ax is None:
-        if not ncols is None:
-            # Use ncols if specified and appropriate
-            assert(ntotal%ncols==0), 'Error: Specified number of columns is not a true divisor of total number of subplots'
-            nrows = int(ntotal/ncols)
-        else:
-            # Defaut number of columns
-            ncols = default_ncols
-            nrows = int(ntotal/ncols)
-    
-            if fieldorder=='F':
-                # Swap number of rows and columns
-                nrows, ncols = ncols, nrows
-            
-            if avoid_single_column and ncols==1:
-                # Swap number of rows and columns
-                nrows, ncols = ncols, nrows
-
-        # Create fig and ax with nrows and ncols
-        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=sharex,sharey=sharey,figsize=(subfigsize[0]*ncols,subfigsize[1]*nrows))
-
-        # Adjust subplot spacing
-        fig.subplots_adjust(wspace=wspace,hspace=hspace)
-
-    else:
-        # Make sure user-specified axes has appropriate size
-        assert(np.asarray(ax).size==ntotal), 'Specified axes does not have the right size'
-
-        # Determine nrows and ncols in specified axes
-        try:
-            nrows,ncols = np.asarray(ax).shape
-        except ValueError:
-            # ax array has only one dimension
-            # there is no way of knowing whether ax is a single row
-            # or a single column, so assuming the latter
-            nrows = np.asarray(ax).size
-            ncols = 1
-
-    return fig, ax, nrows, ncols
-
-
 def plot_timeheight(datasets,
-                    fields,
+                    fields=None,
                     fig=None,ax=None,
                     colorschemes={},
                     fieldlimits={},
@@ -289,9 +66,11 @@ def plot_timeheight(datasets,
     datasets : pandas.DataFrame or dict 
         Dataset(s). If more than one set, datasets should
         be a dictionary with entries <dataset_name>: dataset
-    fields : str or list
+    fields : str, list, 'all' (or None)
         Fieldname(s) corresponding to particular column(s) of
-        the datasets
+        the datasets. fields can be None if input are MultiIndex Series.
+        'all' means all fields will be plotted (in this case all
+        datasets should have the same fields)
     fig : figure handle
         Custom figure handle. Should be specified together with ax
     ax : axes handle, or list or numpy ndarray with axes handles
@@ -374,15 +153,18 @@ def plot_timeheight(datasets,
     for i, dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
 
-        heightvalues = args.get_height_values(dfname)
-        timevalues = mdates.date2num(args.get_time_values(dfname).values) # Convert to days since 0001-01-01 00:00 UTC, plus one
+        heightvalues = _get_height_values(df)
+        timevalues = mdates.date2num(_get_time_values(df).values) # Convert to days since 0001-01-01 00:00 UTC, plus one
+        assert(heightvalues is not None), 'timeheight plot needs a height axis'
+        assert(timevalues is not None), 'timeheight plot needs a time axis'
+
         Ts,Zs = np.meshgrid(timevalues,heightvalues,indexing='xy')
 
         # Create list with available fields only
-        available_fields = args.get_available_fields(dfname)
+        available_fields = _get_available_fieldnames(df,args.fields)
 
         # Pivot all fields in a dataset at once
-        df_pivot = args.get_pivot_table(dfname,available_fields)
+        df_pivot = _get_pivot_table(df,available_fields)
 
         for j, field in enumerate(args.fields):
             # Skip loop if field not available
@@ -401,7 +183,7 @@ def plot_timeheight(datasets,
             axi = i*nfields + j
 
             # Extract data from dataframe
-            fieldvalues = df_pivot[field].values 
+            fieldvalues = _get_pivoted_field(df_pivot,field).values
 
             # Gather label, color, general options and dataset-specific options
             # (highest priority to dataset-specific options, then general options)
@@ -458,8 +240,8 @@ def plot_timeheight(datasets,
 
 
 def plot_timehistory_at_height(datasets,
-                               fields,
-                               heights='all',
+                               fields=None,
+                               heights=None,
                                fig=None,ax=None,
                                fieldlimits={},
                                timelimits=None,
@@ -486,13 +268,17 @@ def plot_timehistory_at_height(datasets,
     datasets : pandas.DataFrame or dict 
         Dataset(s). If more than one set, datasets should
         be a dictionary with entries <dataset_name>: dataset
-    fields : str or list
+    fields : str, list, 'all' (or None)
         Fieldname(s) corresponding to particular column(s) of
-        the datasets
-    heights : float or list or 'all'
-        Height(s) for which time history is plotted. 'all' means the
-        time history for all heights in the datasets will be plotted
-        (in this case all datasets should have the same heights)
+        the datasets. fields can be None if input are Series.
+        'all' means all fields will be plotted (in this case all
+        datasets should have the same fields)
+    heights : float, list, 'all' (or None)
+        Height(s) for which time history is plotted. heights can be
+        None if all datasets combined have no more than one height
+        value. 'all' means the time history for all heights in the
+        datasets will be plotted (in this case all datasets should
+        have the same heights)
     fig : figure handle
         Custom figure handle. Should be specified together with ax
     ax : axes handle, or list or numpy ndarray with axes handles
@@ -582,19 +368,20 @@ def plot_timehistory_at_height(datasets,
     # Loop over datasets and fields 
     for i,dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
-        timevalues = args.get_time_values(dfname)
+        timevalues = _get_time_values(df)
+        assert(timevalues is not None), 'timehistory plot needs a time axis'
         if isinstance(timevalues, pd.TimedeltaIndex):
             timevalues = timevalues.total_seconds()
-        heightvalues = args.get_height_values(dfname)
+        heightvalues = _get_height_values(df)
 
         # Create list with available fields only
-        available_fields = args.get_available_fields(dfname)
+        available_fields = _get_available_fieldnames(df,args.fields)
 
         # If any of the requested heights is not available,
         # pivot the dataframe to allow interpolation.
         # Pivot all fields in a dataset at once to reduce computation time
-        if not all([h in heightvalues for h in args.heights]):
-            df_pivot = args.get_pivot_table(dfname,available_fields)
+        if (not heightvalues is None) and (not all([h in heightvalues for h in args.heights])):
+            df_pivot = _get_pivot_table(df,available_fields)
             print('Pivoting '+dfname)
 
         for j, field in enumerate(args.fields):
@@ -645,13 +432,21 @@ def plot_timehistory_at_height(datasets,
                         plotting_properties['color'] = default_colors[k]
 
                 # Extract data from dataframe
-                if height in heightvalues:
-                    if isinstance(df.index,pd.MultiIndex):
-                        signal = df.loc[(slice(None),height),field].values
-                    else:
-                        signal = df.loc[df.height==height,field].values
+                if heightvalues is None:
+                    signal = df.values
+                elif height in heightvalues:
+                    if isinstance(df,pd.DataFrame):
+                        if isinstance(df.index,pd.MultiIndex):
+                            signal = df.loc[(slice(None),height),field].values
+                        else:
+                            signal = df.loc[df.height==height,field].values
+                    elif isinstance(df,pd.Series):
+                        if isinstance(df.index,pd.MultiIndex):
+                            signal = df.loc[(slice(None),height)].values
+                        else:
+                            signal = df.values
                 else:
-                    signal = interp1d(heightvalues,df_pivot[field].values,axis=1,fill_value="extrapolate")(height)
+                    signal = interp1d(heightvalues,_get_pivoted_field(df_pivot,field).values,axis=-1,fill_value="extrapolate")(height)
                 
                 # Gather label, color, general options and dataset-specific options
                 # (highest priority to dataset-specific options, then general options)
@@ -710,8 +505,8 @@ def plot_timehistory_at_height(datasets,
 
 
 def plot_profile(datasets,
-                 fields,
-                 times,
+                 fields=None,
+                 times=None,
                  fig=None,ax=None,
                  fieldlimits={},
                  heightlimits=None,
@@ -739,13 +534,16 @@ def plot_profile(datasets,
     datasets : pandas.DataFrame or dict 
         Dataset(s). If more than one set, datasets should
         be a dictionary with entries <dataset_name>: dataset
-    fields : str or list
+    fields : str, list, 'all' (or None)
         Fieldname(s) corresponding to particular column(s) of
-        the datasets
-    times : str, int, float, list
+        the datasets. fields can be None if input are Series.
+        'all' means all fields will be plotted (in this case all
+        datasets should have the same fields)
+    times : str, int, float, list (or None)
         Time(s) for which vertical profiles are plotted, specified as
         either datetime strings or numerical values (seconds, e.g.,
-        simulation time).
+        simulation time). times can be None if all datasets combined
+        have no more than one time value.
     fig : figure handle
         Custom figure handle. Should be specified together with ax
     ax : axes handle, or list or numpy ndarray with axes handles
@@ -839,13 +637,16 @@ def plot_profile(datasets,
     # Loop over datasets, fields and times 
     for i, dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
-        heightvalues = args.get_height_values(dfname)
+        heightvalues = _get_height_values(df)
+        assert(heightvalues is not None), 'profile plot needs a height axis'
+        timevalues = _get_time_values(df)
 
         # Create list with available fields only
-        available_fields = args.get_available_fields(dfname)
+        available_fields = _get_available_fieldnames(df,args.fields)
 
         # Pivot all fields in a dataset at once
-        df_pivot = args.get_pivot_table(dfname,available_fields)
+        if not timevalues is None:
+            df_pivot = _get_pivot_table(df,available_fields)
 
         for j, field in enumerate(args.fields):
             # Skip loop if field not available
@@ -902,7 +703,11 @@ def plot_profile(datasets,
                         plotting_properties['color'] = default_colors[k]
                 
                 # Extract data from dataframe
-                fieldvalues = df_pivot[field].loc[time].values.squeeze()
+                if timevalues is None:
+                    # Dataset will not be pivoted
+                    fieldvalues = _get_field(df,field).values
+                else:
+                    fieldvalues = _get_pivoted_field(df_pivot,field).loc[time].values.squeeze()
 
                 # Gather label, color, general options and dataset-specific options
                 # (highest priority to dataset-specific options, then general options)
@@ -950,8 +755,8 @@ def plot_profile(datasets,
 
 def plot_spectrum(datasets,
                   height,
-                  fields,
                   times,
+                  fields=None,
                   fig=None,ax=None,
                   Tperiod=3600.0,
                   Tsegment=600.0,
@@ -980,12 +785,14 @@ def plot_spectrum(datasets,
         be a dictionary with entries <dataset_name>: dataset
     height : float
         Height for which frequency spectrum is plotted
-    fields : str or list
-        Fieldname(s) corresponding to particular column(s) of
-        the datasets
     times : str, list
         Start time(s) of the time period(s) for which the frequency
         spectrum is computed.
+    fields : str, list, 'all' (or None)
+        Fieldname(s) corresponding to particular column(s) of
+        the datasets. fields can be None if input are Series.
+        'all' means all fields will be plotted (in this case all
+        datasets should have the same fields)
     fig : figure handle
         Custom figure handle. Should be specified together with ax
     ax : axes handle, or list or numpy ndarray with axes handles
@@ -1052,7 +859,6 @@ def plot_spectrum(datasets,
                                     sharex=True,
                                     subfigsize=subfigsize,
                                     wspace=0.3,
-                                    hspace=0.5,
                                     fig=fig,
                                     ax=ax,
                                     )
@@ -1064,15 +870,15 @@ def plot_spectrum(datasets,
     for j, dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
 
-        heightvalues = args.get_height_values(dfname)
-        timevalues   = args.get_time_values(dfname)
+        heightvalues = _get_height_values(df)
+        timevalues   = _get_time_values(df)
         dt = (timevalues[1]-timevalues[0]) / pd.Timedelta(1,unit='s')     #Sampling rate in seconds
 
         # Create list with available fields only
-        available_fields = args.get_available_fields(dfname)
+        available_fields = _get_available_fieldnames(df,args.fields)
 
         # Pivot all fields of a dataset at once
-        df_pivot = args.get_pivot_table(dfname,available_fields)
+        df_pivot = _get_pivot_table(df,available_fields)
 
         for k, field in enumerate(args.fields):
             # Skip loop if field not available
@@ -1092,7 +898,7 @@ def plot_spectrum(datasets,
 
                 # Compute frequency spectrum
                 istart = np.where(timevalues==pd.to_datetime(tstart))[0][0]
-                signal = interp1d(heightvalues,df_pivot[field].interpolate(method='linear').values,axis=1,fill_value="extrapolate")(height)
+                signal = interp1d(heightvalues,_get_pivoted_field(df_pivot,field).interpolate(method='linear').values,axis=-1,fill_value="extrapolate")(height)
                 f, P = welch(signal[istart:istart+np.int(Tperiod/dt)],fs=1./dt,nperseg=np.int(Tsegment/dt),
                             detrend='linear',window='hanning',scaling='density')
                 
@@ -1114,11 +920,11 @@ def plot_spectrum(datasets,
     # Specify field label and field limits if specified 
     for r in range(nrows):
         try:
-            axv[r*ncols].set_ylabel(fieldlabels[fields[r]])
+            axv[r*ncols].set_ylabel(args.fieldlabels[args.fields[r]])
         except KeyError:
             pass
         try:
-            axv[r*ncols].set_ylim(fieldlimits[fields[r]])
+            axv[r*ncols].set_ylim(args.fieldlimits[args.fields[r]])
         except KeyError:
             pass
 
@@ -1136,3 +942,415 @@ def plot_spectrum(datasets,
         leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
 
     return fig, ax
+
+
+# ---------------------------------------------
+#
+# DEFINITION OF AUXILIARY CLASSES AND FUNCTIONS
+#
+# ---------------------------------------------
+
+class InputError(Exception):
+    """Exception raised for errors in the input.
+
+    Attributes:
+        message -- explanation of the error
+    """
+
+    def __init__(self, message):
+        self.message = message
+
+
+class PlottingInput(object):
+    """
+    Auxiliary class to collect input data and options for plotting
+    functions, and to check if the inputs are consistent
+    """
+
+    def __init__(self, datasets, fields, **argd):
+        # Add all arguments as class attributes
+        self.__dict__.update({'datasets':datasets,
+                              'fields':fields,
+                              **argd})
+
+        # Check consistency of all attributes
+        self._check_consistency()
+
+    def _check_consistency(self):
+        """
+        Check consistency of all input data
+        """
+
+        # ----------------------
+        # Check dataset argument
+        # ----------------------
+        # If a single dataset is provided, convert to a dictionary
+        # under a generic key 'Dataset'
+        if isinstance(self.datasets,(pd.Series,pd.DataFrame)):
+            self.datasets = {'Dataset': self.datasets}
+        for dfname in self.datasets:
+            assert(isinstance(self.datasets[dfname],(pd.Series,pd.DataFrame))), \
+                "Currently only pandas Series or DataFrames are supported"
+           
+        # ----------------------
+        # Check fields argument
+        # ----------------------
+        # If no fields are specified, check that
+        # - all datasets are series
+        # - the name of every series is either None or matches other series names
+        if self.fields is None:
+            assert(all([isinstance(self.datasets[dfname],pd.Series) for dfname in self.datasets])), \
+                "'fields' argument must be specified unless all datasets are pandas Series"
+            series_names = set()
+            for dfname in self.datasets:
+                if not self.datasets[dfname].name is None:
+                    series_names.add(self.datasets[dfname].name)
+            if len(series_names)==0:
+                # All names are None, so set generic field name
+                self.fields = ['field',]
+            elif len(series_names)==1:
+                self.fields = list(series_names)
+            else:
+                raise InputError('attempting to plot multiple series with different field names')
+        # If fields='all', retrieve fields from dataset
+        elif self.fields=='all':
+            self.fields = _get_fieldnames(list(self.datasets.values())[0])
+            assert(all([_get_fieldnames(df)==self.fields for df in self.datasets.values()])), \
+               "The option fields = 'all' only works when all datasets have the same fields"
+            # No fieldnames, so use generic field name
+            if self.fields == [None,]:
+                self.fields = ['field',]
+        # If fields is a single instance, convert to a list
+        elif isinstance(self.fields,str):
+            self.fields = [self.fields,]
+
+        # ----------------------------------
+        # Check match of fields and datasets
+        # ----------------------------------
+        # Check if all datasets have at least one of the requested fields
+        for dfname in self.datasets:
+            df = self.datasets[dfname]
+            if isinstance(df,pd.DataFrame):
+                assert(any([field in df.columns for field in self.fields])), \
+                    'DataFrame '+dfname+' does not contain any of the requested fields'
+            elif isinstance(df,pd.Series):
+                if df.name is None:
+                    assert(len(self.fields)==1), \
+                        'Series must have a name if more than one fields is specified'
+                else:
+                    assert(df.name in self.fields), \
+                        'Series '+dfname+' does not match any of the requested fields'
+
+        # ---------------------------------
+        # Check heights argument (optional)
+        # ---------------------------------
+        try:
+            # If no heights are specified, check that all datasets combined have
+            # no more than one height value
+            if self.heights is None:
+                av_heights = set()
+                for df in self.datasets.values():
+                    heightvalues = _get_height_values(df)
+                    try:
+                        for height in heightvalues:
+                            av_heights.add(height)
+                    except TypeError:
+                        pass
+                if len(av_heights)==0:
+                    # None of the datasets have height values
+                    self.heights = [None,]
+                elif len(av_heights)==1:
+                    self.heights = list(av_heights)
+                else:
+                    raise InputError("found more than one height value so 'heights' argument must be specified")
+            # If heights='all', retrieve heights from dataset
+            elif self.heights=='all':
+                self.heights = _get_height_values(list(self.datasets.values())[0])
+                assert(all([np.allclose(_get_height_values(df),self.heights) for df in self.datasets.values()])), \
+                    "The option heights = 'all' only works when all datasets have the same vertical levels"
+            # If heights is single instance, convert to list
+            elif isinstance(self.heights,(int,float)):
+                self.heights = [self.heights,]
+        except AttributeError:
+            pass
+
+        # ---------------------------------
+        # Check times argument (optional)
+        # ---------------------------------
+        # If times is single instance, convert to list
+        try:
+            # If no times are specified, check that all datasets combined have
+            # no more than one time value
+            if self.times is None:
+                av_times = set()
+                for df in self.datasets.values():
+                    timevalues = _get_time_values(df)
+                    try:
+                        for time in timevalues.values:
+                            av_times.add(time)
+                    except AttributeError:
+                        pass
+                if len(av_times)==0:
+                    # None of the datasets have time values
+                    self.times = [None,]
+                elif len(av_times)==1:
+                    self.times = list(av_times)
+                else:
+                    raise InputError("found more than one time value so 'times' argument must be specified")
+            elif isinstance(self.times,(str,int,float,np.number)):
+                self.times = [self.times,]
+        except AttributeError:
+            pass
+
+        # -------------------------------------
+        # Check fieldlimits argument (optional)
+        # -------------------------------------
+        # If one set of fieldlimits is specified, check number of fields
+        # and convert to dictionary
+        try:
+            if isinstance(self.fieldlimits, (list, tuple)):
+                assert(len(self.fields)==1), 'Unclear to what field fieldlimits corresponds'
+                self.fieldlimits = {self.fields[0]:self.fieldlimits}
+        except AttributeError:
+            self.fieldlimits = {}
+
+        # -------------------------------------
+        # Check fieldlabels argument (optional)
+        # -------------------------------------
+        # If one fieldlabel is specified, check number of fields
+        try:
+            if isinstance(self.fieldlabels, str):
+                assert(len(self.fields)==1), 'Unclear to what field fieldlabels corresponds'
+                self.fieldlabels = {self.fields[0]: self.fieldlabels}
+        except AttributeError:
+            self.fieldlabels = {}
+
+        # -------------------------------------
+        # Check colorscheme argument (optional)
+        # -------------------------------------
+        # If one colorscheme is specified, check number of fields
+        try:
+            self.cmap = {}
+            if isinstance(self.colorschemes, str):
+                assert(len(self.fields)==1), 'Unclear to what field colorschemes corresponds'
+                self.cmap[self.fields[0]] = mpl.cm.get_cmap(self.colorschemes)
+            else:
+            # Set missing colorschemes to viridis
+                for field in self.fields:
+                    if field not in self.colorschemes.keys():
+                        self.colorschemes[field] = 'viridis'
+                    self.cmap[field] = mpl.cm.get_cmap(self.colorschemes[field])
+        except AttributeError:
+            pass
+
+        # -------------------------------------
+        # Check fieldorder argument (optional)
+        # -------------------------------------
+        # Make sure fieldorder is recognized
+        try:
+            assert(self.fieldorder in ['C','F']), "Error: fieldorder '"\
+                +self.fieldorder+"' not recognized, must be either 'C' or 'F'"
+        except AttributeError:
+            pass
+
+
+    def set_missing_fieldlimits(self):
+        """
+        Set missing fieldlimits to min and max over all datasets
+        """
+        for field in self.fields:
+            if field not in self.fieldlimits.keys():
+                try:
+                    self.fieldlimits[field] = [
+                        min([_get_field(df,field).min() for df in self.datasets.values() if _contains_field(df,field)]),
+                        max([_get_field(df,field).max() for df in self.datasets.values() if _contains_field(df,field)])
+                        ]
+                except ValueError:
+                    self.fieldlimits[field] = [None,None]
+
+
+def _get_available_fieldnames(df,fieldnames):
+    """
+    Return subset of fields available in df
+    """
+    available_fieldnames = []
+    if isinstance(df,pd.DataFrame):
+        for field in fieldnames:
+            if field in df.columns:
+                available_fieldnames.append(field)
+    # A Series only has one field, so return that field name
+    # (if that field is not in fields, an error would have been raised)
+    elif isinstance(df,pd.Series):
+        available_fieldnames.append(df.name)
+    return available_fieldnames
+
+
+def _get_fieldnames(df):
+    """
+    Return list of fieldnames in df
+    """
+    if isinstance(df,pd.DataFrame):
+        return list(df.columns)
+    elif isinstance(df,pd.Series):
+        return [df.name,]
+
+
+def _contains_field(df,fieldname):
+    if isinstance(df,pd.DataFrame):
+        return fieldname in df.columns
+    elif isinstance(df,pd.Series):
+        return (df.name is None) or (df.name==fieldname)
+
+
+def _get_height_values(df):
+    """
+    Return list of heights in df
+    """
+    if isinstance(df.index,pd.MultiIndex):
+        # Assuming level 0 is time and level 1 is height
+        return df.index.get_level_values(1).unique().values
+    elif isinstance(df,pd.DataFrame):
+        for name in height_names:
+            # First look among columns
+            if name in df.columns:
+                return df[name].unique()
+            # Then check whether index corresponds to height
+            elif df.index.name==name:
+                return df.index.unique().values
+        # No height name match
+        return None
+    elif isinstance(df,pd.Series):
+        if df.index.name in height_names:
+            return df.index.unique().values
+        else:
+            return None
+
+
+def _get_time_values(df):
+    """
+    Return list of times in df
+    """
+    if isinstance(df.index,pd.MultiIndex):
+        # Assuming level 0 is always the time index
+        return df.index.get_level_values(0).unique()
+    else:
+        # If index has a height name, dataset has no time
+        if df.index.name in height_names:
+            return None
+        else:
+            return df.index.unique()
+
+
+def _get_pivot_table(df,fieldnames):
+    """
+    Return pivot table with given fieldnames as columns
+    """
+    if isinstance(df,pd.DataFrame):
+        if isinstance(df.index,pd.MultiIndex):
+            # Assuming level 0 is time and level 1 is height
+            return df[fieldnames].unstack()
+        else:
+            for name in height_names:
+                if name in df.columns:
+                    return df.pivot(columns=name,values=fieldnames)
+            # No height name match
+            return None
+    elif isinstance(df,pd.Series):
+        if isinstance(df.index,pd.MultiIndex):
+            # Assuming level 0 is time and level 1 is height
+            return df.unstack()
+        else:
+            return df
+
+
+def _get_field(df,fieldname):
+    """
+    Return field from dataset
+    """
+    if isinstance(df,pd.DataFrame):
+        return df[fieldname]
+    elif isinstance(df,pd.Series):
+        if df.name is None or df.name==fieldname:
+            return df
+        else:
+            return None
+
+
+def _get_pivoted_field(df,fieldname):
+    """
+    Return field from pivoted dataset
+    """
+    if isinstance(df.columns,pd.MultiIndex):
+        return df[fieldname]
+    else:
+        return df
+
+
+def _create_subplots_if_needed(ntotal,
+                               ncols=None,
+                               default_ncols=1,
+                               fieldorder='C',
+                               avoid_single_column=False,
+                               sharex=False,
+                               sharey=False,
+                               subfigsize=(12,3),
+                               wspace=0.4,
+                               hspace=0.4,
+                               fig=None,
+                               ax=None
+                               ):
+    """
+    Auxiliary function to create fig and ax
+
+    If fig and ax are None:
+    - Set nrows and ncols based on ntotal and specified ncols,
+      accounting for fieldorder and avoid_single_column
+    - Create fig and ax with nrows and ncols, taking into account
+      sharex, sharey, subfigsize, wspace, hspace
+
+    If fig and ax are not None:
+    - Try to determine nrows and ncols from ax
+    - Check whether size of ax corresponds to ntotal
+    """
+
+    if ax is None:
+        if not ncols is None:
+            # Use ncols if specified and appropriate
+            assert(ntotal%ncols==0), 'Error: Specified number of columns is not a true divisor of total number of subplots'
+            nrows = int(ntotal/ncols)
+        else:
+            # Defaut number of columns
+            ncols = default_ncols
+            nrows = int(ntotal/ncols)
+    
+            if fieldorder=='F':
+                # Swap number of rows and columns
+                nrows, ncols = ncols, nrows
+            
+            if avoid_single_column and ncols==1:
+                # Swap number of rows and columns
+                nrows, ncols = ncols, nrows
+
+        # Create fig and ax with nrows and ncols
+        fig,ax = plt.subplots(nrows=nrows,ncols=ncols,sharex=sharex,sharey=sharey,figsize=(subfigsize[0]*ncols,subfigsize[1]*nrows))
+
+        # Adjust subplot spacing
+        fig.subplots_adjust(wspace=wspace,hspace=hspace)
+
+    else:
+        # Make sure user-specified axes has appropriate size
+        assert(np.asarray(ax).size==ntotal), 'Specified axes does not have the right size'
+
+        # Determine nrows and ncols in specified axes
+        try:
+            nrows,ncols = np.asarray(ax).shape
+        except ValueError:
+            # ax array has only one dimension
+            # there is no way of knowing whether ax is a single row
+            # or a single column, so assuming the latter
+            nrows = np.asarray(ax).size
+            ncols = 1
+
+    return fig, ax, nrows, ncols
+
+
