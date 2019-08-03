@@ -46,11 +46,13 @@ def profiler(fname,scans=None,
     dataframes = []
     if read_scan_properties is True:
         scantypes = []
+        print_scan_properties = True
     elif read_scan_properties is not False:
         # scantypes provided as a list of dicts
         assert isinstance(read_scan_properties, list)
         scantypes = read_scan_properties
         read_scan_properties = True
+        print_scan_properties = False
     def match_scan_type(newscan):
         assert (newscan is not None)
         match = False
@@ -124,7 +126,7 @@ def profiler(fname,scans=None,
                 if verbose:
                     print('Checking',col,'for',val)
                 df.loc[df[col]==val,col] = np.nan # flag bad values
-    if read_scan_properties and verbose:
+    if read_scan_properties and print_scan_properties:
         for itype,scantype in enumerate(scantypes):
             print('scan type',itype,scantype)
     if height_name is not None and height_name in df.columns:
