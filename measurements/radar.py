@@ -9,6 +9,7 @@ import pandas as pd
 
 def profiler(fname,scans=None,
         check_na=['SPD','DIR'],na_values=999999,
+        height_name='HT',
         read_scan_properties=False,
         verbose=False):
     """Wind Profiler radar with RASS
@@ -35,6 +36,9 @@ def profiler(fname,scans=None,
         Column names from file to check for n/a or nan values
     na_values : values or list of values
         Values to be considered n/a and set to nan
+    height_name : str or None
+        Name of height column to return a multi-indexed dataframe, or
+        None to return with datetime index only
     read_scan_properties : bool, list, optional
         Read scan properties for each data block if True or an existing
         scan information list is provided (to be updated)
@@ -123,6 +127,11 @@ def profiler(fname,scans=None,
     if read_scan_properties and verbose:
         for itype,scantype in enumerate(scantypes):
             print('scan type',itype,scantype)
+    if height_name is not None and height_name in df.columns:
+        df.rename(columns={height_name:'height'},inplace=True)
+        df = df.set_index(['datetime','height'])
+    else:
+        df = df.set_index('datetime')
     return df
 
 def _read_profiler_data_block(f, read_scan_properties=False,
