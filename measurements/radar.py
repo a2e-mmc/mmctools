@@ -40,9 +40,9 @@ def profiler(fname,scans=None,
         scan information list is provided (to be updated)
     """
     dataframes = []
-    if read_scan_properties == True:
+    if read_scan_properties is True:
         scantypes = []
-    else:
+    elif read_scan_properties is not False:
         # scantypes provided as a list of dicts
         assert isinstance(read_scan_properties, list)
         scantypes = read_scan_properties
