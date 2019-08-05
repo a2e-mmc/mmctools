@@ -55,6 +55,8 @@ def plot_timeheight(datasets,
                     showcolorbars=True,
                     ncols=1,
                     subfigsize=(12,4),
+                    plot_local_time=False,
+                    local_time_offset=0,
                     datasetkwargs={},
                     **kwargs
                     ):
@@ -103,6 +105,10 @@ def plot_timeheight(datasets,
         number of axes.
     subfigsize : list or tuple
         Standard size of subfigures
+    plot_local_time : bool
+        Plot dual x axes with both UTC time and local time
+    local_time_offset : float
+        Local time offset from UTC
     datasetkwargs : dict
         Dataset-specific options that are passed on to the actual
         plotting function. These options overwrite general options
@@ -139,6 +145,7 @@ def plot_timeheight(datasets,
                                     sharex=True,
                                     sharey=True,
                                     subfigsize=subfigsize,
+                                    hspace=0.2,
                                     fig=fig,
                                     ax=ax
                                     )
@@ -154,11 +161,26 @@ def plot_timeheight(datasets,
         df = args.datasets[dfname]
 
         heightvalues = _get_height_values(df)
-        timevalues = mdates.date2num(_get_time_values(df).values) # Convert to days since 0001-01-01 00:00 UTC, plus one
+        timevalues   = _get_time_values(df)
         assert(heightvalues is not None), 'timeheight plot needs a height axis'
         assert(timevalues is not None), 'timeheight plot needs a time axis'
 
-        Ts,Zs = np.meshgrid(timevalues,heightvalues,indexing='xy')
+        if isinstance(timevalues, pd.DatetimeIndex):
+            # If plot local time, shift timevalues
+            if plot_local_time:
+                timevalues = timevalues + pd.to_timedelta(local_time_offset,'h')
+
+            # Convert to days since 0001-01-01 00:00 UTC, plus one
+            numerical_timevalues = mdates.date2num(timevalues.values)
+        else:
+            if isinstance(timevalues, pd.TimedeltaIndex):
+                timevalues = timevalues.total_seconds()
+
+            # Timevalues is already a numerical array
+            numerical_timevalues = timevalues
+
+        # Create time-height mesh grid
+        Ts,Zs = np.meshgrid(numerical_timevalues,heightvalues,indexing='xy')
 
         # Create list with available fields only
         available_fields = _get_available_fieldnames(df,args.fields)
@@ -211,19 +233,17 @@ def plot_timeheight(datasets,
                 axv[axi].set_title(dfname,fontsize=16)
 
 
+    # Format time axis
+    if isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
+        ax2 = _format_time_axis(axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
+    else:
+        # Set time limits if specified
+        if not timelimits is None:
+            axv[-1].set_xlim(timelimits)
+        # Set time label
+        for axi in axv[(nrows-1)*ncols:]:
+            axi.set_xlabel('time [s]')
 
-    # Axis mark up
-    axv[-1].xaxis_date()
-    axv[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
-    axv[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-    axv[-1].xaxis.set_major_locator(mdates.DayLocator())
-    axv[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
-    for axi in axv[(nrows-1)*ncols:]:
-        axi.set_xlabel(r'UTC time')
-
-    # Set time and height limits if specified
-    if not timelimits is None:
-        axv[-1].set_xlim(timelimits)
     if not heightlimits is None:
         axv[-1].set_ylim(heightlimits)
 
@@ -236,7 +256,10 @@ def plot_timeheight(datasets,
         for i,axi in enumerate(axv):
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
-    return fig, ax, cbars
+    if plot_local_time and  ax2 is not None:
+        return fig, ax, ax2, cbars
+    else:
+        return fig, ax, cbars
 
 
 def plot_timehistory_at_height(datasets,
@@ -491,15 +514,14 @@ def plot_timehistory_at_height(datasets,
     
     # Format time axis
     if isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
-        tstr = _format_time_axis(axv[-1],plot_local_time,local_time_offset,timelimits)
+        ax2 = _format_time_axis(axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
     else:
         # Set time limits if specified
         if not timelimits is None:
             axv[-1].set_xlim(timelimits)
-        tstr = 'time [s]'
-
-    for axi in axv[(nrows-1)*ncols:]:
-        axi.set_xlabel(tstr)
+        # Set time label
+        for axi in axv[(nrows-1)*ncols:]:
+            axi.set_xlabel('time [s]')
 
     # Number sub figures as a, b, c, ...
     if labelsubplots and axv.size > 1:
@@ -510,7 +532,10 @@ def plot_timehistory_at_height(datasets,
     if (stack_by_datasets and ndatasets>1) or (not stack_by_datasets and nheights>1):
         leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
-    return fig, ax
+    if plot_local_time and ax2 is not None:
+        return fig, ax, ax2
+    else:
+        return fig, ax
 
 
 def plot_profile(datasets,
@@ -1371,62 +1396,99 @@ def _format_time_axis(ax,
                       local_time_offset,
                       timelimits
                       ):
-    ax.xaxis_date()
+    """
+    Auxiliary function to format time axis
+    """
+    ax[-1].xaxis_date()
+    hour_interval = _determine_hourlocator_interval(ax[-1],timelimits)
     if plot_local_time:
         # Format first axis (local time)
-        ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
-        ax.xaxis.set_minor_formatter(mdates.DateFormatter('%I %P'))
-        ax.xaxis.set_major_locator(mdates.DayLocator(interval=12)) #Choose large interval so dates are not plotted
-        ax.xaxis.set_major_formatter(mdates.DateFormatter(''))
+        ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
+        ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%I %P'))
+        ax[-1].xaxis.set_major_locator(mdates.DayLocator(interval=12)) #Choose large interval so dates are not plotted
+        ax[-1].xaxis.set_major_formatter(mdates.DateFormatter(''))
 
         # Set time limits if specified
         if not timelimits is None:
             local_timelimits = pd.to_datetime(timelimits) + pd.to_timedelta(local_time_offset,'h')
-            ax.set_xlim(local_timelimits)
+            ax[-1].set_xlim(local_timelimits)
 
-        # Format second axis (UTC time)
-        ax2 = ax.twiny()
-        ax2.xaxis_date()
+        tstr = 'Local time'
 
-        # Set time limits if specified
-        if not timelimits is None:
-            ax2.set_xlim(timelimits)
-        else:
-            # Extract timelimits from main axis
-            local_timelimits = mdates.num2date(ax.get_xlim())
-            timelimits = pd.to_datetime(local_timelimits) - pd.to_timedelta(local_time_offset,'h')
-            ax2.set_xlim(timelimits)
-
-        # Move twinned axis ticks and label from top to bottom
-        ax2.xaxis.set_ticks_position("bottom")
-        ax2.xaxis.set_label_position("bottom")
-
-        # Offset the twin axis below the host
-        ax2.spines["bottom"].set_position(("axes", -0.35))
-
-        # Turn on the frame for the twin axis, but then hide all 
-        # but the bottom spine
-        ax2.set_frame_on(True)
-        ax2.patch.set_visible(False)
-        #for sp in ax2.spines.itervalues():
-        #    sp.set_visible(False)
-        ax2.spines["bottom"].set_visible(True)
-
-        ax2.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
-        ax2.xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-        ax2.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=2,maxticks=3))
-        ax2.xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
-        ax2.set_xlabel('UTC time')
-
-        return 'Local time'
+        for axi in ax:
+            # Format second axis (UTC time)
+            ax2 = axi.twiny()
+            ax2.xaxis_date()
+    
+            # Set time limits if specified
+            if not timelimits is None:
+                ax2.set_xlim(timelimits)
+            else:
+                # Extract timelimits from main axis
+                local_timelimits = mdates.num2date(axi.get_xlim())
+                timelimits = pd.to_datetime(local_timelimits) - pd.to_timedelta(local_time_offset,'h')
+                ax2.set_xlim(timelimits)
+    
+            # Move twinned axis ticks and label from top to bottom
+            ax2.xaxis.set_ticks_position("bottom")
+            ax2.xaxis.set_label_position("bottom")
+    
+            # Offset the twin axis below the host
+            ax2.spines["bottom"].set_position(("axes", -0.35))
+    
+            # Turn on the frame for the twin axis, but then hide all 
+            # but the bottom spine
+            ax2.set_frame_on(True)
+            ax2.patch.set_visible(False)
+            #for sp in ax2.spines.itervalues():
+            #    sp.set_visible(False)
+            ax2.spines["bottom"].set_visible(True)
+    
+            ax2.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
+            ax2.xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+            ax2.xaxis.set_major_locator(mdates.DayLocator())
+            ax2.xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+            ax2.set_xlabel('UTC time')
     else:
-        ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=6))
-        ax.xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-        ax.xaxis.set_major_locator(mdates.DayLocator())
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+        ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
+        ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+        ax[-1].xaxis.set_major_locator(mdates.DayLocator())
+        ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
 
         # Set time limits if specified
         if not timelimits is None:
-            ax.set_xlim(timelimits)
+            ax[-1].set_xlim(timelimits)
 
-        return 'UTC time'
+        tstr = 'UTC time'
+        ax2 = None
+
+    # Set time label
+    for axi in ax:
+        axi.set_xlabel(tstr)
+
+    return ax2
+
+def _determine_hourlocator_interval(ax,timelimits=None):
+    """
+    Determine hour interval based on timelimits
+
+    If plotted time period is
+    - less than 36 hours: interval = 3
+    - less than 72 hours: interval = 6
+    - otherwise:          interval = 12
+    """
+    # Get timelimits
+    if timelimits is None:
+        timelimits = pd.to_datetime(mdates.num2date(ax.get_xlim()))
+    elif isinstance(timelimits[0],str):
+        timelimits = pd.to_datetime(timelimits)
+
+    # Determine time period in hours
+    timeperiod = (timelimits[1] - timelimits[0])/pd.to_timedelta(1,'h')
+    # HourLocator interval
+    if timeperiod < 36:
+        return 3
+    elif timeperiod < 72:
+        return 6
+    else:
+        return 12
