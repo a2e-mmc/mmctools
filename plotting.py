@@ -1175,7 +1175,10 @@ class PlottingInput(object):
             # Set missing colorschemes to viridis
                 for field in self.fields:
                     if field not in self.colorschemes.keys():
-                        self.colorschemes[field] = 'viridis'
+                        if field == 'wdir':
+                            self.colorschemes[field] = 'twilight'
+                        else:
+                            self.colorschemes[field] = 'viridis'
                     self.cmap[field] = mpl.cm.get_cmap(self.colorschemes[field])
         except AttributeError:
             pass
