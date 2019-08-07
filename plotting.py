@@ -1382,14 +1382,29 @@ def _create_subplots_if_needed(ntotal,
         assert(np.asarray(ax).size==ntotal), 'Specified axes does not have the right size'
 
         # Determine nrows and ncols in specified axes
-        try:
-            nrows,ncols = np.asarray(ax).shape
-        except ValueError:
-            # ax array has only one dimension
-            # there is no way of knowing whether ax is a single row
-            # or a single column, so assuming the latter
-            nrows = np.asarray(ax).size
-            ncols = 1
+        if isinstance(ax,mpl.axes.Axes):
+            nrows, ncols = (1,1)
+        else:
+            try:
+                nrows,ncols = np.asarray(ax).shape
+            except ValueError:
+                # ax array has only one dimension
+                # Determine whether ax is single row or single column based
+                # on individual ax positions x0 and y0
+                x0s = [axi.get_position().x0 for axi in ax]
+                y0s = [axi.get_position().y0 for axi in ax]
+                if all(x0==x0s[0] for x0 in x0s):
+                    # All axis have same relative x0 position
+                    nrows = np.asarray(ax).size
+                    ncols = 1
+                elif all(y0==y0s[0] for y0 in y0s):
+                    # All axis have same relative y0 position
+                    nrows = 1
+                    ncols = np.asarray(ax).size
+                else:
+                    # More complex axes configuration,
+                    # currently not supported
+                    raise InputError('could not determine nrows and ncols in specified axes, complex axes configuration currently not supported')
 
     return fig, ax, nrows, ncols
 
