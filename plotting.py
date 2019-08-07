@@ -252,7 +252,7 @@ def plot_timeheight(datasets,
         axi.set_ylabel(r'Height [m]')
     
     # Number sub figures as a, b, c, ...
-    if labelsubplots and axv.size > 1:
+    if labelsubplots:
         for i,axi in enumerate(axv):
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
@@ -272,6 +272,7 @@ def plot_timehistory_at_height(datasets,
                                cmap=None,
                                stack_by_datasets=None,
                                labelsubplots=False,
+                               showlegend=True,
                                ncols=1,
                                subfigsize=(12,3),
                                plot_local_time=False,
@@ -329,6 +330,8 @@ def plot_timehistory_at_height(datasets,
         and datasets. 
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    showlegend : bool
+        Label different plots and show legend
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -443,7 +446,8 @@ def plot_timehistory_at_height(datasets,
                     axi = k*nfields + j
 
                     # Use datasetname as label
-                    plotting_properties['label'] = dfname
+                    if showlegend:
+                        plotting_properties['label'] = dfname
 
                     # Set title if multiple heights are compared
                     if nheights>1:
@@ -456,7 +460,8 @@ def plot_timehistory_at_height(datasets,
                     axi = i*nfields + j
 
                     # Use height as label
-                    plotting_properties['label'] = 'z = {:.1f} m'.format(height)
+                    if showlegend:
+                        plotting_properties['label'] = 'z = {:.1f} m'.format(height)
 
                     # Set title if multiple datasets are compared
                     if ndatasets>1:
@@ -524,12 +529,12 @@ def plot_timehistory_at_height(datasets,
             axi.set_xlabel('time [s]')
 
     # Number sub figures as a, b, c, ...
-    if labelsubplots and axv.size > 1:
+    if labelsubplots:
         for i,axi in enumerate(axv):
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
-    # Add legend if more than one entry
-    if (stack_by_datasets and ndatasets>1) or (not stack_by_datasets and nheights>1):
+    # Add legend
+    if showlegend:
         leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     if plot_local_time and ax2 is not None:
@@ -548,6 +553,7 @@ def plot_profile(datasets,
                  cmap=None,
                  stack_by_datasets=None,
                  labelsubplots=False,
+                 showlegend=True,
                  fieldorder='C',
                  ncols=None,
                  subfigsize=(4,5),
@@ -603,6 +609,8 @@ def plot_profile(datasets,
         and datasets. 
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    showlegend : bool
+        Label different plots and show legend
     fieldorder : 'C' or 'F'
         Index ordering for assigning fields and datasets/times (depending
         on stack_by_datasets) to axes grid (row by row). Fields is considered the
@@ -703,7 +711,8 @@ def plot_profile(datasets,
                         axi = k*nfields + j
 
                     # Use datasetname as label
-                    plotting_properties['label'] = dfname
+                    if showlegend:
+                        plotting_properties['label'] = dfname
 
                     # Set title if multiple times are compared
                     if ntimes>1:
@@ -723,10 +732,11 @@ def plot_profile(datasets,
                         axi = i*nfields + j
                     
                     # Use time as label
-                    if isinstance(time, (int,float,np.number)):
-                        plotting_properties['label'] = '{:g} s'.format(time)
-                    else:
-                        plotting_properties['label'] = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                    if showlegend:
+                        if isinstance(time, (int,float,np.number)):
+                            plotting_properties['label'] = '{:g} s'.format(time)
+                        else:
+                            plotting_properties['label'] = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
 
                     # Set title if multiple datasets are compared
                     if ndatasets>1:
@@ -779,12 +789,12 @@ def plot_profile(datasets,
         axv[r*ncols].set_ylabel(r'Height [m]')
     
     # Number sub figures as a, b, c, ...
-    if labelsubplots and axv.size > 1:
+    if labelsubplots:
         for i,axi in enumerate(axv):
             axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
     
-    # Add legend if more than one entry
-    if (stack_by_datasets=='datasets' and ndatasets>1) or (not stack_by_datasets=='times' and ntimes>1):
+    # Add legend
+    if showlegend:
         leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
 
     return fig,ax
@@ -801,6 +811,7 @@ def plot_spectrum(datasets,
                   freqlimits=None,
                   fieldlabels={},
                   labelsubplots=False,
+                  showlegend=True,
                   ncols=None,
                   subfigsize=(4,5),
                   datasetkwargs={},
@@ -853,6 +864,8 @@ def plot_spectrum(datasets,
         entries <fieldname>: fieldlabel
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
+    showlegend : bool
+        Label different plots and show legend
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -924,7 +937,8 @@ def plot_spectrum(datasets,
                 continue
 
             for i, tstart in enumerate(args.times):
-                plotting_properties = {'label':dfname}
+                if showlegend:
+                    plotting_properties = {'label':dfname}
 
                 # Index of axis corresponding to field k and time i
                 axi = k*ntimes + i
@@ -970,12 +984,12 @@ def plot_spectrum(datasets,
         axv[0].set_xlim(freqlimits)
 
     # Number sub figures as a, b, c, ...
-    if labelsubplots and axv.size > 1:
+    if labelsubplots:
         for i,axi in enumerate(axv):
             axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
-    # Add legend if more than one dataset
-    if ndatasets>1:
+    # Add legend
+    if showlegend:
         leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
 
     return fig, ax
