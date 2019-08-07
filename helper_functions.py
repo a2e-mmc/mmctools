@@ -152,7 +152,19 @@ def calc_wdir(df,u='u',v='v'):
                'set u and/or v to calculate wind direction'))
     else:
         return 180. + np.degrees(np.arctan2(df[u], df[v]))
-    
+
+def calc_uv(df,wspd='wspd',wdir='wdir'):
+    """Calculate velocity components from wind speed and direction.
+    """
+    if not all(windvar in df.columns for windvar in [wspd,wdir]):
+        print(('wind speed/direction not found; '
+               'set wspd and/or wpd to calculate velocity components'))
+    else:
+        ang = np.radians(270. - df[wdir])
+        u = df[wspd] * np.cos(ang)
+        v = df[wspd] * np.sin(ang)
+        return u,v
+
 
 def covariance(a,b,interval='10min',resample=False):
     """Calculate covariance between two series (with datetime index) in
