@@ -134,26 +134,24 @@ def Ts_to_Tv(Ts,**kwargs):
     """
 
 
-def calc_wind_from_uv(df,u=None,v=None,overwrite=False):
-    """Calculate wind speed and direction in place from horizontal
-    velocity components, u and v. If names of 'u' or 'v' are specified,
-    then standardize the velocity component names as well.
+def calc_wspd(df,u='u',v='v'):
+    """Calculate wind speed from horizontal velocity components, u and v.
     """
-    if u is not None:
-        df.rename(columns={u:'u'}, inplace=True)
-    if v is not None:
-        df.rename(columns={v:'v'}, inplace=True)
-    if (('wspd' in df.columns) or ('wdir' in df.columns)) \
-            and not overwrite:
-        print(('wind speed/direction field already exists; '
-               'set overwrite=True to recalculate'))
-    elif not all(velcomp in df.columns for velcomp in ['u','v']):
+    if not all(velcomp in df.columns for velcomp in [u,v]):
         print(('velocity components u/v not found; '
-               'set u and/or v to standardize and calculate wind'))
+               'set u and/or v to calculate wind speed'))
     else:
-        # need to (re)calculate wspd/wdir
-        df['wspd'] = np.sqrt(df['u']**2 + df['v']**2)
-        df['wdir'] = 180. + np.degrees(np.arctan2(df['u'], df['v']))
+        return np.sqrt(df[u]**2 + df[v]**2)
+
+def calc_wdir(df,u='u',v='v'):
+    """Calculate wind direction from horizontal velocity components, u
+    and v.
+    """
+    if not all(velcomp in df.columns for velcomp in [u,v]):
+        print(('velocity components u/v not found; '
+               'set u and/or v to calculate wind direction'))
+    else:
+        return 180. + np.degrees(np.arctan2(df[u], df[v]))
     
 
 def covariance(a,b,interval='10min',resample=False):
