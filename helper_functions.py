@@ -132,7 +132,32 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
 def Ts_to_Tv(Ts,**kwargs):
     """TODO: Convert sonic temperature [K] to virtual temperature [K].
     """
-    
+
+
+def calc_wind(df,u='u',v='v'):
+    """Calculate wind speed and direction from horizontal velocity
+    components, u and v.
+    """
+    if not all(velcomp in df.columns for velcomp in [u,v]):
+        print(('velocity components u/v not found; '
+               'set u and/or v to calculate wind speed/direction'))
+    else:
+        wspd = np.sqrt(df[u]**2 + df[v]**2)
+        wdir = 180. + np.degrees(np.arctan2(df[u], df[v]))
+        return wspd, wdir
+
+def calc_uv(df,wspd='wspd',wdir='wdir'):
+    """Calculate velocity components from wind speed and direction.
+    """
+    if not all(windvar in df.columns for windvar in [wspd,wdir]):
+        print(('wind speed/direction not found; '
+               'set wspd and/or wpd to calculate velocity components'))
+    else:
+        ang = np.radians(270. - df[wdir])
+        u = df[wspd] * np.cos(ang)
+        v = df[wspd] * np.sin(ang)
+        return u,v
+
 
 def covariance(a,b,interval='10min',resample=False):
     """Calculate covariance between two series (with datetime index) in
