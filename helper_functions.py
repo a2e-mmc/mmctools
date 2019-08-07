@@ -134,24 +134,17 @@ def Ts_to_Tv(Ts,**kwargs):
     """
 
 
-def calc_wspd(df,u='u',v='v'):
-    """Calculate wind speed from horizontal velocity components, u and v.
+def calc_wind(df,u='u',v='v'):
+    """Calculate wind speed and direction from horizontal velocity
+    components, u and v.
     """
     if not all(velcomp in df.columns for velcomp in [u,v]):
         print(('velocity components u/v not found; '
-               'set u and/or v to calculate wind speed'))
+               'set u and/or v to calculate wind speed/direction'))
     else:
-        return np.sqrt(df[u]**2 + df[v]**2)
-
-def calc_wdir(df,u='u',v='v'):
-    """Calculate wind direction from horizontal velocity components, u
-    and v.
-    """
-    if not all(velcomp in df.columns for velcomp in [u,v]):
-        print(('velocity components u/v not found; '
-               'set u and/or v to calculate wind direction'))
-    else:
-        return 180. + np.degrees(np.arctan2(df[u], df[v]))
+        wspd = np.sqrt(df[u]**2 + df[v]**2)
+        wdir = 180. + np.degrees(np.arctan2(df[u], df[v]))
+        return wspd, wdir
 
 def calc_uv(df,wspd='wspd',wdir='wdir'):
     """Calculate velocity components from wind speed and direction.
