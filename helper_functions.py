@@ -159,6 +159,18 @@ def calc_uv(df,wspd='wspd',wdir='wdir'):
         return u,v
 
 
+def theta(T, p, p0=1000.):
+    """Calculate (virtual) potential temperature [K], theta, from (virtual)
+    temperature T [K] and pressure p [mbar] using Poisson's equation.
+
+    Standard pressure p0 at sea level is 1000 mbar or hPa. 
+
+    Typical assumptions for dry air give:
+        R/cp = (287 J/kg-K) / (1004 J/kg-K) = 0.286
+    """
+    return T * (p0/p)**0.286
+
+
 def covariance(a,b,interval='10min',resample=False):
     """Calculate covariance between two series (with datetime index) in
     the specified interval, where the interval is defined by a pandas
