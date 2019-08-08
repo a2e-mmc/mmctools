@@ -1063,17 +1063,18 @@ class PlottingInput(object):
                 self.fields = list(series_names)
             else:
                 raise InputError('attempting to plot multiple series with different field names')
-        # If fields='all', retrieve fields from dataset
-        elif self.fields=='all':
-            self.fields = _get_fieldnames(list(self.datasets.values())[0])
-            assert(all([_get_fieldnames(df)==self.fields for df in self.datasets.values()])), \
-               "The option fields = 'all' only works when all datasets have the same fields"
-            # No fieldnames, so use generic field name
-            if self.fields == [None,]:
-                self.fields = ['field',]
-        # If fields is a single instance, convert to a list
         elif isinstance(self.fields,str):
-            self.fields = [self.fields,]
+            # If fields='all', retrieve fields from dataset
+            if self.fields=='all':
+                self.fields = _get_fieldnames(list(self.datasets.values())[0])
+                assert(all([_get_fieldnames(df)==self.fields for df in self.datasets.values()])), \
+                   "The option fields = 'all' only works when all datasets have the same fields"
+                # No fieldnames, so use generic field name
+                if self.fields == [None,]:
+                    self.fields = ['field',]
+            # If fields is a single instance, convert to a list
+            else:
+                self.fields = [self.fields,]
 
         # ----------------------------------
         # Check match of fields and datasets
