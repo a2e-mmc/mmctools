@@ -1115,7 +1115,7 @@ class PlottingInput(object):
                 else:
                     raise InputError("found more than one height value so 'heights' argument must be specified")
             # If heights='all', retrieve heights from dataset
-            elif self.heights=='all':
+            elif isinstance(self.heights,str) and self.heights=='all':
                 self.heights = _get_height_values(list(self.datasets.values())[0])
                 assert(all([np.allclose(_get_height_values(df),self.heights) for df in self.datasets.values()])), \
                     "The option heights = 'all' only works when all datasets have the same vertical levels"
