@@ -247,9 +247,10 @@ def plot_timeheight(datasets,
     if not heightlimits is None:
         axv[-1].set_ylim(heightlimits)
 
-    # Add y labels
+    # Add y labels and align with each other
     for axi in axv: 
         axi.set_ylabel(r'Height [m]')
+    fig.align_ylabels()
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
@@ -537,6 +538,9 @@ def plot_timehistory_at_height(datasets,
     if showlegend:
         leg = _format_legend(axv,index=ncols-1)
 
+    # Align y labels
+    fig.align_ylabels()
+
     if plot_local_time and ax2 is not None:
         return fig, ax, ax2
     else:
@@ -787,6 +791,9 @@ def plot_profile(datasets,
     # Add y labels
     for r in range(nrows): 
         axv[r*ncols].set_ylabel(r'Height [m]')
+
+    # Align x and y labels
+    fig.align_labels()
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
@@ -979,6 +986,9 @@ def plot_spectrum(datasets,
         except KeyError:
             pass
 
+    # Align x and y labels
+    fig.align_labels()
+    
     # Set frequency limits if specified
     if not freqlimits is None:
         axv[0].set_xlim(freqlimits)
