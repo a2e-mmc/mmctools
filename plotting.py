@@ -535,7 +535,7 @@ def plot_timehistory_at_height(datasets,
 
     # Add legend
     if showlegend:
-        leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+        leg = _format_legend(axv,index=ncols-1)
 
     if plot_local_time and ax2 is not None:
         return fig, ax, ax2
@@ -795,7 +795,7 @@ def plot_profile(datasets,
     
     # Add legend
     if showlegend:
-        leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+        leg = _format_legend(axv,index=ncols-1)
 
     return fig,ax
 
@@ -990,7 +990,7 @@ def plot_spectrum(datasets,
 
     # Add legend
     if showlegend:
-        leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
+        leg = _format_legend(axv,index=ncols-1)
 
     return fig, ax
 
@@ -1421,6 +1421,31 @@ def _create_subplots_if_needed(ntotal,
                     raise InputError('could not determine nrows and ncols in specified axes, complex axes configuration currently not supported')
 
     return fig, ax, nrows, ncols
+
+
+def _format_legend(axv,index):
+    """
+    Auxiliary function to format legend
+
+    Usage
+    =====
+    axv : numpy 1d array
+        Flattened array of axes
+    index : int
+        Index of the axis where to place the legend
+    """
+    all_handles = []
+    all_labels  = []
+    # Check each axes and add new handle
+    for axi in axv:
+        handles, labels = axi.get_legend_handles_labels()
+        for handle,label in zip(handles,labels):
+            if not label in all_labels:
+                all_labels.append(label)
+                all_handles.append(handle)
+                
+    leg = axv[index].legend(all_handles,all_labels,loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+    return leg
 
 
 def _format_time_axis(ax,
