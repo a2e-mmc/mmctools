@@ -247,9 +247,10 @@ def plot_timeheight(datasets,
     if not heightlimits is None:
         axv[-1].set_ylim(heightlimits)
 
-    # Add y labels
+    # Add y labels and align with each other
     for axi in axv: 
         axi.set_ylabel(r'Height [m]')
+    fig.align_ylabels()
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
@@ -272,7 +273,7 @@ def plot_timehistory_at_height(datasets,
                                cmap=None,
                                stack_by_datasets=None,
                                labelsubplots=False,
-                               showlegend=True,
+                               showlegend=None,
                                ncols=1,
                                subfigsize=(12,3),
                                plot_local_time=False,
@@ -330,8 +331,10 @@ def plot_timehistory_at_height(datasets,
         and datasets. 
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
-    showlegend : bool
-        Label different plots and show legend
+    showlegend : bool (or None)
+        Label different plots and show legend. If None, showlegend is set
+        to True if legend will have more than one entry, otherwise it is
+        set to False.
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -400,6 +403,13 @@ def plot_timehistory_at_height(datasets,
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
+
+    # Set showlegend if not specified
+    if showlegend is None:
+        if (stack_by_datasets and ndatasets>1) or (not stack_by_datasets and nheights>1):
+            showlegend = True
+        else:
+            showlegend = False
 
     # Loop over datasets and fields 
     for i,dfname in enumerate(args.datasets):
@@ -535,7 +545,10 @@ def plot_timehistory_at_height(datasets,
 
     # Add legend
     if showlegend:
-        leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+        leg = _format_legend(axv,index=ncols-1)
+
+    # Align y labels
+    fig.align_ylabels()
 
     if plot_local_time and ax2 is not None:
         return fig, ax, ax2
@@ -553,7 +566,7 @@ def plot_profile(datasets,
                  cmap=None,
                  stack_by_datasets=None,
                  labelsubplots=False,
-                 showlegend=True,
+                 showlegend=None,
                  fieldorder='C',
                  ncols=None,
                  subfigsize=(4,5),
@@ -609,8 +622,10 @@ def plot_profile(datasets,
         and datasets. 
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
-    showlegend : bool
-        Label different plots and show legend
+    showlegend : bool (or None)
+        Label different plots and show legend. If None, showlegend is set
+        to True if legend will have more than one entry, otherwise it is
+        set to False.
     fieldorder : 'C' or 'F'
         Index ordering for assigning fields and datasets/times (depending
         on stack_by_datasets) to axes grid (row by row). Fields is considered the
@@ -678,6 +693,13 @@ def plot_profile(datasets,
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
+
+    # Set showlegend if not specified
+    if showlegend is None:
+        if (stack_by_datasets and ndatasets>1) or (not stack_by_datasets and ntimes>1):
+            showlegend = True
+        else:
+            showlegend = False
 
     # Loop over datasets, fields and times 
     for i, dfname in enumerate(args.datasets):
@@ -787,6 +809,9 @@ def plot_profile(datasets,
     # Add y labels
     for r in range(nrows): 
         axv[r*ncols].set_ylabel(r'Height [m]')
+
+    # Align x and y labels
+    fig.align_labels()
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
@@ -795,7 +820,7 @@ def plot_profile(datasets,
     
     # Add legend
     if showlegend:
-        leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+        leg = _format_legend(axv,index=ncols-1)
 
     return fig,ax
 
@@ -811,7 +836,7 @@ def plot_spectrum(datasets,
                   freqlimits=None,
                   fieldlabels={},
                   labelsubplots=False,
-                  showlegend=True,
+                  showlegend=None,
                   ncols=None,
                   subfigsize=(4,5),
                   datasetkwargs={},
@@ -864,8 +889,10 @@ def plot_spectrum(datasets,
         entries <fieldname>: fieldlabel
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
-    showlegend : bool
-        Label different plots and show legend
+    showlegend : bool (or None)
+        Label different plots and show legend. If None, showlegend is set
+        to True if legend will have more than one entry, otherwise it is
+        set to False.
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -915,6 +942,13 @@ def plot_spectrum(datasets,
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
+
+    # Set showlegend if not specified
+    if showlegend is None:
+        if ndatasets>1:
+            showlegend = True
+        else:
+            showlegend = False
 
     # Loop over datasets, fields and times 
     for j, dfname in enumerate(args.datasets):
@@ -979,6 +1013,9 @@ def plot_spectrum(datasets,
         except KeyError:
             pass
 
+    # Align x and y labels
+    fig.align_labels()
+    
     # Set frequency limits if specified
     if not freqlimits is None:
         axv[0].set_xlim(freqlimits)
@@ -990,7 +1027,7 @@ def plot_spectrum(datasets,
 
     # Add legend
     if showlegend:
-        leg = axv[ncols-1].legend(loc='upper left',bbox_to_anchor=(1.05,1.0))
+        leg = _format_legend(axv,index=ncols-1)
 
     return fig, ax
 
@@ -1421,6 +1458,31 @@ def _create_subplots_if_needed(ntotal,
                     raise InputError('could not determine nrows and ncols in specified axes, complex axes configuration currently not supported')
 
     return fig, ax, nrows, ncols
+
+
+def _format_legend(axv,index):
+    """
+    Auxiliary function to format legend
+
+    Usage
+    =====
+    axv : numpy 1d array
+        Flattened array of axes
+    index : int
+        Index of the axis where to place the legend
+    """
+    all_handles = []
+    all_labels  = []
+    # Check each axes and add new handle
+    for axi in axv:
+        handles, labels = axi.get_legend_handles_labels()
+        for handle,label in zip(handles,labels):
+            if not label in all_labels:
+                all_labels.append(label)
+                all_handles.append(handle)
+                
+    leg = axv[index].legend(all_handles,all_labels,loc='upper left',bbox_to_anchor=(1.05,1.0),fontsize=16)
+    return leg
 
 
 def _format_time_axis(ax,
