@@ -273,7 +273,7 @@ def plot_timehistory_at_height(datasets,
                                cmap=None,
                                stack_by_datasets=None,
                                labelsubplots=False,
-                               showlegend=True,
+                               showlegend=None,
                                ncols=1,
                                subfigsize=(12,3),
                                plot_local_time=False,
@@ -331,8 +331,10 @@ def plot_timehistory_at_height(datasets,
         and datasets. 
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
-    showlegend : bool
-        Label different plots and show legend
+    showlegend : bool (or None)
+        Label different plots and show legend. If None, showlegend is set
+        to True if legend will have more than one entry, otherwise it is
+        set to False.
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -401,6 +403,13 @@ def plot_timehistory_at_height(datasets,
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
+
+    # Set showlegend if not specified
+    if showlegend is None:
+        if (stack_by_datasets and ndatasets>1) or (not stack_by_datasets and nheights>1):
+            showlegend = True
+        else:
+            showlegend = False
 
     # Loop over datasets and fields 
     for i,dfname in enumerate(args.datasets):
@@ -557,7 +566,7 @@ def plot_profile(datasets,
                  cmap=None,
                  stack_by_datasets=None,
                  labelsubplots=False,
-                 showlegend=True,
+                 showlegend=None,
                  fieldorder='C',
                  ncols=None,
                  subfigsize=(4,5),
@@ -613,8 +622,10 @@ def plot_profile(datasets,
         and datasets. 
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
-    showlegend : bool
-        Label different plots and show legend
+    showlegend : bool (or None)
+        Label different plots and show legend. If None, showlegend is set
+        to True if legend will have more than one entry, otherwise it is
+        set to False.
     fieldorder : 'C' or 'F'
         Index ordering for assigning fields and datasets/times (depending
         on stack_by_datasets) to axes grid (row by row). Fields is considered the
@@ -682,6 +693,13 @@ def plot_profile(datasets,
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
+
+    # Set showlegend if not specified
+    if showlegend is None:
+        if (stack_by_datasets and ndatasets>1) or (not stack_by_datasets and ntimes>1):
+            showlegend = True
+        else:
+            showlegend = False
 
     # Loop over datasets, fields and times 
     for i, dfname in enumerate(args.datasets):
@@ -818,7 +836,7 @@ def plot_spectrum(datasets,
                   freqlimits=None,
                   fieldlabels={},
                   labelsubplots=False,
-                  showlegend=True,
+                  showlegend=None,
                   ncols=None,
                   subfigsize=(4,5),
                   datasetkwargs={},
@@ -871,8 +889,10 @@ def plot_spectrum(datasets,
         entries <fieldname>: fieldlabel
     labelsubplots : bool
         Label subplots as (a), (b), (c), ...
-    showlegend : bool
-        Label different plots and show legend
+    showlegend : bool (or None)
+        Label different plots and show legend. If None, showlegend is set
+        to True if legend will have more than one entry, otherwise it is
+        set to False.
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -922,6 +942,13 @@ def plot_spectrum(datasets,
 
     # Create flattened view of axes
     axv = np.asarray(ax).reshape(-1)
+
+    # Set showlegend if not specified
+    if showlegend is None:
+        if ndatasets>1:
+            showlegend = True
+        else:
+            showlegend = False
 
     # Loop over datasets, fields and times 
     for j, dfname in enumerate(args.datasets):
