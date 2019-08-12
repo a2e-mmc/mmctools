@@ -189,8 +189,11 @@ def plot_timeheight(datasets,
         df_pivot = _get_pivot_table(df,available_fields)
 
         for j, field in enumerate(args.fields):
-            # Skip loop if field not available
-            if not field in available_fields:
+            # If available_fields is [None,], fieldname is unimportant
+            if available_fields == [None]:
+                pass
+            # Else, check if field is available
+            elif not field in available_fields:
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
@@ -436,11 +439,13 @@ def plot_timehistory_at_height(datasets,
             print('Pivoting '+dfname)
 
         for j, field in enumerate(args.fields):
-            # Skip loop if field not available
-            if not field in available_fields:
+            # If available_fields is [None,], fieldname is unimportant
+            if available_fields == [None]:
+                pass
+            # Else, check if field is available
+            elif not field in available_fields:
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
-
 
             for k, height in enumerate(args.heights):
                 # Store plotting options in dictionary
@@ -716,8 +721,11 @@ def plot_profile(datasets,
             df_pivot = _get_pivot_table(df,available_fields)
 
         for j, field in enumerate(args.fields):
-            # Skip loop if field not available
-            if not field in available_fields:
+            # If available_fields is [None,], fieldname is unimportant
+            if available_fields == [None]:
+                pass
+            # Else, check if field is available
+            elif not field in available_fields:
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
@@ -965,8 +973,11 @@ def plot_spectrum(datasets,
         df_pivot = _get_pivot_table(df,available_fields)
 
         for k, field in enumerate(args.fields):
-            # Skip loop if field not available
-            if not field in available_fields:
+            # If available_fields is [None,], fieldname is unimportant
+            if available_fields == [None]:
+                pass
+            # Else, check if field is available
+            elif not field in available_fields:
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
@@ -1091,26 +1102,20 @@ class PlottingInput(object):
                 "'fields' argument must be specified unless all datasets are pandas Series"
             series_names = set()
             for dfname in self.datasets:
-                if not self.datasets[dfname].name is None:
-                    series_names.add(self.datasets[dfname].name)
-            if len(series_names)==0:
-                # All names are None, so set generic field name
-                self.fields = ['field',]
-            elif len(series_names)==1:
+                series_names.add(self.datasets[dfname].name)
+            if len(series_names)==1:
                 self.fields = list(series_names)
             else:
                 raise InputError('attempting to plot multiple series with different field names')
-        # If fields='all', retrieve fields from dataset
-        elif self.fields=='all':
-            self.fields = _get_fieldnames(list(self.datasets.values())[0])
-            assert(all([_get_fieldnames(df)==self.fields for df in self.datasets.values()])), \
-               "The option fields = 'all' only works when all datasets have the same fields"
-            # No fieldnames, so use generic field name
-            if self.fields == [None,]:
-                self.fields = ['field',]
-        # If fields is a single instance, convert to a list
         elif isinstance(self.fields,str):
-            self.fields = [self.fields,]
+            # If fields='all', retrieve fields from dataset
+            if self.fields=='all':
+                self.fields = _get_fieldnames(list(self.datasets.values())[0])
+                assert(all([_get_fieldnames(df)==self.fields for df in self.datasets.values()])), \
+                   "The option fields = 'all' only works when all datasets have the same fields"
+            # If fields is a single instance, convert to a list
+            else:
+                self.fields = [self.fields,]
 
         # ----------------------------------
         # Check match of fields and datasets
@@ -1152,7 +1157,7 @@ class PlottingInput(object):
                 else:
                     raise InputError("found more than one height value so 'heights' argument must be specified")
             # If heights='all', retrieve heights from dataset
-            elif self.heights=='all':
+            elif isinstance(self.heights,str) and self.heights=='all':
                 self.heights = _get_height_values(list(self.datasets.values())[0])
                 assert(all([np.allclose(_get_height_values(df),self.heights) for df in self.datasets.values()])), \
                     "The option heights = 'all' only works when all datasets have the same vertical levels"
