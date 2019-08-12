@@ -5,6 +5,7 @@ Data loading routines
 Based on https://github.com/NWTC/datatools/blob/master/wfip2.py
 """
 import os,glob
+import logging
 import numpy as np
 import pandas as pd
 import xarray
@@ -58,8 +59,9 @@ def read_files(filelist=[],
         try:
             df = reader(fpath,verbose=verbose,**kwargs)
         except reader_exceptions as err:
-            print(err,'while reading',fpath)
-        dataframes.append(df)
+            logging.exception('Error while reading {:s}'.format(fpath))
+        else:
+            dataframes.append(df)
     if len(dataframes) == 0:
         print('No dataframes were read!')
         df = None
@@ -98,8 +100,9 @@ def read_dir(dpath='.',file_filter='*',
         try:
             df = reader(fpath,verbose=verbose,**kwargs)
         except reader_exceptions as err:
-            print(err,'while reading',fpath)
-        dataframes.append(df)
+            logging.exception('Error while reading {:s}'.format(fpath))
+        else:
+            dataframes.append(df)
     if len(dataframes) == 0:
         print('No dataframes were read!')
         df = None
@@ -150,9 +153,9 @@ def read_date_dirs(dpath='.',dir_filter='*',
                     try:
                         df = reader(fpath,verbose=verbose,**kwargs)
                     except reader_exceptions as err:
-                        print('Reader error {:s}: {:s} while reading {:s}'.format(
-                                str(type(err)),str(err),fname))
-                    dataframes.append(df)
+                        logging.exception('Error while reading {:s}'.format(fpath))
+                    else:
+                        dataframes.append(df)
                     Nfiles += 1
             print('  {} dataframes added'.format(Nfiles))
     if len(dataframes) == 0:
