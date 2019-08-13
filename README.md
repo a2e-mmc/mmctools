@@ -11,24 +11,36 @@ These tools are intended to:
 2. Standardize output from simulations in addition to observational data
 3. Facilitate the analysis, assessment, and reporting of MMC results
 
-The anticipated code structure is described in the sections below.
+The _anticipated code structure_ is described in the sections below.
 
 ### Offline coupling methods
 
 - One-way internal coupling with 2D mesoscale data f(t,z)
 ```python
+from mmctools.coupling.sowfa import InternalCoupling
+to_sowfa = InternalCoupling(output_directory,
+                            dataframe_with_driving_data,
+                            dateref='YYYY-MM-DD HH:MM', # t=0 in simulation
+                            datefrom='YYYY-MM-DD HH:MM', # output range
+                            dateto='YYYY-MM-DD HH:MM')
 # create internal source terms, f(t,z), from time-height series
-from mmctools.coupling.internal import timeheight_to_sowfa
-# create initial field, f(x,y,z), from vertical profiles
-from mmctools.coupling.internal import ICs_to_sowfa
+to_sowfa.write_timeheight('forcingTable')
+# create initial vertical profile, f(z)
+to_sowfa.write_ICs('initialValues')
 ```
 
 - One-way boundary coupling with 4D mesoscale data f(t,x,y,z)
 ```python
+from mmctools.coupling.sowfa import BoundaryCoupling
+to_sowfa = BoundaryCoupling(output_directory,
+                            xarray_with_driving_data,
+                            dateref='YYYY-MM-DD HH:MM', # t=0 in simulation
+                            datefrom='YYYY-MM-DD HH:MM', # output range
+                            dateto='YYYY-MM-DD HH:MM')
 # create inflow planes, e.g., f(t,y,z) or f(t,x,z)
-from mmctools.coupling.boundary import BCs_to_sowfa
+to_sowfa.write_boundarydata()
 # create initial field, f(x,y,z)
-from mmctools.coupling.boundary import ICs_to_sowfa
+to_sowfa.write_solution(t=datefrom)
 ```
 
 ### Data processing
