@@ -12,9 +12,9 @@ import pandas as pd
 import os
 
 
-class SowfaInput(object):
+class InternalCoupling(object):
     """
-    SOWFA input class for writing data to SOWFA readable input files
+    Class for writing data to SOWFA-readable input files for internal coupling
     """
     def __init__(self,
                  dpath,
@@ -71,7 +71,8 @@ class SowfaInput(object):
                   fact=1.0
                   ):
         """
-        Write surface boundary conditions to SOWFA readable input file
+        Write surface boundary conditions to SOWFA-readable input file for
+        solver (to be included in $startTime/qwall)
     
         Usage
         =====
@@ -113,8 +114,7 @@ class SowfaInput(object):
                   temp = 'theta',
                   ):
         """
-        Write initial conditions to SOWFA readable
-        input file
+        Write initial conditions to SOWFA-readable input file for setFieldsABL
     
         Usage
         =====
@@ -164,7 +164,8 @@ class SowfaInput(object):
                          temp = 'theta',
                          ):
         """
-        Write time-height data to SOWFA readable input file
+        Write time-height data to SOWFA-readable input file for solver (to be
+        included in constant/ABLProperties)
     
         Usage
         =====
