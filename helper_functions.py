@@ -185,8 +185,8 @@ def covariance(a,b,interval='10min',resample=False):
     - Covariances may be simultaneously calculated at multiple heights
       by inputting multi-indexed dataframes (with height being the
       second index level)
-    - If either quantity is has a multiindex, this function will return
-      a stacked, multi-indexed dataframe
+    - If the inputs have multiindices, this function will return a
+      stacked, multi-indexed dataframe.
 
     Example:
         heatflux = covariance(df['Ts'],df['w'],'10min')
@@ -194,15 +194,16 @@ def covariance(a,b,interval='10min',resample=False):
     # handle multiindices
     have_multiindex = False
     if isinstance(a.index, pd.MultiIndex):
+        assert isinstance(b.index, pd.MultiIndex), \
+               'Both a and b should have multiindices'
         assert len(a.index.levels) == 2
-        # assuming levels 0 and 1 are time and height, respectively
-        a = a.unstack() # create unstacked copy
-        have_multiindex = True
-    if isinstance(b.index, pd.MultiIndex):
         assert len(b.index.levels) == 2
         # assuming levels 0 and 1 are time and height, respectively
+        a = a.unstack() # create unstacked copy
         b = b.unstack() # create unstacked copy
         have_multiindex = True
+    elif isinstance(b.index, pd.MultiIndex):
+        raise AssertionError('Both a and b should have multiindices')
     # check index
     if isinstance(interval, str):
         # make sure we have a compatible index
