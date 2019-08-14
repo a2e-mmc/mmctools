@@ -177,6 +177,17 @@ def covariance(a,b,interval='10min',resample=False):
     offset string
     (http://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects).
 
+    Notes:
+    - The output data will have the same length as the input data by
+      default, because statistics are calculated with pd.rolling(). To
+      return data at the same intervals as specified, set
+      `resample=True`.
+    - Covariances may be simultaneously calculated at multiple heights
+      by inputting multi-indexed dataframes (with height being the
+      second index level)
+    - If either quantity is has a multiindex, this function will return
+      a stacked, multi-indexed dataframe
+
     Example:
         heatflux = covariance(df['Ts'],df['w'],'10min')
     """
@@ -185,12 +196,12 @@ def covariance(a,b,interval='10min',resample=False):
     if isinstance(a.index, pd.MultiIndex):
         assert len(a.index.levels) == 2
         # assuming levels 0 and 1 are time and height, respectively
-        a = a.unstack()
+        a = a.unstack() # create unstacked copy
         have_multiindex = True
     if isinstance(b.index, pd.MultiIndex):
         assert len(b.index.levels) == 2
         # assuming levels 0 and 1 are time and height, respectively
-        b = b.unstack()
+        b = b.unstack() # create unstacked copy
         have_multiindex = True
     # check index
     if isinstance(interval, str):
