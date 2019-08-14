@@ -982,8 +982,9 @@ def plot_spectrum(datasets,
                 continue
 
             for i, tstart in enumerate(args.times):
+                plotting_properties = {}
                 if showlegend:
-                    plotting_properties = {'label':dfname}
+                    plotting_properties['label'] = dfname
 
                 # Index of axis corresponding to field k and time i
                 axi = k*ntimes + i
