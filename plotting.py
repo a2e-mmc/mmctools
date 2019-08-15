@@ -30,6 +30,8 @@ standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
 standard_spectrumlabels = {'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
                            'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
                            'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
+                           'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+                           'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
                            'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
                            }
 
