@@ -213,96 +213,57 @@ def covariance(a,b,interval='10min',resample=False):
         return cov
 
 
-def power_spectral_density(df,time_intervals=None,window_size='10min',
+def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
                            window_type='hanning',detrend='linear',scaling='density'):
     """
-    Calculate power spectral density using welch method in the
-    specified time interval(s). The spectrum is calculated for every
-    column of the dataframe.
+    Calculate power spectral density using welch method. 
+    The spectrum is calculated for every column of the dataframe.
 
     Notes:
-    - time_intervals is a list of N+1 timestamps denoting the start and
-      end of N time intervals. The timestamp in the output corresponds to
-      the start of the time interval. If time_intervals is not specified,
-      the spectrum is calculated for one time interval spanning the entire
-      time period
-    - Spectra may be calculated at multiple heights at once by
-      inputting multi-index dataframes (with height being the second
-      index level)
-    - Output is a multi-index dataframe with an additional index level
-      corresponding to the frequency
-    - While pandas series are accepted as input, the output is always a
-      dataframe
+    - Input can be a pandas series or dataframe
+    - Output is a multi-index dataframe with index levels datetime and
+      frequency
     """
     from scipy.signal import welch
+    
+    # Determine time scale
     timevalues = df.index.get_level_values(0)
+    if isinstance(timevalues,pd.DatetimeIndex):
+        timescale = pd.to_timedelta(1,'s')
+    else:
+        # Assuming time is specified in seconds
+        timescale = 1
+
+    # Determine tstart and interval if not specified
+    if tstart is None:
+        tstart = timevalues[0]
+    if interval is None:
+        interval = timevalues[-1] - timevalues[0]
+    elif isinstance(interval,str):
+        interval = pd.to_timedelta(interval)
+
+    # Update timevalues
+    inrange = (timevalues >= tstart) & (timevalues <= tstart+interval)
+    timevalues = df.loc[inrange].index.get_level_values(0)
 
     # Determine sampling rate and samples per window
-    if isinstance(timevalues,pd.DatetimeIndex):
-        # Divide by pd.timedelta to get a float
-        dts = np.diff(timevalues.unique())/pd.to_timedelta(1,'s')
-    else:
-        # It is assumed that time is specified in seconds
-        dts = np.diff(timevalues.unique())
-
+    dts = np.diff(timevalues.unique())/timescale
     dt  = dts[0]
     nperseg = int( pd.to_timedelta(window_size)/pd.to_timedelta(dt,'s') )
     assert(np.allclose(dts,dt)),\
         'Timestamps must be spaced equidistantly'
 
-    # If no time_interval specified, use entire signal
-    if time_intervals is None:
-        time_intervals = [timevalues[0], timevalues[-1]]
-    # If time specified as string, convert to DatetimeIndex
-    elif isinstance(time_intervals[0],str):
-        time_intervals = pd.to_datetime(time_intervals)
-
     # If input is series, convert to dataframe
     if isinstance(df,pd.Series):
         df = df.to_frame()
 
-    df_list = []
-
-    # multiple heights
-    if isinstance(df.index, pd.MultiIndex):
-        assert len(df.index.levels) == 2
-        # assuming levels 0 and 1 are time and height, respectively
-
-        for t in range(np.asarray(time_intervals).size-1):
-            inrange = (timevalues >= time_intervals[t]) & (timevalues <= time_intervals[t+1])
-            for hgt in df.index.get_level_values(1).unique():
-                spectrum = {}
-                for col in df.columns:
-                    f,P = welch( df.loc[(inrange,hgt),col], fs=1./dt, nperseg=nperseg,
-                        detrend=detrend,window=window_type,scaling=scaling)    
-                    spectrum[col] = P
-                spectrum['frequency'] = f
-                spectrum = pd.DataFrame(spectrum)
-                spectrum['datetime'] = time_intervals[t]
-                spectrum['height'] = hgt
-                df_list.append(spectrum)
-        # New index levels
-        keys = ['datetime','height','frequency']
-
-    # single height
-    else:
-        for t in range(np.asarray(time_intervals).size-1):
-            inrange = (timevalues >= time_intervals[t]) & (timevalues < time_intervals[t+1])
-            spectrum = {}
-            for col in df.columns:
-                f,P = welch( df.loc[inrange,col], fs=1./dt, nperseg=nperseg,
-                    detrend=detrend,window=window_type,scaling=scaling)    
-                spectrum[col] = P
-            spectrum['frequency'] = f
-            spectrum = pd.DataFrame(spectrum)
-            spectrum['datetime'] = time_intervals[t]
-            df_list.append(spectrum)
-        # New index levels
-        keys = ['datetime','frequency']
-
-    df_spectra = pd.concat(df_list)
-    df_spectra = df_spectra.set_index(keys).sort_index()
-    return df_spectra
+    spectra = {}
+    for col in df.columns:
+        f,P = welch( df.loc[inrange,col], fs=1./dt, nperseg=nperseg,
+            detrend=detrend,window=window_type,scaling=scaling)    
+        spectra[col] = P
+    spectra['frequency'] = f
+    return pd.DataFrame(spectra)
     
 
 def power_law(z,zref=80.0,Uref=8.0,alpha=0.2):
