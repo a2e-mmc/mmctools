@@ -251,8 +251,12 @@ def power_spectral_density(df,time_intervals=None,window_size='10min',
     # If no time_interval specified, use entire signal
     if time_intervals is None:
         time_intervals = [timevalues[0], timevalues[-1]]
+    # If time specified as string, convert to DatetimeIndex
+    elif isinstance(time_intervals[0],str):
+        time_intervals = pd.to_datetime(time_intervals)
 
     df_list = []
+
     # multiple heights
     if isinstance(df.index, pd.MultiIndex):
         assert len(df.index.levels) == 2
