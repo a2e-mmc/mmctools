@@ -9,9 +9,6 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from scipy.signal import welch
 
-# TODO:
-# - Separate out calculation of spectra?
-
 # Standard field labels
 standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
                         'wdir': r'Wind direction $[^\circ]$',
@@ -691,7 +688,7 @@ def plot_profile(datasets,
                                     avoid_single_column=True,
                                     sharey=True,
                                     subfigsize=subfigsize,
-                                    wspace=0.2,
+                                    hspace=0.4,
                                     fig=fig,
                                     ax=ax,
                                     )
@@ -834,12 +831,10 @@ def plot_profile(datasets,
 
 
 def plot_spectrum(datasets,
-                  height,
                   times,
+                  height=None,
                   fields=None,
                   fig=None,ax=None,
-                  Tperiod=3600.0,
-                  Tsegment=600.0,
                   fieldlimits={},
                   freqlimits=None,
                   fieldlabels={},
@@ -854,21 +849,22 @@ def plot_spectrum(datasets,
     Plot frequency spectrum at a given height for different datasets,
     times and fields, using a subplot per time and per field
 
-    The frequency spectrum is computed using scipy.signal.welch, which
-    estimates the power spectral density by dividing the data into over-
-    lapping segments, computing a modified periodogram for each segment
-    and averaging the periodograms.
+    The dataset index needs to be a multi-index corresponding
+    to datetime [, height] and frequency
 
     Usage
     =====
     datasets : pandas.DataFrame or dict 
-        Dataset(s). If more than one set, datasets should
-        be a dictionary with entries <dataset_name>: dataset
-    height : float
-        Height for which frequency spectrum is plotted
+        Dataset(s) with spectrum data. If more than one set,
+        datasets should be a dictionary with entries
+        <dataset_name>: dataset
     times : str, list
         Start time(s) of the time period(s) for which the frequency
         spectrum is computed.
+    height : float (or None)
+        Height for which frequency spectrum is plotted. If datasets
+        have no height index (i.e., single height dataframes), height
+        does not need to be specified.
     fields : str, list, 'all' (or None)
         Fieldname(s) corresponding to particular column(s) of
         the datasets. fields can be None if input are Series.
@@ -879,11 +875,6 @@ def plot_spectrum(datasets,
     ax : axes handle, or list or numpy ndarray with axes handles
         Customand axes handle(s).
         Size of ax should equal nfields * ntimes
-    Tperiod : float
-        Length of the time period in seconds over which frequency
-        spectrum is computed.
-    Tsegment : float
-        Length of time segments of the welch method in seconds
     fieldlimits : list or tuple, or dict
         Value range for the various fields. If only one field is 
         plotted, fieldlimits can be a list or tuple. Otherwise, it
@@ -932,6 +923,12 @@ def plot_spectrum(datasets,
     ndatasets = len(args.datasets)
     ntotal = nfields * ntimes
 
+    # Make sure number of index levels is consistent
+    if height is None:
+        args.check_index_levels(2)
+    else:
+        args.check_index_levels(3)
+
     # Concatenate custom and standard field labels
     # (custom field labels overwrite standard fields labels if existent)
     args.fieldlabels = {**standard_spectrumlabels, **args.fieldlabels}
@@ -959,20 +956,16 @@ def plot_spectrum(datasets,
             showlegend = False
 
     # Loop over datasets, fields and times 
-    for j, dfname in enumerate(args.datasets):
+    for i, dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
 
-        heightvalues = _get_height_values(df)
-        timevalues   = _get_time_values(df)
-        dt = (timevalues[1]-timevalues[0]) / pd.Timedelta(1,unit='s')     #Sampling rate in seconds
+        timevalues      = _get_time_values(df)
+        frequencyvalues = _get_frequency_values(df)
 
         # Create list with available fields only
         available_fields = _get_available_fieldnames(df,args.fields)
 
-        # Pivot all fields of a dataset at once
-        df_pivot = _get_pivot_table(df,available_fields)
-
-        for k, field in enumerate(args.fields):
+        for j, field in enumerate(args.fields):
             # If available_fields is [None,], fieldname is unimportant
             if available_fields == [None]:
                 pass
@@ -981,46 +974,49 @@ def plot_spectrum(datasets,
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
-            for i, tstart in enumerate(args.times):
+            for k, time in enumerate(args.times):
+                plotting_properties = {}
                 if showlegend:
-                    plotting_properties = {'label':dfname}
+                    plotting_properties['label'] = dfname
 
-                # Index of axis corresponding to field k and time i
-                axi = k*ntimes + i
+                # Index of axis corresponding to field j and time k
+                axi = j*ntimes + k
                 
                 # Axes mark up
-                if j==0:
-                    axv[axi].set_title(pd.to_datetime(tstart).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
+                if i==0:
+                    axv[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
 
-                # Compute frequency spectrum
-                istart = np.where(timevalues==pd.to_datetime(tstart))[0][0]
-                signal = interp1d(heightvalues,_get_pivoted_field(df_pivot,field).interpolate(method='linear').values,axis=-1,fill_value="extrapolate")(height)
-                f, P = welch(signal[istart:istart+np.int(Tperiod/dt)],fs=1./dt,nperseg=np.int(Tsegment/dt),
-                            detrend='linear',window='hanning',scaling='density')
-                
                 # Gather label, general options and dataset-specific options
                 # (highest priority to dataset-specific options, then general options)
                 try:
                     plotting_properties = {**plotting_properties,**kwargs,**datasetkwargs[dfname]}
                 except KeyError:
                     plotting_properties = {**plotting_properties,**kwargs}
+                
+                # Get field spectrum
+                if height is None:
+                    spectrum = _get_field(df.xs(time,level='datetime'),field).values
+                else:
+                    spectrum = _get_field(df.xs((time,height),level=['datetime','height']),field).values
 
                 # Plot data
-                axv[axi].loglog(f[1:],P[1:],**plotting_properties)
+                axv[axi].loglog(frequencyvalues[1:],spectrum[1:],**plotting_properties)
+
+                # Specify field limits if specified
+                try:
+                    axv[axi].set_ylim(args.fieldlimits[field])
+                except KeyError:
+                    pass
    
 
     # Set frequency label
     for c in range(ncols):
         axv[ncols*(nrows-1)+c].set_xlabel('f [Hz]')
 
-    # Specify field label and field limits if specified 
+    # Specify field label if specified 
     for r in range(nrows):
         try:
             axv[r*ncols].set_ylabel(args.fieldlabels[args.fields[r]])
-        except KeyError:
-            pass
-        try:
-            axv[r*ncols].set_ylim(args.fieldlimits[args.fields[r]])
         except KeyError:
             pass
 
@@ -1148,6 +1144,7 @@ class PlottingInput(object):
                         for height in heightvalues:
                             av_heights.add(height)
                     except TypeError:
+                        # heightvalues is None
                         pass
                 if len(av_heights)==0:
                     # None of the datasets have height values
@@ -1250,6 +1247,15 @@ class PlottingInput(object):
             pass
 
 
+    def check_index_levels(self,nlevels):
+        """
+        Check that number of levels in the index is appropriate 
+        """
+        for dfname in self.datasets:
+            assert(len(self.datasets[dfname].index.levels)==nlevels),\
+                'Dataset index needs to be multi-index with {} index levels'.format(nlevels)
+
+
     def set_missing_fieldlimits(self):
         """
         Set missing fieldlimits to min and max over all datasets
@@ -1337,6 +1343,13 @@ def _get_time_values(df):
             return df.index.unique()
 
 
+def _get_frequency_values(df):
+    """
+    Return list of frequencies in df
+    """
+    return df.index.get_level_values(-1).unique()
+
+
 def _get_pivot_table(df,fieldnames):
     """
     Return pivot table with given fieldnames as columns
@@ -1390,8 +1403,8 @@ def _create_subplots_if_needed(ntotal,
                                sharex=False,
                                sharey=False,
                                subfigsize=(12,3),
-                               wspace=0.4,
-                               hspace=0.4,
+                               wspace=0.2,
+                               hspace=0.2,
                                fig=None,
                                ax=None
                                ):
