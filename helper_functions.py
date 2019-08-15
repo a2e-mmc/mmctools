@@ -231,6 +231,8 @@ def power_spectral_density(df,time_intervals=None,window_size='10min',
       index level)
     - Output is a multi-index dataframe with an additional index level
       corresponding to the frequency
+    - While pandas series are accepted as input, the output is always a
+      dataframe
     """
     from scipy.signal import welch
     timevalues = df.index.get_level_values(0)
@@ -254,6 +256,10 @@ def power_spectral_density(df,time_intervals=None,window_size='10min',
     # If time specified as string, convert to DatetimeIndex
     elif isinstance(time_intervals[0],str):
         time_intervals = pd.to_datetime(time_intervals)
+
+    # If input is series, convert to dataframe
+    if isinstance(df,pd.Series):
+        df = df.to_frame()
 
     df_list = []
 
