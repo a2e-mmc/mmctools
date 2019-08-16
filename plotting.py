@@ -53,6 +53,7 @@ def plot_timeheight(datasets,
                     fieldlabels={},
                     labelsubplots=False,
                     showcolorbars=True,
+                    fieldorder='C',
                     ncols=1,
                     subfigsize=(12,4),
                     plot_local_time=False,
@@ -100,6 +101,10 @@ def plot_timeheight(datasets,
         Label subplots as (a), (b), (c), ...
     showcolorbars : bool
         Show colorbar per subplot
+    fieldorder : 'C' or 'F'
+        Index ordering for assigning fields and datasets to axes grid
+        (row by row). Fields is considered the first axis, so 'C' means
+        fields change slowest, 'F' means fields change fastest.
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -128,6 +133,7 @@ def plot_timeheight(datasets,
         fieldlimits=fieldlimits,
         fieldlabels=fieldlabels,
         colorschemes=colorschemes,
+        fieldorder=fieldorder
     )
     args.set_missing_fieldlimits()
 
@@ -205,7 +211,10 @@ def plot_timeheight(datasets,
                 }
 
             # Index of axis corresponding to dataset i and field j
-            axi = i*nfields + j
+            if args.fieldorder=='C':
+                axi = i*nfields + j
+            else:
+                axi = j*ndatasets + i
 
             # Extract data from dataframe
             fieldvalues = _get_pivoted_field(df_pivot,field).values
