@@ -42,6 +42,9 @@ default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 time_names = ['datetime','time','Time']
 height_names = ['height','heights','z']
 
+# Show debug information
+debug = False
+
 def plot_timeheight(datasets,
                     fields=None,
                     fig=None,ax=None,
@@ -435,7 +438,8 @@ def plot_timehistory_at_height(datasets,
         # Pivot all fields in a dataset at once to reduce computation time
         if (not heightvalues is None) and (not all([h in heightvalues for h in args.heights])):
             df_pivot = _get_pivot_table(df,available_fields)
-            print('Pivoting '+dfname)
+            if debug:
+                print('Pivoting '+dfname)
 
         for j, field in enumerate(args.fields):
             # If available_fields is [None,], fieldname is unimportant
