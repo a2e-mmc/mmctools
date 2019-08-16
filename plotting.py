@@ -251,8 +251,8 @@ def plot_timeheight(datasets,
         axv[-1].set_ylim(heightlimits)
 
     # Add y labels and align with each other
-    for axi in axv: 
-        axi.set_ylabel(r'Height [m]')
+    for r in range(nrows): 
+        axv[r*ncols].set_ylabel(r'Height [m]')
     fig.align_ylabels()
     
     # Number sub figures as a, b, c, ...
