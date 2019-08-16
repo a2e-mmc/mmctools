@@ -269,6 +269,10 @@ def plot_timeheight(datasets,
         for i,axi in enumerate(axv):
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
+    # Return cbar instead of array if ntotal==1
+    if len(cbars)==1:
+        cbars=cbars[0]
+
     if plot_local_time and  ax2 is not None:
         return fig, ax, ax2, cbars
     else:
