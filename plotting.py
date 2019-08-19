@@ -53,6 +53,7 @@ def plot_timeheight(datasets,
                     fieldlabels={},
                     labelsubplots=False,
                     showcolorbars=True,
+                    fieldorder='C',
                     ncols=1,
                     subfigsize=(12,4),
                     plot_local_time=False,
@@ -100,6 +101,10 @@ def plot_timeheight(datasets,
         Label subplots as (a), (b), (c), ...
     showcolorbars : bool
         Show colorbar per subplot
+    fieldorder : 'C' or 'F'
+        Index ordering for assigning fields and datasets to axes grid
+        (row by row). Fields is considered the first axis, so 'C' means
+        fields change slowest, 'F' means fields change fastest.
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -128,6 +133,7 @@ def plot_timeheight(datasets,
         fieldlimits=fieldlimits,
         fieldlabels=fieldlabels,
         colorschemes=colorschemes,
+        fieldorder=fieldorder
     )
     args.set_missing_fieldlimits()
 
@@ -205,7 +211,10 @@ def plot_timeheight(datasets,
                 }
 
             # Index of axis corresponding to dataset i and field j
-            axi = i*nfields + j
+            if args.fieldorder=='C':
+                axi = i*nfields + j
+            else:
+                axi = j*ndatasets + i
 
             # Extract data from dataframe
             fieldvalues = _get_pivoted_field(df_pivot,field).values
@@ -251,14 +260,18 @@ def plot_timeheight(datasets,
         axv[-1].set_ylim(heightlimits)
 
     # Add y labels and align with each other
-    for axi in axv: 
-        axi.set_ylabel(r'Height [m]')
+    for r in range(nrows): 
+        axv[r*ncols].set_ylabel(r'Height [m]')
     fig.align_ylabels()
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
         for i,axi in enumerate(axv):
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+
+    # Return cbar instead of array if ntotal==1
+    if len(cbars)==1:
+        cbars=cbars[0]
 
     if plot_local_time and  ax2 is not None:
         return fig, ax, ax2, cbars
