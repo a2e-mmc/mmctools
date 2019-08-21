@@ -186,7 +186,9 @@ def plot_timeheight(datasets,
             numerical_timevalues = timevalues
 
         # Create time-height mesh grid
-        Ts,Zs = np.meshgrid(numerical_timevalues,heightvalues,indexing='xy')
+        tst = _get_staggered_grid(numerical_timevalues)
+        zst = _get_staggered_grid(heightvalues)
+        Ts,Zs = np.meshgrid(tst,zst,indexing='xy')
 
         # Create list with available fields only
         available_fields = _get_available_fieldnames(df,args.fields)
@@ -1605,3 +1607,14 @@ def _determine_hourlocator_interval(ax,timelimits=None):
         return 6
     else:
         return 12
+
+def _get_staggered_grid(x):
+    """
+    Return staggered grid locations
+
+    For input array size N, output array
+    has a size of N+1
+    """
+    idx = np.arange(x.size)
+    f = interp1d(idx,x,fill_value='extrapolate')
+    return f(np.arange(-0.5,x.size+0.5,1))
