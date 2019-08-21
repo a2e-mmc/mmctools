@@ -15,6 +15,8 @@ from scipy.signal import welch
 # Standard field labels
 standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
                         'wdir': r'Wind direction $[^\circ]$',
+                        'u': r'u [m/s]',
+                        'v': r'v [m/s]',
                         'w': r'Vertical wind speed [m/s]',
                         'theta': r'$\theta$ [K]',
                         'thetav': r'$\theta_v$ [K]',
@@ -33,6 +35,8 @@ standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
 standard_spectrumlabels = {'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
                            'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
                            'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
+                           'theta': r'$E_{\theta\theta}\;[\mathrm{K^2s}]$',
+                           'theta_v': r'$E_{\theta\theta}\;[\mathrm{K^2s}]$',
                            'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
                            }
 
