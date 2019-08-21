@@ -482,7 +482,7 @@ def plot_timehistory_at_height(datasets,
                         axv[axi].set_title('z = {:.1f} m'.format(height),fontsize=16)
 
                     # Set colors
-                    plotting_properties['color'] = default_colors[i]
+                    plotting_properties['color'] = default_colors[i % len(default_colors)]
                 else:
                     # Index of axis corresponding to field j and dataset i 
                     axi = i*nfields + j
@@ -500,7 +500,7 @@ def plot_timehistory_at_height(datasets,
                         cmap = mpl.cm.get_cmap(cmap)
                         plotting_properties['color'] = cmap(k/(nheights-1))
                     else:
-                        plotting_properties['color'] = default_colors[k]
+                        plotting_properties['color'] = default_colors[k % len(default_colors)]
 
                 # Extract data from dataframe
                 if heightvalues is None:
@@ -766,7 +766,7 @@ def plot_profile(datasets,
                         axv[axi].set_title(tstr, fontsize=16)
 
                     # Set color
-                    plotting_properties['color'] = default_colors[i]
+                    plotting_properties['color'] = default_colors[i % len(default_colors)]
                 else:
                     # Index of axis corresponding to field j and dataset i
                     if args.fieldorder == 'C':
@@ -790,7 +790,7 @@ def plot_profile(datasets,
                         cmap = mpl.cm.get_cmap(cmap)
                         plotting_properties['color'] = cmap(k/(ntimes-1))
                     else:
-                        plotting_properties['color'] = default_colors[k]
+                        plotting_properties['color'] = default_colors[k % len(default_colors)]
                 
                 # Extract data from dataframe
                 if timevalues is None:
