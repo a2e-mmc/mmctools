@@ -1534,40 +1534,48 @@ def _format_time_axis(ax,
 
         tstr = 'Local time'
 
+        ax2 = []
         for axi in ax:
             # Format second axis (UTC time)
-            ax2 = axi.twiny()
-            ax2.xaxis_date()
+            ax2i = axi.twiny()
+            ax2i.xaxis_date()
     
             # Set time limits if specified
             if not timelimits is None:
-                ax2.set_xlim(timelimits)
+                ax2i.set_xlim(timelimits)
             else:
                 # Extract timelimits from main axis
                 local_timelimits = mdates.num2date(axi.get_xlim())
                 timelimits = pd.to_datetime(local_timelimits) - pd.to_timedelta(local_time_offset,'h')
-                ax2.set_xlim(timelimits)
+                ax2i.set_xlim(timelimits)
     
             # Move twinned axis ticks and label from top to bottom
-            ax2.xaxis.set_ticks_position("bottom")
-            ax2.xaxis.set_label_position("bottom")
+            ax2i.xaxis.set_ticks_position("bottom")
+            ax2i.xaxis.set_label_position("bottom")
     
             # Offset the twin axis below the host
-            ax2.spines["bottom"].set_position(("axes", -0.35))
+            ax2i.spines["bottom"].set_position(("axes", -0.35))
     
             # Turn on the frame for the twin axis, but then hide all 
             # but the bottom spine
-            ax2.set_frame_on(True)
-            ax2.patch.set_visible(False)
+            ax2i.set_frame_on(True)
+            ax2i.patch.set_visible(False)
             #for sp in ax2.spines.itervalues():
             #    sp.set_visible(False)
-            ax2.spines["bottom"].set_visible(True)
+            ax2i.spines["bottom"].set_visible(True)
     
-            ax2.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
-            ax2.xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-            ax2.xaxis.set_major_locator(mdates.DayLocator())
-            ax2.xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
-            ax2.set_xlabel('UTC time')
+            ax2i.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
+            ax2i.xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+            ax2i.xaxis.set_major_locator(mdates.DayLocator())
+            ax2i.xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+            ax2i.set_xlabel('UTC time')
+
+            ax2.append(ax2i)
+
+        if len(ax2)==1:
+            ax2 = ax2[0]
+        else:
+            ax2 = np.array(ax2)
     else:
         ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
         ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
