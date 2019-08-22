@@ -12,6 +12,8 @@ from scipy.signal import welch
 # Standard field labels
 standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
                         'wdir': r'Wind direction $[^\circ]$',
+                        'u': r'u [m/s]',
+                        'v': r'v [m/s]',
                         'w': r'Vertical wind speed [m/s]',
                         'theta': r'$\theta$ [K]',
                         'thetav': r'$\theta_v$ [K]',
@@ -55,6 +57,7 @@ def plot_timeheight(datasets,
                     fieldlabels={},
                     labelsubplots=False,
                     showcolorbars=True,
+                    fieldorder='C',
                     ncols=1,
                     subfigsize=(12,4),
                     plot_local_time=False,
@@ -102,6 +105,10 @@ def plot_timeheight(datasets,
         Label subplots as (a), (b), (c), ...
     showcolorbars : bool
         Show colorbar per subplot
+    fieldorder : 'C' or 'F'
+        Index ordering for assigning fields and datasets to axes grid
+        (row by row). Fields is considered the first axis, so 'C' means
+        fields change slowest, 'F' means fields change fastest.
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -130,6 +137,7 @@ def plot_timeheight(datasets,
         fieldlimits=fieldlimits,
         fieldlabels=fieldlabels,
         colorschemes=colorschemes,
+        fieldorder=fieldorder
     )
     args.set_missing_fieldlimits()
 
@@ -182,7 +190,9 @@ def plot_timeheight(datasets,
             numerical_timevalues = timevalues
 
         # Create time-height mesh grid
-        Ts,Zs = np.meshgrid(numerical_timevalues,heightvalues,indexing='xy')
+        tst = _get_staggered_grid(numerical_timevalues)
+        zst = _get_staggered_grid(heightvalues)
+        Ts,Zs = np.meshgrid(tst,zst,indexing='xy')
 
         # Create list with available fields only
         available_fields = _get_available_fieldnames(df,args.fields)
@@ -207,7 +217,10 @@ def plot_timeheight(datasets,
                 }
 
             # Index of axis corresponding to dataset i and field j
-            axi = i*nfields + j
+            if args.fieldorder=='C':
+                axi = i*nfields + j
+            else:
+                axi = j*ndatasets + i
 
             # Extract data from dataframe
             fieldvalues = _get_pivoted_field(df_pivot,field).values
@@ -253,14 +266,18 @@ def plot_timeheight(datasets,
         axv[-1].set_ylim(heightlimits)
 
     # Add y labels and align with each other
-    for axi in axv: 
-        axi.set_ylabel(r'Height [m]')
+    for r in range(nrows): 
+        axv[r*ncols].set_ylabel(r'Height [m]')
     fig.align_ylabels()
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
         for i,axi in enumerate(axv):
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+
+    # Return cbar instead of array if ntotal==1
+    if len(cbars)==1:
+        cbars=cbars[0]
 
     if plot_local_time and  ax2 is not None:
         return fig, ax, ax2, cbars
@@ -472,7 +489,7 @@ def plot_timehistory_at_height(datasets,
                         axv[axi].set_title('z = {:.1f} m'.format(height),fontsize=16)
 
                     # Set colors
-                    plotting_properties['color'] = default_colors[i]
+                    plotting_properties['color'] = default_colors[i % len(default_colors)]
                 else:
                     # Index of axis corresponding to field j and dataset i 
                     axi = i*nfields + j
@@ -490,7 +507,7 @@ def plot_timehistory_at_height(datasets,
                         cmap = mpl.cm.get_cmap(cmap)
                         plotting_properties['color'] = cmap(k/(nheights-1))
                     else:
-                        plotting_properties['color'] = default_colors[k]
+                        plotting_properties['color'] = default_colors[k % len(default_colors)]
 
                 # Extract data from dataframe
                 if heightvalues is None:
@@ -756,7 +773,7 @@ def plot_profile(datasets,
                         axv[axi].set_title(tstr, fontsize=16)
 
                     # Set color
-                    plotting_properties['color'] = default_colors[i]
+                    plotting_properties['color'] = default_colors[i % len(default_colors)]
                 else:
                     # Index of axis corresponding to field j and dataset i
                     if args.fieldorder == 'C':
@@ -780,7 +797,7 @@ def plot_profile(datasets,
                         cmap = mpl.cm.get_cmap(cmap)
                         plotting_properties['color'] = cmap(k/(ntimes-1))
                     else:
-                        plotting_properties['color'] = default_colors[k]
+                        plotting_properties['color'] = default_colors[k % len(default_colors)]
                 
                 # Extract data from dataframe
                 if timevalues is None:
@@ -1610,3 +1627,14 @@ def _determine_hourlocator_interval(ax,timelimits=None):
         return 6
     else:
         return 12
+
+def _get_staggered_grid(x):
+    """
+    Return staggered grid locations
+
+    For input array size N, output array
+    has a size of N+1
+    """
+    idx = np.arange(x.size)
+    f = interp1d(idx,x,fill_value='extrapolate')
+    return f(np.arange(-0.5,x.size+0.5,1))
