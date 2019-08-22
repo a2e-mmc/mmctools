@@ -51,7 +51,7 @@ def plot_timeheight(datasets,
                     fields=None,
                     fig=None,ax=None,
                     colorschemes={},
-                    fieldlimits={},
+                    fieldlimits=None,
                     heightlimits=None,
                     timelimits=None,
                     fieldlabels={},
@@ -289,7 +289,7 @@ def plot_timehistory_at_height(datasets,
                                fields=None,
                                heights=None,
                                fig=None,ax=None,
-                               fieldlimits={},
+                               fieldlimits=None,
                                timelimits=None,
                                fieldlabels={},
                                cmap=None,
@@ -584,7 +584,7 @@ def plot_profile(datasets,
                  fields=None,
                  times=None,
                  fig=None,ax=None,
-                 fieldlimits={},
+                 fieldlimits=None,
                  heightlimits=None,
                  fieldlabels={},
                  cmap=None,
@@ -859,7 +859,7 @@ def plot_spectrum(datasets,
                   fig=None,ax=None,
                   Tperiod=3600.0,
                   Tsegment=600.0,
-                  fieldlimits={},
+                  fieldlimits=None,
                   freqlimits=None,
                   fieldlabels={},
                   labelsubplots=False,
@@ -1221,7 +1221,9 @@ class PlottingInput(object):
         # If one set of fieldlimits is specified, check number of fields
         # and convert to dictionary
         try:
-            if isinstance(self.fieldlimits, (list, tuple)):
+            if self.fieldlimits is None:
+                self.fieldlimits = {}
+            elif isinstance(self.fieldlimits, (list, tuple)):
                 assert(len(self.fields)==1), 'Unclear to what field fieldlimits corresponds'
                 self.fieldlimits = {self.fields[0]:self.fieldlimits}
         except AttributeError:
