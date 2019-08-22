@@ -253,8 +253,9 @@ def plot_timeheight(datasets,
 
     # Format time axis
     if isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
-        ax2 = _format_time_axis(axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
+        ax2 = _format_time_axis(fig,axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
     else:
+        ax2 = None
         # Set time limits if specified
         if not timelimits is None:
             axv[-1].set_xlim(timelimits)
@@ -265,10 +266,14 @@ def plot_timeheight(datasets,
     if not heightlimits is None:
         axv[-1].set_ylim(heightlimits)
 
-    # Add y labels and align with each other
+    # Add y labels
     for r in range(nrows): 
         axv[r*ncols].set_ylabel(r'Height [m]')
-    fig.align_ylabels(ax)
+
+    # Align time, height and color labels
+    _align_labels(fig,axv,nrows,ncols)
+    if showcolorbars:
+        _align_labels(fig,[cb.ax for cb in cbars],nrows,ncols)
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
@@ -553,8 +558,9 @@ def plot_timehistory_at_height(datasets,
     
     # Format time axis
     if isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
-        ax2 = _format_time_axis(axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
+        ax2 = _format_time_axis(fig,axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
     else:
+        ax2 = None
         # Set time limits if specified
         if not timelimits is None:
             axv[-1].set_xlim(timelimits)
@@ -571,8 +577,8 @@ def plot_timehistory_at_height(datasets,
     if showlegend:
         leg = _format_legend(axv,index=ncols-1)
 
-    # Align y labels
-    fig.align_ylabels(ax)
+    # Align labels
+    _align_labels(fig,axv,nrows,ncols)
 
     if plot_local_time and ax2 is not None:
         return fig, ax, ax2
@@ -837,8 +843,8 @@ def plot_profile(datasets,
     for r in range(nrows): 
         axv[r*ncols].set_ylabel(r'Height [m]')
 
-    # Align x and y labels
-    fig.align_labels(ax)
+    # Align labels
+    _align_labels(fig,axv,nrows,ncols)
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
@@ -1044,8 +1050,8 @@ def plot_spectrum(datasets,
         except KeyError:
             pass
 
-    # Align x and y labels
-    fig.align_labels(ax)
+    # Align labels
+    _align_labels(fig,axv,nrows,ncols)
     
     # Set frequency limits if specified
     if not freqlimits is None:
@@ -1510,7 +1516,7 @@ def _format_legend(axv,index):
     return leg
 
 
-def _format_time_axis(ax,
+def _format_time_axis(fig,ax,
                       plot_local_time,
                       local_time_offset,
                       timelimits
@@ -1576,6 +1582,7 @@ def _format_time_axis(ax,
             ax2 = ax2[0]
         else:
             ax2 = np.array(ax2)
+            fig.align_xlabels(ax2)
     else:
         ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
         ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
@@ -1594,6 +1601,7 @@ def _format_time_axis(ax,
         axi.set_xlabel(tstr)
 
     return ax2
+
 
 def _determine_hourlocator_interval(ax,timelimits=None):
     """
@@ -1620,6 +1628,7 @@ def _determine_hourlocator_interval(ax,timelimits=None):
     else:
         return 12
 
+
 def _get_staggered_grid(x):
     """
     Return staggered grid locations
@@ -1630,3 +1639,15 @@ def _get_staggered_grid(x):
     idx = np.arange(x.size)
     f = interp1d(idx,x,fill_value='extrapolate')
     return f(np.arange(-0.5,x.size+0.5,1))
+
+
+def _align_labels(fig,ax,nrows,ncols):
+    """
+    Align labels of a given axes grid
+    """
+    # Align xlabels row by row
+    for r in range(nrows):
+        fig.align_xlabels(ax[r*ncols:(r+1)*ncols])
+    # Align ylabels column by column
+    for c in range(ncols):
+        fig.align_ylabels(ax[c::ncols])
