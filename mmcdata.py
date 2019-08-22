@@ -64,7 +64,8 @@ class MMCData():
             with open(asciifile,'r') as f:
                 data = self._read_ascii(f)
             if self.dataSetLength > 0:
-                self._process_data(data,**kwargs)
+                self._process_data(data,specified_date='2013-11-08',**kwargs)
+                #self._process_data(data,**kwargs)
         elif pklfile or pkldata:
             if pkldata is None:
                 with open(pklfile,'rb') as f:
@@ -84,16 +85,20 @@ class MMCData():
         self.dataSetLength = 0
         data = []
         while True:
-            line = f.readline()
-            if line == '':
-                break
+            #line = f.readline()
+            #if line == '':
+            #    break
             recordheader = read_ascii_recordheader(f);
-            recordarray = read_ascii_records(f,self.description['levels'])
-            data.append([recordheader, recordarray])
-            self.dataSetLength += 1
+            if(not bool(recordheader)):
+                break
+            else:  
+                #print(recordheader)
+                recordarray = read_ascii_records(f,self.description['levels'])
+                data.append([recordheader, recordarray])
+                self.dataSetLength += 1
         return data
 
-    def _process_data(self,data,convert_ft_to_m=False):
+    def _process_data(self,data,convert_ft_to_m=False,specified_date=None):
         """Updates dataset description, records, and dataDict"""
         time=[]
         datetime=[]
@@ -115,7 +120,10 @@ class MMCData():
             recordheader, recordarray = record
             self.records.append(recordheader)
             time.append(recordheader['time'].strip())
-            dtstr = recordheader['date'] + "_" + recordheader['time'].strip()
+            if specified_date is None:
+                dtstr = recordheader['date'] + "_" + recordheader['time'].strip()
+            else: 
+                dtstr = '{:s}_{:s}'.format(specified_date,recordheader['time'].strip())
             datetime.append(dt.datetime.strptime(dtstr, '%Y-%m-%d_%H:%M:%S'))
             z.append(recordarray[:,0])
             u.append(recordarray[:,1])
@@ -187,15 +195,15 @@ class MMCData():
         df = self.to_xarray().to_dataframe()
         # the resulting dataframe has an integer multiindex formed by
         # range(num_samples) and range(num_levels)
-        df = df.reset_index().drop(columns=['Time','bottom_top'])
+        df = df.reset_index().drop(columns=['Times','bottom_top'])
         return df.set_index(['datetime','height'])
           
-    def to_xarray(self,timedim='Time',heightdim='bottom_top'):
+    def to_xarray(self,timedim='Times',heightdim='bottom_top'):
         """return an xarray dataset with standard variables"""
         coords = {
             'datetime': xarray.DataArray(self.dataDict['datetime'],
                                   name='datetime',
-                                  dims=timedim),
+                                  dims=[timedim]),
             'height': xarray.DataArray(self.dataDict['z'],
                                   name='height',
                                   dims=[timedim, heightdim],
@@ -223,7 +231,14 @@ class MMCData():
                                   dims=[timedim, heightdim],
                                   attrs={'units':'mbar'}),
         }
-        return xarray.Dataset(data_vars,coords)
+        #ds=xarray.decode_cf(xarray.Dataset(data_vars,coords))
+        ds=xarray.Dataset(data_vars,coords)
+        #Remove the time dependence of heights by setting heights from each level as their temporal mean
+        heights=ds['height'].groupby('bottom_top').mean()
+        Nt,Nz = ds['height'].shape
+        for i in range(Nt):
+            ds['height'][i,:]=heights
+        return ds
 
     def getDataSetDict(self):
         return self.description
@@ -383,40 +398,46 @@ def read_ascii_header(f):
 def read_ascii_recordheader(f):
     """Read a record from legacy MMC file, called by _read_ascii()"""
     try:
-        head1 = f.readline()
-        head2 = f.readline()
-        head3 = f.readline()
-        head4 = f.readline()
-        head5 = f.readline()
-        head6 = f.readline()
-        head7 = f.readline()
-        date  = head1[12:22]
-        time  = head2[12:22]
-        ustar = float(head3[26:36].strip())
-        z0    = float(head4[26:36].strip())
-        tskin = float(head5[26:36])
-        hflux = float(head6[26:36])
-        varlist = head7.split()
+        pos0=f.tell()
+        head0 = f.readline()
+        pos1=f.tell()
+        if pos1==pos0:
+            recordheader = {}
+        else:
+            head1 = f.readline()
+            head2 = f.readline()
+            head3 = f.readline()
+            head4 = f.readline()
+            head5 = f.readline()
+            head6 = f.readline()
+            head7 = f.readline()
+            date  = head1[12:22]
+            time  = head2[12:22]
+            ustar = float(head3[26:36].strip())
+            z0    = float(head4[26:36].strip())
+            tskin = float(head5[26:36])
+            hflux = float(head6[26:36])
+            varlist = head7.split()
 
-        varnames=[]
-        varunits=[]
+            varnames=[]
+            varunits=[]
 
-        for i in range(len(varlist)):
-            if (i % 2) == 0:
-                varnames.append(varlist[i])
-            if (i % 2) == 1:
-                varunits.append(varlist[i])
+            for i in range(len(varlist)):
+                if (i % 2) == 0:
+                    varnames.append(varlist[i])
+                if (i % 2) == 1:
+                    varunits.append(varlist[i])
 
-        recordheader = {
-            'date':date,
-            'time':time,
-            'ustar':ustar,
-            'z0':z0,
-            'tskin':tskin,
-            'hflux':hflux,
-            'varnames':varnames,
-            'varunits':varunits,
-        }
+            recordheader = {
+                'date':date,
+                'time':time,
+                'ustar':ustar,
+                'z0':z0,
+                'tskin':tskin,
+                'hflux':hflux,
+                'varnames':varnames,
+                'varunits':varunits,
+            }
 
     except:
         print("Error in readrecordheader... Check your datafile for bad records!!\n Lines read are")
