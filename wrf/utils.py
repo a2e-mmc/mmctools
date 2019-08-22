@@ -203,76 +203,66 @@ def twrloc_ll(twr_file_name):
     stnlat = float(header[8])
     return stnlat,stnlon
 
+
 class Tower():
     ''' 
     Tower class: put tower data into an object variable
-    Call with: twr = wrfdict.tower('[path to towers]/[tower abrv.].d0[domain].*')
     '''
     def __init__(self,fstr):
-        self.fstr = fstr
-        self.getvars()
-        self.getdata()
-    def getvars(self): # find available vars
-        varns = glob.glob('{:s}*'.format(self.fstr))
-        nvars = np.shape(varns)[0] # Number of variables
-        for vv in range(0,nvars): # Loop over all variables
-            varns[vv] = varns[vv].replace(self.fstr,'').replace('.','')
-        self.varns = varns # variable names
-        self.nvars = nvars # number of variables
-    def getdata(self): # Get all the data
-        for vv in range(0,self.nvars): # Loop over all variables
-            if self.varns[vv] != 'TS': # TS is different structure...
-                # Get number of times
-                f = open('%s%s' % (self.fstr,self.varns[vv]))
-                nt = sum(1 for line in f)-1; f.close()
+        """The file-path string should be:
+            '[path to towers]/[tower abrv.].d0[domain].*'
+        """
+        self._getvars(fstr)
+        self._getdata()
+
+    def _getvars(self,fstr):
+        if not fstr.endswith('*'):
+            fstr += '*'
+        self.filelist = glob.glob(fstr)
+        self.nvars = len(self.filelist)
+        self.varns = []
+        for fpath in self.filelist:
+            self.varns.append(fpath.split('.')[-1])
+
+    def _getdata(self): # Get all the data
+        for varn,fpath in zip(self.varns, self.filelist):
+            # Get number of times,heights
+            with open(fpath) as f:
+                for nt,line in enumerate(f.readlines()): pass
+            times = np.zeros((nt,))
+
+            # Read profile data
+            if varn != 'TS': # TS is different structure...
+                nz = len(line.split()) - 1
+                var = np.zeros((nt,nz))
                 # Open again for reading
-                f = open('%s%s' % (self.fstr,self.varns[vv]))
-                self.header = f.readline().split() # Header information
-                for tt in np.arange(0,nt): # Loop over times
-                    line = f.readline().split() # reading one profile
-                    if tt == 0: # Initialize and get number of heights
-                        nz = np.shape(line)[0]-1
-                        var = np.zeros((nt,nz))
-                        ttime = np.zeros((nt))
-                    var[tt,:] = line[1:] # First element is time
-                    ttime[tt] = np.float(line[0])
-                self.nt   = nt # Number of times
-                self.time = ttime # time
+                with open(fpath) as f:
+                    self.header = f.readline().split() # Header information
+                    for tt,line in enumerate(f.readlines()):
+                        line = line.split() # reading one profile
+                        times[tt] = line[0] # First element is time
+                        var[tt,:] = line[1:]
+                self.time = times # time
+                self.nt = nt # Number of times
                 self.nz = nz # Number of heights
-                # Set each of the variables to their own name
-                if self.varns[vv] == 'PH':
-                    self.ph = var
-                elif self.varns[vv] == 'QV':
-                    self.qv = var
-                elif self.varns[vv] == 'TH':
-                    self.th = var
-                elif self.varns[vv] == 'UU':
-                    self.uu = var
-                elif self.varns[vv] == 'VV':
-                    self.vv = var
-                elif self.varns[vv] == 'WW':
-                    self.ww = var
-                elif self.varns[vv] == 'PP':
-                    self.pp = var
-            elif self.varns[vv] == 'TS': # Time series are surface variables
-                                         # (no height component)
-                f = open('%s%s' % (self.fstr,self.varns[vv])) # Number of times
-                nt = sum(1 for line in f)-1; f.close()
-                f = open('%s%s' % (self.fstr,self.varns[vv])) # Open to get vars
-                header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split() # Skip header
-                self.longname = header[0]
-                self.abbr     = header[3]
-                self.lat      = header[4]
-                self.lon      = header[5]
-                self.loci     = header[6]
-                self.locj     = header[7]
-                self.stationz = header[10]
-                for tt in np.arange(0,nt): # Loop over all times
-                    line = f.readline().split() # One time, all surface variables
-                    if tt == 0: # Initialize number of variables
-                        nv = np.shape(line)[0]-2
-                        var = np.zeros((nt,nv))
-                    var[tt,:] = line[2:]
+                setattr(self, varn.lower(), var)
+
+            # Read surface variables (no height component)
+            elif varn == 'TS':
+                nv = len(line.split()) - 2
+                var = np.zeros((nt,nv))
+                with open(fpath) as f:
+                    header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
+                    self.longname = header[0]
+                    self.abbr     = header[3]
+                    self.lat      = header[4]
+                    self.lon      = header[5]
+                    self.loci     = header[6]
+                    self.locj     = header[7]
+                    self.stationz = header[10]
+                    for tt,line in enumerate(f.readlines()): # Loop over all times
+                        line = line.split() # One time, all surface variables
+                        var[tt,:] = line[2:]
                 self.ts = var # Need to look up what tslist outputs to know which
                               # vars are where...
 
