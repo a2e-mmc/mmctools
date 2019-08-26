@@ -225,6 +225,59 @@ def covariance(a,b,interval='10min',resample=False):
         return cov
 
 
+def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
+                           window_type='hanning',detrend='linear',scaling='density'):
+    """
+    Calculate power spectral density using welch method. 
+    The spectrum is calculated for every column of the dataframe.
+
+    Notes:
+    - Input can be a pandas series or dataframe
+    - Output is a multi-index dataframe with index levels datetime and
+      frequency
+    """
+    from scipy.signal import welch
+    
+    # Determine time scale
+    timevalues = df.index.get_level_values(0)
+    if isinstance(timevalues,pd.DatetimeIndex):
+        timescale = pd.to_timedelta(1,'s')
+    else:
+        # Assuming time is specified in seconds
+        timescale = 1
+
+    # Determine tstart and interval if not specified
+    if tstart is None:
+        tstart = timevalues[0]
+    if interval is None:
+        interval = timevalues[-1] - timevalues[0]
+    elif isinstance(interval,str):
+        interval = pd.to_timedelta(interval)
+
+    # Update timevalues
+    inrange = (timevalues >= tstart) & (timevalues <= tstart+interval)
+    timevalues = df.loc[inrange].index.get_level_values(0)
+
+    # Determine sampling rate and samples per window
+    dts = np.diff(timevalues.unique())/timescale
+    dt  = dts[0]
+    nperseg = int( pd.to_timedelta(window_size)/pd.to_timedelta(dt,'s') )
+    assert(np.allclose(dts,dt)),\
+        'Timestamps must be spaced equidistantly'
+
+    # If input is series, convert to dataframe
+    if isinstance(df,pd.Series):
+        df = df.to_frame()
+
+    spectra = {}
+    for col in df.columns:
+        f,P = welch( df.loc[inrange,col], fs=1./dt, nperseg=nperseg,
+            detrend=detrend,window=window_type,scaling=scaling)    
+        spectra[col] = P
+    spectra['frequency'] = f
+    return pd.DataFrame(spectra)
+    
+
 def power_law(z,zref=80.0,Uref=8.0,alpha=0.2):
     return Uref*(z/zref)**alpha
 
