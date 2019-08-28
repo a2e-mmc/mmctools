@@ -228,13 +228,13 @@ def covariance(a,b,interval='10min',resample=False):
 def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
                            window_type='hanning',detrend='linear',scaling='density'):
     """
-    Calculate power spectral density using welch method. 
-    The spectrum is calculated for every column of the dataframe.
+    Calculate power spectral density using welch method and return
+    a new dataframe. The spectrum is calculated for every column
+    of the original dataframe.
 
     Notes:
     - Input can be a pandas series or dataframe
-    - Output is a multi-index dataframe with index levels datetime and
-      frequency
+    - Output is a dataframe with frequency as index
     """
     from scipy.signal import welch
     
@@ -275,7 +275,7 @@ def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
             detrend=detrend,window=window_type,scaling=scaling)    
         spectra[col] = P
     spectra['frequency'] = f
-    return pd.DataFrame(spectra)
+    return pd.DataFrame(spectra).set_index('frequency')
     
 
 def power_law(z,zref=80.0,Uref=8.0,alpha=0.2):
