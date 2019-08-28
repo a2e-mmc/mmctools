@@ -463,7 +463,10 @@ def plot_timehistory_at_height(datasets,
         # Pivot all fields in a dataset at once to reduce computation time
         if (not heightvalues is None) and (not all([h in heightvalues for h in args.heights])):
             df_pivot = _get_pivot_table(df,'height',available_fields)
+            pivoted = True
             if debug: print('Pivoting '+dfname)
+        else:
+            pivoted = False
 
         for j, field in enumerate(args.fields):
             # If available_fields is [None,], fieldname is unimportant
@@ -517,13 +520,11 @@ def plot_timehistory_at_height(datasets,
                         plotting_properties['color'] = default_colors[k % len(default_colors)]
 
                 # Extract data from dataframe
-                if heightvalues is None:
-                    signal = df.values
-                elif height in heightvalues:
+                if pivoted:
+                    signal = interp1d(heightvalues,_get_pivoted_field(df_pivot,field).values,axis=-1,fill_value="extrapolate")(height)
+                else:
                     slice_z = _get_slice(df,height,'height')
                     signal  = _get_field(slice_z,field).values
-                else:
-                    signal = interp1d(heightvalues,_get_pivoted_field(df_pivot,field).values,axis=-1,fill_value="extrapolate")(height)
                 
                 # Gather label, color, general options and dataset-specific options
                 # (highest priority to dataset-specific options, then general options)
@@ -1309,7 +1310,7 @@ def _get_dim(df,dim):
     # 2. Look for Datetime or Timedelta index
     if dim=='time':
         for idx in range(len(df.index.names)):
-            if isinstance(df.index.get_level_values(idx),(pd.DatetimeIndex,pd.TimedeltaIndex)):
+            if isinstance(df.index.get_level_values(idx),(pd.DatetimeIndex,pd.TimedeltaIndex,pd.PeriodIndex)):
                 if debug: print("Found "+dim+" dimension in index with level {} without a name ".format(idx))
                 return idx, 0
         
