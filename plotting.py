@@ -872,10 +872,11 @@ def plot_spectrum(datasets,
                   ):
     """
     Plot frequency spectrum at a given height for different datasets,
-    times and fields, using a subplot per time and per field
+    time(s) and field(s), using a subplot per time and per field.
 
-    The dataset index needs to be a multi-index corresponding
-    to datetime [, height] and frequency
+    Note that this function does not interpolate to the requested height,
+    i.e., if height is not None, the specified value should be available
+    in all datasets.
 
     Usage
     =====
@@ -889,11 +890,10 @@ def plot_spectrum(datasets,
         'all' means all fields will be plotted (in this case all
         datasets should have the same fields)
     height : float (or None)
-        Height for which frequency spectrum is plotted. If datasets
-        have no height index (i.e., single height dataframes), height
-        does not need to be specified.
+        Height for which frequency spectra is plotted. If datasets
+        have no height dimension, height does not need to be specified.
     times : str, int, float, list (or None)
-        Time(s) for which vertical profiles are plotted, specified as
+        Time(s) for which frequency spectra are plotted, specified as
         either datetime strings or numerical values (seconds, e.g.,
         simulation time). times can be None if all datasets combined
         have no more than one time value.
