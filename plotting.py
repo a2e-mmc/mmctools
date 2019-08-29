@@ -444,9 +444,9 @@ def plot_timehistory_at_height(datasets,
     # Loop over datasets and fields 
     for i,dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
-        heightvalues = _get_dim_values(df,'height')
-        timevalues = _get_dim_values(df,'time')
+        timevalues = _get_dim_values(df,'time',default_idx=True)
         assert(timevalues is not None), 'timehistory plot needs a time axis'
+        heightvalues = _get_dim_values(df,'height')
 
         if isinstance(timevalues, pd.TimedeltaIndex):
             timevalues = timevalues.total_seconds()
@@ -730,7 +730,7 @@ def plot_profile(datasets,
     # Loop over datasets, fields and times 
     for i, dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
-        heightvalues = _get_dim_values(df,'height')
+        heightvalues = _get_dim_values(df,'height',default_idx=True)
         assert(heightvalues is not None), 'profile plot needs a height axis'
         timevalues = _get_dim_values(df,'time')
 
@@ -980,7 +980,7 @@ def plot_spectrum(datasets,
     for i, dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
 
-        frequencyvalues = _get_dim_values(df,'frequency')
+        frequencyvalues = _get_dim_values(df,'frequency',default_idx=True)
         assert(frequencyvalues is not None), 'spectrum plot needs a frequency axis'
         timevalues      = _get_dim_values(df,'time')
 
@@ -1284,7 +1284,7 @@ class PlottingInput(object):
                 except ValueError:
                     self.fieldlimits[field] = [None,None]
 
-def _get_dim(df,dim):
+def _get_dim(df,dim,default_idx=False):
     """
     Search for specified dimension in dataset and return
     level (referred to by either label or position) and
@@ -1313,8 +1313,16 @@ def _get_dim(df,dim):
             if isinstance(df.index.get_level_values(idx),(pd.DatetimeIndex,pd.TimedeltaIndex,pd.PeriodIndex)):
                 if debug: print("Found "+dim+" dimension in index with level {} without a name ".format(idx))
                 return idx, 0
+
+    # 3. If default index is True, assume that a
+    #    single nameless index corresponds to the
+    #    requested dimension
+    if (not isinstance(df.index,(pd.MultiIndex,pd.DatetimeIndex,pd.TimedeltaIndex,pd.PeriodIndex))
+            and default_idx):
+        if debug: print("Assuming nameless index corresponds to '{}' dimension".format(dim))
+        return 0,0
         
-    # 3. Did not found requested dimension
+    # 4. Did not found requested dimension
     if debug: print("Found no "+dim+" dimension")
     return None, None
 
@@ -1359,11 +1367,11 @@ def _contains_field(df,fieldname):
         return (df.name is None) or (df.name==fieldname)
 
 
-def _get_dim_values(df,dim):
+def _get_dim_values(df,dim,default_idx=False):
     """
     Return values for a given dimension
     """
-    level, axis = _get_dim(df,dim)
+    level, axis = _get_dim(df,dim,default_idx)
     # Requested dimension is an index
     if axis==0:
         return df.index.get_level_values(level).unique()
