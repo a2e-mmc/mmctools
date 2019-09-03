@@ -55,7 +55,10 @@ class MMCData():
     """
     def __init__(self,asciifile=None,pklfile=None,pkldata=None,**kwargs):
         """Read ascii data in the legacy MMC format from `asciifile` or
-        pickled data in list form from `pklfile`. 
+        pickled data in list form from `pklfile`. **kwargs can include
+        convert_ft_to_m=True, or specified_date="YYYY-MM-DD", e.g.
+        specified_date='2013-11-08' if necessary for specific legacy data 
+        files.
         """
         self.description = None
         self.records = []
@@ -64,8 +67,7 @@ class MMCData():
             with open(asciifile,'r') as f:
                 data = self._read_ascii(f)
             if self.dataSetLength > 0:
-                self._process_data(data,specified_date='2013-11-08',**kwargs)
-                #self._process_data(data,**kwargs)
+                self._process_data(data,**kwargs)
         elif pklfile or pkldata:
             if pkldata is None:
                 with open(pklfile,'rb') as f:
@@ -74,7 +76,6 @@ class MMCData():
             self.dataSetLength = len(pkldata) - 1
             self.description = pkldata[0]
             if self.dataSetLength > 0:
-                #JAS: try to get all records... self.dataSetLength = len(pkldata)-1
                 self._process_data(pkldata[1:],**kwargs)
         else:
             raise ValueError('Need to specify asciifile, pklfile, or pkldata')
@@ -98,7 +99,7 @@ class MMCData():
                 self.dataSetLength += 1
         return data
 
-    def _process_data(self,data,convert_ft_to_m=False,specified_date=None):
+    def _process_data(self,data,convert_ft_to_m=False,specified_date=None,map_to_met_coords=False):
         """Updates dataset description, records, and dataDict"""
         time=[]
         datetime=[]
@@ -149,8 +150,12 @@ class MMCData():
         else:
             # Otherwise expect heights in meters as they should be
             self.dataDict['z'] = np.asarray(z)
-        self.dataDict['u']     = np.asarray(u)
-        self.dataDict['v']     = np.asarray(v)
+        if map_to_met_coords:      #map TTU-somic (unorth, vwest) sonic coords to standard meteorology coordinates
+            self.dataDict['u']     = np.asarray(v)
+            self.dataDict['v']     = -np.asarray(u)
+        else:
+            self.dataDict['u']     = np.asarray(u)
+            self.dataDict['v']     = np.asarray(v)
         self.dataDict['w']     = np.asarray(w)
         self.dataDict['theta'] = np.asarray(theta)
         self.dataDict['pres']  = np.asarray(pres)
@@ -165,6 +170,9 @@ class MMCData():
         self.dataDict['wspd']  = np.sqrt(self.dataDict['u']**2
                                        + self.dataDict['v']**2)
         self.dataDict['wdir']  = (270.0-np.arctan2(self.dataDict['v'],self.dataDict['u'])*180./np.pi)%360 
+        ### The follwing will yield correct results, but sneaky usage of arctan2 where first argument is defined as y-oriented
+        ### self.dataDict['wdir']  = 180. + np.arctan2(self.dataDict['v'],self.dataDict['u'])*180./np.pi
+
         #Declare and initialize to 0 the *_mean arrays
         self.dataDict['u_mean']     = np.zeros(self.dataDict['u'].shape)
         self.dataDict['v_mean']     = np.zeros(self.dataDict['u'].shape)

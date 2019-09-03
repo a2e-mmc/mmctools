@@ -46,7 +46,7 @@ def convertMMCToPickle(pathbase,year,dataDir,pklDir):
         print("\t{:s}".format(item))
     print("\n")
 
-def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
+def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir, **kwargs):
     inpath = os.path.join(pathbase,year,dataDir)
     outpath = os.path.join(pathbase,year,ncDir)
     inDirContents = os.listdir(inpath)
@@ -71,7 +71,7 @@ def convertMMCToXarrayNCDF(pathbase,year,dataDir,ncDir):
             if(name+".nc" in outDirContents):
                 print("MMC file-- "+fname+" already xarray/netcdf-ized!\n")
             else:
-                db = MMCData(asciifile=fpath)
+                db = MMCData(asciifile=fpath, **kwargs)
                 #Now make an xarrays object out of the db-dictionary/database
                 xrDS = db.to_xarray()
                 outfilename ="{:s}/{:s}.nc".format(outpath,fname.split(fileExtension)[0])
