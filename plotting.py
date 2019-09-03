@@ -9,12 +9,11 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from scipy.signal import welch
 
-# TODO:
-# - Separate out calculation of spectra?
-
 # Standard field labels
 standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
                         'wdir': r'Wind direction $[^\circ]$',
+                        'u': r'u [m/s]',
+                        'v': r'v [m/s]',
                         'w': r'Vertical wind speed [m/s]',
                         'theta': r'$\theta$ [K]',
                         'thetav': r'$\theta_v$ [K]',
@@ -33,26 +32,35 @@ standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
 standard_spectrumlabels = {'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
                            'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
                            'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
+                           'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+                           'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
                            'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
                            }
 
 # Default color cycle
 default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-# Expected names for times or heights
-time_names = ['datetime','time','Time']
-height_names = ['height','heights','z']
+# Supported dimensions and associated names
+dimension_names = {
+    'time':      ['time','Time','datetime'],
+    'height':    ['height','heights','z'],
+    'frequency': ['frequency','f',]
+}
+
+# Show debug information
+debug = False
 
 def plot_timeheight(datasets,
                     fields=None,
                     fig=None,ax=None,
                     colorschemes={},
-                    fieldlimits={},
+                    fieldlimits=None,
                     heightlimits=None,
                     timelimits=None,
                     fieldlabels={},
                     labelsubplots=False,
                     showcolorbars=True,
+                    fieldorder='C',
                     ncols=1,
                     subfigsize=(12,4),
                     plot_local_time=False,
@@ -100,6 +108,10 @@ def plot_timeheight(datasets,
         Label subplots as (a), (b), (c), ...
     showcolorbars : bool
         Show colorbar per subplot
+    fieldorder : 'C' or 'F'
+        Index ordering for assigning fields and datasets to axes grid
+        (row by row). Fields is considered the first axis, so 'C' means
+        fields change slowest, 'F' means fields change fastest.
     ncols : int
         Number of columns in axes grid, must be a true divisor of total
         number of axes.
@@ -128,6 +140,7 @@ def plot_timeheight(datasets,
         fieldlimits=fieldlimits,
         fieldlabels=fieldlabels,
         colorschemes=colorschemes,
+        fieldorder=fieldorder
     )
     args.set_missing_fieldlimits()
 
@@ -160,8 +173,8 @@ def plot_timeheight(datasets,
     for i, dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
 
-        heightvalues = _get_height_values(df)
-        timevalues   = _get_time_values(df)
+        heightvalues = _get_dim_values(df,'height')
+        timevalues   = _get_dim_values(df,'time')
         assert(heightvalues is not None), 'timeheight plot needs a height axis'
         assert(timevalues is not None), 'timeheight plot needs a time axis'
 
@@ -180,17 +193,22 @@ def plot_timeheight(datasets,
             numerical_timevalues = timevalues
 
         # Create time-height mesh grid
-        Ts,Zs = np.meshgrid(numerical_timevalues,heightvalues,indexing='xy')
+        tst = _get_staggered_grid(numerical_timevalues)
+        zst = _get_staggered_grid(heightvalues)
+        Ts,Zs = np.meshgrid(tst,zst,indexing='xy')
 
         # Create list with available fields only
         available_fields = _get_available_fieldnames(df,args.fields)
 
         # Pivot all fields in a dataset at once
-        df_pivot = _get_pivot_table(df,available_fields)
+        df_pivot = _get_pivot_table(df,'height',available_fields)
 
         for j, field in enumerate(args.fields):
-            # Skip loop if field not available
-            if not field in available_fields:
+            # If available_fields is [None,], fieldname is unimportant
+            if available_fields == [None]:
+                pass
+            # Else, check if field is available
+            elif not field in available_fields:
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
@@ -202,10 +220,13 @@ def plot_timeheight(datasets,
                 }
 
             # Index of axis corresponding to dataset i and field j
-            axi = i*nfields + j
+            if args.fieldorder=='C':
+                axi = i*nfields + j
+            else:
+                axi = j*ndatasets + i
 
             # Extract data from dataframe
-            fieldvalues = _get_pivoted_field(df_pivot,field).values
+            fieldvalues = _get_pivoted_field(df_pivot,field)
 
             # Gather label, color, general options and dataset-specific options
             # (highest priority to dataset-specific options, then general options)
@@ -235,8 +256,9 @@ def plot_timeheight(datasets,
 
     # Format time axis
     if isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
-        ax2 = _format_time_axis(axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
+        ax2 = _format_time_axis(fig,axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
     else:
+        ax2 = None
         # Set time limits if specified
         if not timelimits is None:
             axv[-1].set_xlim(timelimits)
@@ -247,15 +269,23 @@ def plot_timeheight(datasets,
     if not heightlimits is None:
         axv[-1].set_ylim(heightlimits)
 
-    # Add y labels and align with each other
-    for axi in axv: 
-        axi.set_ylabel(r'Height [m]')
-    fig.align_ylabels()
+    # Add y labels
+    for r in range(nrows): 
+        axv[r*ncols].set_ylabel(r'Height [m]')
+
+    # Align time, height and color labels
+    _align_labels(fig,axv,nrows,ncols)
+    if showcolorbars:
+        _align_labels(fig,[cb.ax for cb in cbars],nrows,ncols)
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
         for i,axi in enumerate(axv):
             axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+
+    # Return cbar instead of array if ntotal==1
+    if len(cbars)==1:
+        cbars=cbars[0]
 
     if plot_local_time and  ax2 is not None:
         return fig, ax, ax2, cbars
@@ -267,7 +297,7 @@ def plot_timehistory_at_height(datasets,
                                fields=None,
                                heights=None,
                                fig=None,ax=None,
-                               fieldlimits={},
+                               fieldlimits=None,
                                timelimits=None,
                                fieldlabels={},
                                cmap=None,
@@ -414,9 +444,9 @@ def plot_timehistory_at_height(datasets,
     # Loop over datasets and fields 
     for i,dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
-        heightvalues = _get_height_values(df)
-        timevalues = _get_time_values(df)
+        timevalues = _get_dim_values(df,'time',default_idx=True)
         assert(timevalues is not None), 'timehistory plot needs a time axis'
+        heightvalues = _get_dim_values(df,'height')
 
         if isinstance(timevalues, pd.TimedeltaIndex):
             timevalues = timevalues.total_seconds()
@@ -432,15 +462,20 @@ def plot_timehistory_at_height(datasets,
         # pivot the dataframe to allow interpolation.
         # Pivot all fields in a dataset at once to reduce computation time
         if (not heightvalues is None) and (not all([h in heightvalues for h in args.heights])):
-            df_pivot = _get_pivot_table(df,available_fields)
-            print('Pivoting '+dfname)
+            df_pivot = _get_pivot_table(df,'height',available_fields)
+            pivoted = True
+            if debug: print('Pivoting '+dfname)
+        else:
+            pivoted = False
 
         for j, field in enumerate(args.fields):
-            # Skip loop if field not available
-            if not field in available_fields:
+            # If available_fields is [None,], fieldname is unimportant
+            if available_fields == [None]:
+                pass
+            # Else, check if field is available
+            elif not field in available_fields:
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
-
 
             for k, height in enumerate(args.heights):
                 # Store plotting options in dictionary
@@ -464,7 +499,7 @@ def plot_timehistory_at_height(datasets,
                         axv[axi].set_title('z = {:.1f} m'.format(height),fontsize=16)
 
                     # Set colors
-                    plotting_properties['color'] = default_colors[i]
+                    plotting_properties['color'] = default_colors[i % len(default_colors)]
                 else:
                     # Index of axis corresponding to field j and dataset i 
                     axi = i*nfields + j
@@ -482,24 +517,14 @@ def plot_timehistory_at_height(datasets,
                         cmap = mpl.cm.get_cmap(cmap)
                         plotting_properties['color'] = cmap(k/(nheights-1))
                     else:
-                        plotting_properties['color'] = default_colors[k]
+                        plotting_properties['color'] = default_colors[k % len(default_colors)]
 
                 # Extract data from dataframe
-                if heightvalues is None:
-                    signal = df.values
-                elif height in heightvalues:
-                    if isinstance(df,pd.DataFrame):
-                        if isinstance(df.index,pd.MultiIndex):
-                            signal = df.loc[(slice(None),height),field].values
-                        else:
-                            signal = df.loc[df.height==height,field].values
-                    elif isinstance(df,pd.Series):
-                        if isinstance(df.index,pd.MultiIndex):
-                            signal = df.loc[(slice(None),height)].values
-                        else:
-                            signal = df.values
-                else:
+                if pivoted:
                     signal = interp1d(heightvalues,_get_pivoted_field(df_pivot,field).values,axis=-1,fill_value="extrapolate")(height)
+                else:
+                    slice_z = _get_slice(df,height,'height')
+                    signal  = _get_field(slice_z,field).values
                 
                 # Gather label, color, general options and dataset-specific options
                 # (highest priority to dataset-specific options, then general options)
@@ -525,12 +550,13 @@ def plot_timehistory_at_height(datasets,
     # Set axis grid
     for axi in axv:
         axi.xaxis.grid(True,which='minor')
-        axi.yaxis.grid()
+        axi.yaxis.grid(True)
     
     # Format time axis
     if isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
-        ax2 = _format_time_axis(axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
+        ax2 = _format_time_axis(fig,axv[(nrows-1)*ncols:],plot_local_time,local_time_offset,timelimits)
     else:
+        ax2 = None
         # Set time limits if specified
         if not timelimits is None:
             axv[-1].set_xlim(timelimits)
@@ -547,8 +573,8 @@ def plot_timehistory_at_height(datasets,
     if showlegend:
         leg = _format_legend(axv,index=ncols-1)
 
-    # Align y labels
-    fig.align_ylabels()
+    # Align labels
+    _align_labels(fig,axv,nrows,ncols)
 
     if plot_local_time and ax2 is not None:
         return fig, ax, ax2
@@ -560,7 +586,7 @@ def plot_profile(datasets,
                  fields=None,
                  times=None,
                  fig=None,ax=None,
-                 fieldlimits={},
+                 fieldlimits=None,
                  heightlimits=None,
                  fieldlabels={},
                  cmap=None,
@@ -686,7 +712,7 @@ def plot_profile(datasets,
                                     avoid_single_column=True,
                                     sharey=True,
                                     subfigsize=subfigsize,
-                                    wspace=0.2,
+                                    hspace=0.4,
                                     fig=fig,
                                     ax=ax,
                                     )
@@ -704,20 +730,23 @@ def plot_profile(datasets,
     # Loop over datasets, fields and times 
     for i, dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
-        heightvalues = _get_height_values(df)
+        heightvalues = _get_dim_values(df,'height',default_idx=True)
         assert(heightvalues is not None), 'profile plot needs a height axis'
-        timevalues = _get_time_values(df)
+        timevalues = _get_dim_values(df,'time')
 
         # Create list with available fields only
         available_fields = _get_available_fieldnames(df,args.fields)
 
         # Pivot all fields in a dataset at once
         if not timevalues is None:
-            df_pivot = _get_pivot_table(df,available_fields)
+            df_pivot = _get_pivot_table(df,'height',available_fields)
 
         for j, field in enumerate(args.fields):
-            # Skip loop if field not available
-            if not field in available_fields:
+            # If available_fields is [None,], fieldname is unimportant
+            if available_fields == [None]:
+                pass
+            # Else, check if field is available
+            elif not field in available_fields:
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
@@ -745,7 +774,7 @@ def plot_profile(datasets,
                         axv[axi].set_title(tstr, fontsize=16)
 
                     # Set color
-                    plotting_properties['color'] = default_colors[i]
+                    plotting_properties['color'] = default_colors[i % len(default_colors)]
                 else:
                     # Index of axis corresponding to field j and dataset i
                     if args.fieldorder == 'C':
@@ -769,14 +798,15 @@ def plot_profile(datasets,
                         cmap = mpl.cm.get_cmap(cmap)
                         plotting_properties['color'] = cmap(k/(ntimes-1))
                     else:
-                        plotting_properties['color'] = default_colors[k]
+                        plotting_properties['color'] = default_colors[k % len(default_colors)]
                 
                 # Extract data from dataframe
                 if timevalues is None:
                     # Dataset will not be pivoted
                     fieldvalues = _get_field(df,field).values
                 else:
-                    fieldvalues = _get_pivoted_field(df_pivot,field).loc[time].values.squeeze()
+                    slice_t = _get_slice(df_pivot,time,'time')
+                    fieldvalues = _get_pivoted_field(slice_t,field).values.squeeze()
 
                 # Gather label, color, general options and dataset-specific options
                 # (highest priority to dataset-specific options, then general options)
@@ -810,8 +840,8 @@ def plot_profile(datasets,
     for r in range(nrows): 
         axv[r*ncols].set_ylabel(r'Height [m]')
 
-    # Align x and y labels
-    fig.align_labels()
+    # Align labels
+    _align_labels(fig,axv,nrows,ncols)
     
     # Number sub figures as a, b, c, ...
     if labelsubplots:
@@ -826,13 +856,11 @@ def plot_profile(datasets,
 
 
 def plot_spectrum(datasets,
-                  height,
-                  times,
                   fields=None,
+                  height=None,
+                  times=None,
                   fig=None,ax=None,
-                  Tperiod=3600.0,
-                  Tsegment=600.0,
-                  fieldlimits={},
+                  fieldlimits=None,
                   freqlimits=None,
                   fieldlabels={},
                   labelsubplots=False,
@@ -844,38 +872,36 @@ def plot_spectrum(datasets,
                   ):
     """
     Plot frequency spectrum at a given height for different datasets,
-    times and fields, using a subplot per time and per field
+    time(s) and field(s), using a subplot per time and per field.
 
-    The frequency spectrum is computed using scipy.signal.welch, which
-    estimates the power spectral density by dividing the data into over-
-    lapping segments, computing a modified periodogram for each segment
-    and averaging the periodograms.
+    Note that this function does not interpolate to the requested height,
+    i.e., if height is not None, the specified value should be available
+    in all datasets.
 
     Usage
     =====
     datasets : pandas.DataFrame or dict 
-        Dataset(s). If more than one set, datasets should
-        be a dictionary with entries <dataset_name>: dataset
-    height : float
-        Height for which frequency spectrum is plotted
-    times : str, list
-        Start time(s) of the time period(s) for which the frequency
-        spectrum is computed.
+        Dataset(s) with spectrum data. If more than one set,
+        datasets should be a dictionary with entries
+        <dataset_name>: dataset
     fields : str, list, 'all' (or None)
         Fieldname(s) corresponding to particular column(s) of
         the datasets. fields can be None if input are Series.
         'all' means all fields will be plotted (in this case all
         datasets should have the same fields)
+    height : float (or None)
+        Height for which frequency spectra is plotted. If datasets
+        have no height dimension, height does not need to be specified.
+    times : str, int, float, list (or None)
+        Time(s) for which frequency spectra are plotted, specified as
+        either datetime strings or numerical values (seconds, e.g.,
+        simulation time). times can be None if all datasets combined
+        have no more than one time value.
     fig : figure handle
         Custom figure handle. Should be specified together with ax
     ax : axes handle, or list or numpy ndarray with axes handles
         Customand axes handle(s).
         Size of ax should equal nfields * ntimes
-    Tperiod : float
-        Length of the time period in seconds over which frequency
-        spectrum is computed.
-    Tsegment : float
-        Length of time segments of the welch method in seconds
     fieldlimits : list or tuple, or dict
         Value range for the various fields. If only one field is 
         plotted, fieldlimits can be a list or tuple. Otherwise, it
@@ -951,70 +977,72 @@ def plot_spectrum(datasets,
             showlegend = False
 
     # Loop over datasets, fields and times 
-    for j, dfname in enumerate(args.datasets):
+    for i, dfname in enumerate(args.datasets):
         df = args.datasets[dfname]
 
-        heightvalues = _get_height_values(df)
-        timevalues   = _get_time_values(df)
-        dt = (timevalues[1]-timevalues[0]) / pd.Timedelta(1,unit='s')     #Sampling rate in seconds
+        frequencyvalues = _get_dim_values(df,'frequency',default_idx=True)
+        assert(frequencyvalues is not None), 'spectrum plot needs a frequency axis'
+        timevalues      = _get_dim_values(df,'time')
 
         # Create list with available fields only
         available_fields = _get_available_fieldnames(df,args.fields)
 
-        # Pivot all fields of a dataset at once
-        df_pivot = _get_pivot_table(df,available_fields)
-
-        for k, field in enumerate(args.fields):
-            # Skip loop if field not available
-            if not field in available_fields:
+        for j, field in enumerate(args.fields):
+            # If available_fields is [None,], fieldname is unimportant
+            if available_fields == [None]:
+                pass
+            # Else, check if field is available
+            elif not field in available_fields:
                 print('Warning: field "'+field+'" not available in dataset '+dfname)
                 continue
 
-            for i, tstart in enumerate(args.times):
+            for k, time in enumerate(args.times):
+                plotting_properties = {}
                 if showlegend:
-                    plotting_properties = {'label':dfname}
+                    plotting_properties['label'] = dfname
 
-                # Index of axis corresponding to field k and time i
-                axi = k*ntimes + i
+                # Index of axis corresponding to field j and time k
+                axi = j*ntimes + k
                 
                 # Axes mark up
-                if j==0:
-                    axv[axi].set_title(pd.to_datetime(tstart).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
+                if i==0 and ntimes>1:
+                    axv[axi].set_title(pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC'),fontsize=16)
 
-                # Compute frequency spectrum
-                istart = np.where(timevalues==pd.to_datetime(tstart))[0][0]
-                signal = interp1d(heightvalues,_get_pivoted_field(df_pivot,field).interpolate(method='linear').values,axis=-1,fill_value="extrapolate")(height)
-                f, P = welch(signal[istart:istart+np.int(Tperiod/dt)],fs=1./dt,nperseg=np.int(Tsegment/dt),
-                            detrend='linear',window='hanning',scaling='density')
-                
                 # Gather label, general options and dataset-specific options
                 # (highest priority to dataset-specific options, then general options)
                 try:
                     plotting_properties = {**plotting_properties,**kwargs,**datasetkwargs[dfname]}
                 except KeyError:
                     plotting_properties = {**plotting_properties,**kwargs}
+                
+                # Get field spectrum
+                slice_t  = _get_slice(df,time,'time')
+                slice_tz = _get_slice(slice_t,height,'height')
+                spectrum = _get_field(slice_tz,field).values
 
                 # Plot data
-                axv[axi].loglog(f[1:],P[1:],**plotting_properties)
+                axv[axi].loglog(frequencyvalues[1:],spectrum[1:],**plotting_properties)
+
+                # Specify field limits if specified
+                try:
+                    axv[axi].set_ylim(args.fieldlimits[field])
+                except KeyError:
+                    pass
    
 
     # Set frequency label
     for c in range(ncols):
         axv[ncols*(nrows-1)+c].set_xlabel('f [Hz]')
 
-    # Specify field label and field limits if specified 
+    # Specify field label if specified 
     for r in range(nrows):
         try:
             axv[r*ncols].set_ylabel(args.fieldlabels[args.fields[r]])
         except KeyError:
             pass
-        try:
-            axv[r*ncols].set_ylim(args.fieldlimits[args.fields[r]])
-        except KeyError:
-            pass
 
-    # Align x and y labels
-    fig.align_labels()
+    # Align labels
+    _align_labels(fig,axv,nrows,ncols)
     
     # Set frequency limits if specified
     if not freqlimits is None:
@@ -1091,26 +1119,20 @@ class PlottingInput(object):
                 "'fields' argument must be specified unless all datasets are pandas Series"
             series_names = set()
             for dfname in self.datasets:
-                if not self.datasets[dfname].name is None:
-                    series_names.add(self.datasets[dfname].name)
-            if len(series_names)==0:
-                # All names are None, so set generic field name
-                self.fields = ['field',]
-            elif len(series_names)==1:
+                series_names.add(self.datasets[dfname].name)
+            if len(series_names)==1:
                 self.fields = list(series_names)
             else:
                 raise InputError('attempting to plot multiple series with different field names')
-        # If fields='all', retrieve fields from dataset
-        elif self.fields=='all':
-            self.fields = _get_fieldnames(list(self.datasets.values())[0])
-            assert(all([_get_fieldnames(df)==self.fields for df in self.datasets.values()])), \
-               "The option fields = 'all' only works when all datasets have the same fields"
-            # No fieldnames, so use generic field name
-            if self.fields == [None,]:
-                self.fields = ['field',]
-        # If fields is a single instance, convert to a list
         elif isinstance(self.fields,str):
-            self.fields = [self.fields,]
+            # If fields='all', retrieve fields from dataset
+            if self.fields=='all':
+                self.fields = _get_fieldnames(list(self.datasets.values())[0])
+                assert(all([_get_fieldnames(df)==self.fields for df in self.datasets.values()])), \
+                   "The option fields = 'all' only works when all datasets have the same fields"
+            # If fields is a single instance, convert to a list
+            else:
+                self.fields = [self.fields,]
 
         # ----------------------------------
         # Check match of fields and datasets
@@ -1138,11 +1160,12 @@ class PlottingInput(object):
             if self.heights is None:
                 av_heights = set()
                 for df in self.datasets.values():
-                    heightvalues = _get_height_values(df)
+                    heightvalues = _get_dim_values(df,'height')
                     try:
                         for height in heightvalues:
                             av_heights.add(height)
                     except TypeError:
+                        # heightvalues is None
                         pass
                 if len(av_heights)==0:
                     # None of the datasets have height values
@@ -1152,9 +1175,9 @@ class PlottingInput(object):
                 else:
                     raise InputError("found more than one height value so 'heights' argument must be specified")
             # If heights='all', retrieve heights from dataset
-            elif self.heights=='all':
-                self.heights = _get_height_values(list(self.datasets.values())[0])
-                assert(all([np.allclose(_get_height_values(df),self.heights) for df in self.datasets.values()])), \
+            elif isinstance(self.heights,str) and self.heights=='all':
+                self.heights = _get_dim_values(list(self.datasets.values())[0],'height')
+                assert(all([np.allclose(_get_dim_values(df,'height'),self.heights) for df in self.datasets.values()])), \
                     "The option heights = 'all' only works when all datasets have the same vertical levels"
             # If heights is single instance, convert to list
             elif isinstance(self.heights,(int,float)):
@@ -1172,7 +1195,7 @@ class PlottingInput(object):
             if self.times is None:
                 av_times = set()
                 for df in self.datasets.values():
-                    timevalues = _get_time_values(df)
+                    timevalues = _get_dim_values(df,'time')
                     try:
                         for time in timevalues.values:
                             av_times.add(time)
@@ -1185,7 +1208,7 @@ class PlottingInput(object):
                     self.times = list(av_times)
                 else:
                     raise InputError("found more than one time value so 'times' argument must be specified")
-            elif isinstance(self.times,(str,int,float,np.number)):
+            elif isinstance(self.times,(str,int,float,np.number,pd.Timestamp)):
                 self.times = [self.times,]
         except AttributeError:
             pass
@@ -1196,7 +1219,9 @@ class PlottingInput(object):
         # If one set of fieldlimits is specified, check number of fields
         # and convert to dictionary
         try:
-            if isinstance(self.fieldlimits, (list, tuple)):
+            if self.fieldlimits is None:
+                self.fieldlimits = {}
+            elif isinstance(self.fieldlimits, (list, tuple)):
                 assert(len(self.fields)==1), 'Unclear to what field fieldlimits corresponds'
                 self.fieldlimits = {self.fields[0]:self.fieldlimits}
         except AttributeError:
@@ -1259,6 +1284,51 @@ class PlottingInput(object):
                 except ValueError:
                     self.fieldlimits[field] = [None,None]
 
+def _get_dim(df,dim,default_idx=False):
+    """
+    Search for specified dimension in dataset and return
+    level (referred to by either label or position) and
+    axis {0 or ‘index’, 1 or ‘columns’}
+
+    If default_idx is True, return a single unnamed index
+    if present
+    """
+    assert(dim in dimension_names.keys()), \
+        "Dimension '"+dim+"' not supported"
+    
+    # 1. Try to find dim based on name
+    for name in dimension_names[dim]:
+        if name in df.index.names:
+            if debug: print("Found "+dim+" dimension in index with name '{}'".format(name))
+            return name, 0
+        else:
+            try:
+                if name in df.columns:
+                    if debug: print("Found "+dim+" dimension in column with name '{}'".format(name))
+                    return name, 1
+            except AttributeError:
+                # pandas Series has no columns
+                pass
+            
+    # 2. Look for Datetime or Timedelta index
+    if dim=='time':
+        for idx in range(len(df.index.names)):
+            if isinstance(df.index.get_level_values(idx),(pd.DatetimeIndex,pd.TimedeltaIndex,pd.PeriodIndex)):
+                if debug: print("Found "+dim+" dimension in index with level {} without a name ".format(idx))
+                return idx, 0
+
+    # 3. If default index is True, assume that a
+    #    single nameless index corresponds to the
+    #    requested dimension
+    if (not isinstance(df.index,(pd.MultiIndex,pd.DatetimeIndex,pd.TimedeltaIndex,pd.PeriodIndex))
+            and default_idx and (df.index.name is None) ):
+        if debug: print("Assuming nameless index corresponds to '{}' dimension".format(dim))
+        return 0,0
+        
+    # 4. Did not found requested dimension
+    if debug: print("Found no "+dim+" dimension")
+    return None, None
+
 
 def _get_available_fieldnames(df,fieldnames):
     """
@@ -1281,7 +1351,14 @@ def _get_fieldnames(df):
     Return list of fieldnames in df
     """
     if isinstance(df,pd.DataFrame):
-        return list(df.columns)
+        fieldnames = list(df.columns)
+        # Remove any column corresponding to
+        # a dimension (time, height or frequency)
+        for dim in dimension_names.keys():
+            name, axis = _get_dim(df,dim)
+            if axis==1:
+                fieldnames.remove(name)
+        return fieldnames
     elif isinstance(df,pd.Series):
         return [df.name,]
 
@@ -1293,66 +1370,61 @@ def _contains_field(df,fieldname):
         return (df.name is None) or (df.name==fieldname)
 
 
-def _get_height_values(df):
+def _get_dim_values(df,dim,default_idx=False):
     """
-    Return list of heights in df
+    Return values for a given dimension
     """
-    if isinstance(df.index,pd.MultiIndex):
-        # Assuming level 0 is time and level 1 is height
-        return df.index.get_level_values(1).unique().values
-    elif isinstance(df,pd.DataFrame):
-        for name in height_names:
-            # First look among columns
-            if name in df.columns:
-                return df[name].unique()
-            # Then check whether index corresponds to height
-            elif df.index.name==name:
-                return df.index.unique().values
-        # No height name match
-        return None
-    elif isinstance(df,pd.Series):
-        if df.index.name in height_names:
-            return df.index.unique().values
-        else:
-            return None
-
-
-def _get_time_values(df):
-    """
-    Return list of times in df
-    """
-    if isinstance(df.index,pd.MultiIndex):
-        # Assuming level 0 is always the time index
-        return df.index.get_level_values(0).unique()
+    level, axis = _get_dim(df,dim,default_idx)
+    # Requested dimension is an index
+    if axis==0:
+        return df.index.get_level_values(level).unique()
+    # Requested dimension is a column
+    elif axis==1:
+        return df[level].unique()
+    # Requested dimension not available
     else:
-        # If index has a height name, dataset has no time
-        if df.index.name in height_names:
-            return None
-        else:
-            return df.index.unique()
+        return None
 
 
-def _get_pivot_table(df,fieldnames):
+def _get_pivot_table(df,dim,fieldnames):
     """
     Return pivot table with given fieldnames as columns
     """
-    if isinstance(df,pd.DataFrame):
-        if isinstance(df.index,pd.MultiIndex):
-            # Assuming level 0 is time and level 1 is height
-            return df[fieldnames].unstack()
-        else:
-            for name in height_names:
-                if name in df.columns:
-                    return df.pivot(columns=name,values=fieldnames)
-            # No height name match
-            return None
-    elif isinstance(df,pd.Series):
-        if isinstance(df.index,pd.MultiIndex):
-            # Assuming level 0 is time and level 1 is height
-            return df.unstack()
-        else:
-            return df
+    level, axis = _get_dim(df,dim)
+    # Unstack an index
+    if axis==0:
+        return df.unstack(level=level)
+    # Pivot about a column
+    elif axis==1:
+        return df.pivot(columns=level,values=fieldnames)
+    # Dimension not found, return dataframe
+    else:
+        return df
 
+
+def _get_slice(df,key,dim):
+    """
+    Return cross-section of dataset
+    """
+    if key is None:
+        return df
+
+    # Get dimension level and axis
+    level, axis = _get_dim(df,dim)
+
+    # Requested dimension is an index
+    if axis==0:
+        if isinstance(df.index,pd.MultiIndex):
+            return df.xs(key,level=level)
+        else:
+            return df.loc[df.index==key]
+    # Requested dimension is a column
+    elif axis==1:
+        return df.loc[df[level]==key]
+    # Requested dimension not available, return dataframe
+    else:
+        return df
+    
 
 def _get_field(df,fieldname):
     """
@@ -1385,8 +1457,8 @@ def _create_subplots_if_needed(ntotal,
                                sharex=False,
                                sharey=False,
                                subfigsize=(12,3),
-                               wspace=0.4,
-                               hspace=0.4,
+                               wspace=0.2,
+                               hspace=0.2,
                                fig=None,
                                ax=None
                                ):
@@ -1485,7 +1557,7 @@ def _format_legend(axv,index):
     return leg
 
 
-def _format_time_axis(ax,
+def _format_time_axis(fig,ax,
                       plot_local_time,
                       local_time_offset,
                       timelimits
@@ -1509,40 +1581,49 @@ def _format_time_axis(ax,
 
         tstr = 'Local time'
 
+        ax2 = []
         for axi in ax:
             # Format second axis (UTC time)
-            ax2 = axi.twiny()
-            ax2.xaxis_date()
+            ax2i = axi.twiny()
+            ax2i.xaxis_date()
     
             # Set time limits if specified
             if not timelimits is None:
-                ax2.set_xlim(timelimits)
+                ax2i.set_xlim(timelimits)
             else:
                 # Extract timelimits from main axis
                 local_timelimits = mdates.num2date(axi.get_xlim())
                 timelimits = pd.to_datetime(local_timelimits) - pd.to_timedelta(local_time_offset,'h')
-                ax2.set_xlim(timelimits)
+                ax2i.set_xlim(timelimits)
     
             # Move twinned axis ticks and label from top to bottom
-            ax2.xaxis.set_ticks_position("bottom")
-            ax2.xaxis.set_label_position("bottom")
+            ax2i.xaxis.set_ticks_position("bottom")
+            ax2i.xaxis.set_label_position("bottom")
     
             # Offset the twin axis below the host
-            ax2.spines["bottom"].set_position(("axes", -0.35))
+            ax2i.spines["bottom"].set_position(("axes", -0.35))
     
             # Turn on the frame for the twin axis, but then hide all 
             # but the bottom spine
-            ax2.set_frame_on(True)
-            ax2.patch.set_visible(False)
+            ax2i.set_frame_on(True)
+            ax2i.patch.set_visible(False)
             #for sp in ax2.spines.itervalues():
             #    sp.set_visible(False)
-            ax2.spines["bottom"].set_visible(True)
+            ax2i.spines["bottom"].set_visible(True)
     
-            ax2.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
-            ax2.xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
-            ax2.xaxis.set_major_locator(mdates.DayLocator())
-            ax2.xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
-            ax2.set_xlabel('UTC time')
+            ax2i.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
+            ax2i.xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
+            ax2i.xaxis.set_major_locator(mdates.DayLocator())
+            ax2i.xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
+            ax2i.set_xlabel('UTC time')
+
+            ax2.append(ax2i)
+
+        if len(ax2)==1:
+            ax2 = ax2[0]
+        else:
+            ax2 = np.array(ax2)
+            fig.align_xlabels(ax2)
     else:
         ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
         ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
@@ -1561,6 +1642,7 @@ def _format_time_axis(ax,
         axi.set_xlabel(tstr)
 
     return ax2
+
 
 def _determine_hourlocator_interval(ax,timelimits=None):
     """
@@ -1586,3 +1668,27 @@ def _determine_hourlocator_interval(ax,timelimits=None):
         return 6
     else:
         return 12
+
+
+def _get_staggered_grid(x):
+    """
+    Return staggered grid locations
+
+    For input array size N, output array
+    has a size of N+1
+    """
+    idx = np.arange(x.size)
+    f = interp1d(idx,x,fill_value='extrapolate')
+    return f(np.arange(-0.5,x.size+0.5,1))
+
+
+def _align_labels(fig,ax,nrows,ncols):
+    """
+    Align labels of a given axes grid
+    """
+    # Align xlabels row by row
+    for r in range(nrows):
+        fig.align_xlabels(ax[r*ncols:(r+1)*ncols])
+    # Align ylabels column by column
+    for c in range(ncols):
+        fig.align_ylabels(ax[c::ncols])
