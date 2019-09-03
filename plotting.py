@@ -1289,6 +1289,9 @@ def _get_dim(df,dim,default_idx=False):
     Search for specified dimension in dataset and return
     level (referred to by either label or position) and
     axis {0 or ‘index’, 1 or ‘columns’}
+
+    If default_idx is True, return a single unnamed index
+    if present
     """
     assert(dim in dimension_names.keys()), \
         "Dimension '"+dim+"' not supported"
@@ -1318,7 +1321,7 @@ def _get_dim(df,dim,default_idx=False):
     #    single nameless index corresponds to the
     #    requested dimension
     if (not isinstance(df.index,(pd.MultiIndex,pd.DatetimeIndex,pd.TimedeltaIndex,pd.PeriodIndex))
-            and default_idx):
+            and default_idx and (df.index.name is None) ):
         if debug: print("Assuming nameless index corresponds to '{}' dimension".format(dim))
         return 0,0
         
