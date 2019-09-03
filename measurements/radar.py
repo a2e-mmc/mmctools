@@ -8,8 +8,6 @@ import pandas as pd
 
 expected_profiler_datatypes=['wind','winds','rass']
 
-debug = True
-
 def profiler(fname,scans=None,
              data_type=None,
              datetime_format=None,
@@ -99,41 +97,46 @@ def profiler(fname,scans=None,
                 # specified number of scans
                 scans_to_read = np.arange(scans)
                 scans = scans_to_read
-            for i in scans_to_read:
+            for iscan in scans_to_read:
                 try:
                     df,scaninfo = _read_profiler_data_block(
                             f, expected_data_type=data_type,
                             datetime_format=datetime_format,
+                            num_info_lines=num_info_lines,
                             read_scan_properties=read_scan_properties)
                 except (IOError,IndexError):
                     break
-                if i in scans:
+                if iscan in scans:
                     if verbose:
-                        print('Adding scan',i)
+                        print('Adding scan',iscan,
+                              'at',df['datetime'].unique(),df.index)
                     if read_scan_properties:
                         df['scan_type'] = match_scan_type(scaninfo)
                     dataframes.append(df)
                 else:
                     if verbose:
-                        print('Skipping scan',i)
+                        print('Skipping scan',iscan,
+                              'at',df['datetime'].unique(),df.index)
         else:
             # read all scans
-            i = 0
+            iscan = 0
             while True:
                 try:
                     df,scaninfo = _read_profiler_data_block(
                             f, expected_data_type=data_type,
                             datetime_format=datetime_format,
+                            num_info_lines=num_info_lines,
                             read_scan_properties=read_scan_properties)
                 except (IOError,IndexError):
                     break
                 else:
                     if verbose:
-                        print('Read scan',i)
+                        print('Read scan',iscan,
+                              'at',df['datetime'].unique(),df.index)
                     if read_scan_properties:
                         df['scan_type'] = match_scan_type(scaninfo)
                     dataframes.append(df)
-                    i += 1
+                    iscan += 1
     df = pd.concat(dataframes)
     if na_values is not None:
         nalist = []
