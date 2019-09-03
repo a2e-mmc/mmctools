@@ -6,6 +6,7 @@ Based on https://github.com/NWTC/datatools/blob/master/remote_sensing.py
 import numpy as np
 import pandas as pd
 
+expected_profiler_datatypes=['wind','winds','RASS']
 
 def profiler(fname,scans=None,
         check_na=['SPD','DIR'],na_values=999999,
@@ -136,8 +137,7 @@ def profiler(fname,scans=None,
         df = df.set_index('datetime')
     return df
 
-def _read_profiler_data_block(f, read_scan_properties=False,
-                              expected_datatypes=['WINDS','RASS']):
+def _read_profiler_data_block(f, read_scan_properties=False):
     """Used by radar profiler"""
     # Line 1 (may not be present for subsequent blocks within the same file
     name = f.readline().strip()
@@ -147,7 +147,7 @@ def _read_profiler_data_block(f, read_scan_properties=False,
     # Line 3: WINDS, version
     data_format = f.readline().strip()
     datatype = data_format.split()[0]
-    assert(datatype in expected_datatypes)
+    assert(datatype.lower() in expected_profiler_datatypes)
     # Line 4: lat (N), long (W), elevation (m)
     lat,lon,elev = [float(val) for val in f.readline().split()]
     # Line 5: date
