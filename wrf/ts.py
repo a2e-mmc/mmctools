@@ -87,8 +87,9 @@ class TowerArray(object):
         """Load ncfile(s) if they exist, or generate them using the
         Tower class"""
         self.data = {}
-        for prefix in self.tslist.index:
-            fpath = os.path.join(self.outdir, prefix+'.nc')
+        self.filelist = [ os.path.join(self.outdir, prefix+'.nc')
+                          for prefix in self.tslist.index ]
+        for prefix,fpath in zip(self.tslist.index, self.filelist):
             if os.path.isfile(fpath):
                 if self.verbose: print('Reading',fpath)
                 self.data[prefix] = xr.open_dataset(fpath)
@@ -114,6 +115,23 @@ class TowerArray(object):
             nc.to_netcdf(outfile)
         return nc
 
-        
-
+    def combine(self,cleanup=True):
+        """At the moment, xr.combine_by_coords() is not generally
+        available (at least not from the default conda xarray package,
+        version 0.12.1). As a workaround, xr.open_mfdataset() can
+        accomplish the same thing with an add I/O step.
+        """
+        self.ds = xr.open_mfdataset(self.filelist)
+        if cleanup is True:
+            import gc # garbage collector
+            try:
+                del self.data
+            except AttributeError:
+                pass
+            else:
+                if self.verbose:
+                    print('Cleared data dict from memory')
+            finally:
+                gc.collect()
+        return self.ds
 
