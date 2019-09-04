@@ -19,7 +19,7 @@ class TowerArray(object):
     """Read and store an array of Tower objects sampled from WRF using
     the tslist
     """
-    varnames = ['uu','vv','ww','th','pr','ph']
+    varnames = ['uu','vv','ww','th','pr','ph','ts']
 
     def __init__(self,outdir,casedir,domain,
                  starttime,timestep=10.0,
@@ -82,7 +82,9 @@ class TowerArray(object):
                 assert os.path.isfile(fpath), '{:s} not found'.format(fpath)
         self.tslist.set_index('prefix',inplace=True)
 
-    def load_data(self,heights=None,overwrite=False):
+    def load_data(self,
+                  heights=None,height_var='height',approx_height=True,
+                  overwrite=False):
         """Load ncfile(s) if they exist, or generate them using the
         Tower class
 
@@ -91,6 +93,19 @@ class TowerArray(object):
         heights : array-like or None
             Interpolate to these heights at all times; ignored if data
             are read from disk instead of processed from WRF output.
+        height_var : str
+            If `heights` is not None, this indicates how the height
+            values are determined:
+            - 'height': Tower.height has been loaded; no actions are 
+              performed
+            - 'ph': The tower elevation has been stored in the geo-
+              potential variable; the height (above ground level) will
+              be automatically calculated as Tower.ph - Tower.stationz.
+        approx_height : bool
+            If `heights` is not None, then assume that height is
+            approximately constant in time. This speeds up the
+            interpolation because interpolation does not need to be
+            performed at each time step.
         overwrite : bool
             Generate new data (to be written as nc files).
         """
@@ -105,22 +120,58 @@ class TowerArray(object):
                 if self.verbose: print('Creating',fpath)
                 self.data[prefix] = self._process_tower(prefix,
                                                         heights=heights,
+                                                        height_var=height_var,
+                                                        approx_height=approx_height,
                                                         outfile=fpath)
 
-    def _process_tower(self,prefix,heights=None,outfile=None):
+    def _process_tower(self,prefix,
+                       heights=None,height_var=None,approx_height=True,
+                       outfile=None):
         """Use Tower.to_dataframe() to create a dataframe, to which we
         add tower latitude/longitude. Setting them as indices makes the
         recognizable as coordinates by xarray.
         """
         towerfile = '{:s}.d{:02d}.*'.format(prefix, self.domain)
         fpath = os.path.join(self.towerdir,towerfile)
-        df = Tower(fpath,varlist=self.varnames).to_dataframe(
-                start_time=self.starttime, time_step=self.timestep,
-                heights=heights)
+        # create Tower object
+        tow = Tower(fpath,varlist=self.varnames)
+        # set up height variable if needed
+        if heights is not None:
+            assert (height_var is not None), 'height attribute unknown'
+        if height_var == 'ph':
+            # this creates a time-heightlevel varying height
+            tow.height = getattr(tow,height_var) - tow.stationz
+            if approx_height:
+                mean_height = np.mean(tow.height, axis=0)
+                if self.verbose:
+                    # diagnostics
+                    zmax = np.max(heights)
+                    heights_within_micro_dom = np.ma.masked_array(
+                            tow.height, tow.height > zmax)
+                    stdev0 = np.std(tow.height, axis=0)
+                    kmax0 = np.argmax(stdev0)
+                    stdev = np.std(heights_within_micro_dom, axis=0)
+                    kmax = np.argmax(stdev)
+                    print('max stdev in height at (z~={:g}m) : {:g}'.format(
+                            mean_height[kmax0], stdev0[kmax0]))
+                    print('max stdev in height (up to z={:g} m) at (z~={:g} m) : {:g}'.format(
+                            np.max(heights_within_micro_dom), mean_height[kmax], stdev[kmax]))
+                tow.height[:,:] = mean_height[np.newaxis,:] 
+                for k,hgt in enumerate(mean_height):
+                    assert np.all(tow.height[:,k] == hgt)
+        elif height_var != 'height':
+            raise ValueError('Unexpected height_var='+height_var+'; heights not calculated')
+        # now convert to a dataframe (note that height interpolation
+        # will be (optionally) performed here
+        df = tow.to_dataframe(start_time=self.starttime,
+                              time_step=self.timestep,
+                              heights=heights)
+        # add additional tower data
         towerinfo = self.tslist.loc[prefix]
         df['lat'] = towerinfo['lat']
         df['lon'] = towerinfo['lon']
         df.set_index(['lat','lon'], append=True, inplace=True)
+        # convert to xarray (and save)
         nc = df.to_xarray()
         if outfile is not None:
             nc.to_netcdf(outfile)
