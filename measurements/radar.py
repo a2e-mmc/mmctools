@@ -6,12 +6,16 @@ Based on https://github.com/NWTC/datatools/blob/master/remote_sensing.py
 import numpy as np
 import pandas as pd
 
+expected_profiler_datatypes=['wind','winds','rass']
 
 def profiler(fname,scans=None,
-        check_na=['SPD','DIR'],na_values=999999,
-        height_name='HT',
-        read_scan_properties=False,
-        verbose=False):
+             data_type=None,
+             datetime_format=None,
+             num_info_lines=5,
+             check_na=['SPD','DIR'],na_values=999999,
+             height_name='HT',
+             read_scan_properties=False,
+             verbose=False):
     """Wind Profiler radar with RASS
 
     Users:
@@ -24,6 +28,9 @@ def profiler(fname,scans=None,
     - Winds variables of interest: SPD, DIR(, SNR)
     - RASS variables of interest: T, Tc, W
 
+    Other data may be readable by specifying the `datetime_format` and
+    `num_info_lines` kwargs.
+
     Additional data format reference:
     https://www.esrl.noaa.gov/psd/data/obs/formats/
 
@@ -32,6 +39,18 @@ def profiler(fname,scans=None,
     scans : int, list, or None
         Number of data blocks to read from file; a list of zero-indexed
         scans to read from file; or set to None to read all data
+    data_type : str or None
+        Data-type identifier in second line of each data block, used to
+        override the expected types; if None then check against 
+        `expected_profiler_datatypes` list
+    datetime_format : str or None
+        Datetime format to parse fourth line of each data block; if
+        None, then assume the TTU radar format:
+          YY MM DD HH MM SS
+    num_info_lines : int
+        Number of header lines in between the fourth datetime line and
+        the 'HT  SPD  DIR  ...' header line, presumably containing scan
+        information.
     check_na : list
         Column names from file to check for n/a or nan values
     na_values : values or list of values
@@ -41,7 +60,9 @@ def profiler(fname,scans=None,
         None to return with datetime index only
     read_scan_properties : bool, list, optional
         Read scan properties for each data block if True or an existing
-        scan information list is provided (to be updated)
+        scan information list is provided (to be updated). Note that
+        this has only be implemented for the TTU radar format at the 
+        moment.
     """
     dataframes = []
     if read_scan_properties is True:
@@ -76,35 +97,46 @@ def profiler(fname,scans=None,
                 # specified number of scans
                 scans_to_read = np.arange(scans)
                 scans = scans_to_read
-            for i in scans_to_read:
+            for iscan in scans_to_read:
                 try:
-                    df,scaninfo = _read_profiler_data_block(f,read_scan_properties)
+                    df,scaninfo = _read_profiler_data_block(
+                            f, expected_data_type=data_type,
+                            datetime_format=datetime_format,
+                            num_info_lines=num_info_lines,
+                            read_scan_properties=read_scan_properties)
                 except (IOError,IndexError):
                     break
-                if i in scans:
+                if iscan in scans:
                     if verbose:
-                        print('Adding scan',i)
+                        print('Adding scan',iscan,
+                              'at',df['datetime'].unique(),df.index)
                     if read_scan_properties:
                         df['scan_type'] = match_scan_type(scaninfo)
                     dataframes.append(df)
                 else:
                     if verbose:
-                        print('Skipping scan',i)
+                        print('Skipping scan',iscan,
+                              'at',df['datetime'].unique(),df.index)
         else:
             # read all scans
-            i = 0
+            iscan = 0
             while True:
                 try:
-                    df,scaninfo = _read_profiler_data_block(f,read_scan_properties)
+                    df,scaninfo = _read_profiler_data_block(
+                            f, expected_data_type=data_type,
+                            datetime_format=datetime_format,
+                            num_info_lines=num_info_lines,
+                            read_scan_properties=read_scan_properties)
                 except (IOError,IndexError):
                     break
                 else:
                     if verbose:
-                        print('Read scan',i)
+                        print('Read scan',iscan,
+                              'at',df['datetime'].unique(),df.index)
                     if read_scan_properties:
                         df['scan_type'] = match_scan_type(scaninfo)
                     dataframes.append(df)
-                    i += 1
+                    iscan += 1
     df = pd.concat(dataframes)
     if na_values is not None:
         nalist = []
@@ -136,9 +168,29 @@ def profiler(fname,scans=None,
         df = df.set_index('datetime')
     return df
 
-def _read_profiler_data_block(f, read_scan_properties=False,
-                              expected_datatypes=['WINDS','RASS']):
-    """Used by radar profiler"""
+def _read_profiler_data_block(f,
+                              expected_data_type=None,
+                              datetime_format=None,
+                              num_info_lines=5,
+                              read_scan_properties=False):
+    """Used by radar profiler. This was originally developed to process
+    the TTU radar profiler output (WINDS/RASS).
+
+    General expected data block format, line by line, terminated by the
+    '$' character:
+        1: description
+        2: profiler_datatype version_information
+        3: location_information
+        4: scan_info (line 1)
+        5: scan_info (line 2)
+           ...
+        3+num_info_lines: scan_info (line num_info_lines)
+        header:    HT      SPD      DIR  ...
+           height0  spd0  dir0  ...
+           height1  spd1  dir1  ...
+           ...
+        $
+    """
     # Line 1 (may not be present for subsequent blocks within the same file
     name = f.readline().strip()
     if name == '':
@@ -147,12 +199,35 @@ def _read_profiler_data_block(f, read_scan_properties=False,
     # Line 3: WINDS, version
     data_format = f.readline().strip()
     datatype = data_format.split()[0]
-    assert(datatype in expected_datatypes)
+    if expected_data_type is None:
+        assert datatype.lower() in expected_profiler_datatypes
+    else:
+        assert datatype == expected_data_type
     # Line 4: lat (N), long (W), elevation (m)
-    lat,lon,elev = [float(val) for val in f.readline().split()]
+    #lat,lon,elev = [float(val) for val in f.readline().split()]  # TTU
+    location_info = [float(val) for val in f.readline().split()]
     # Line 5: date
-    Y,m,d,H,M,S,_ = f.readline().split()
-    datetime = pd.to_datetime('20{}{}{} {}{}{}'.format(Y,m,d,H,M,S))
+    #Y,m,d,H,M,S,_ = f.readline().split()  # TTU
+    datetime_info = f.readline().split()
+    if datetime_format is None:
+        try:
+            # TTU data, e.g.: " 13 11 08 00 00 01   0"
+            Y,m,d,H,M,S,_ = datetime_info
+        except ValueError:
+            # not enough values to unpack (expected 7, got ...)
+            raise ValueError('Unexpected header line 4--need to specify datetime_format')
+        else:
+            datetime = pd.to_datetime('20{}{}{} {}{}{}'.format(Y,m,d,H,M,S))
+    else:
+        # more general data, e.g., "2015-08-24    12:00:00     00:00"
+        # - figure out expected string length by evaluating strftime
+        #   with the specified format
+        testdate_str = pd.datetime.strftime(pd.datetime.today(),
+                                            format=datetime_format)
+        # - recombine the split string with spaces (this gets rid of
+        #   repeated spaces)
+        datetime_str = ' '.join(datetime_info)[:len(testdate_str)]
+        datetime = pd.to_datetime(datetime_str,format=datetime_format)
     if read_scan_properties:
         # Line 6: consensus averaging time [min], # beams, # range gates
         cns_avg_time, num_beams, num_ranges = [int(val) for val in f.readline().split()]
@@ -201,11 +276,8 @@ def _read_profiler_data_block(f, read_scan_properties=False,
             beam_azimuth = lineitems[::2] # [deg]
             beam_elevation = lineitems[1::2] # [deg]
     else:
-        f.readline()
-        f.readline()
-        f.readline()
-        f.readline()
-        f.readline()
+        for _ in range(num_info_lines):
+            f.readline()
     # Line 11: Column labels
     header = f.readline().split()
     header = [ col + '.' + str(header[:i].count(col))
