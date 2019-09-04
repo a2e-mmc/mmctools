@@ -279,8 +279,64 @@ class Tower():
                     self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
                     assert (self.ts.shape == (nt,nv))
 
-    #def to_dataframe():
-
+    def to_dataframe(self,
+                     start_time='2013-11-08',time_unit='h',time_step=None,
+                     heights=None,height_var='height',
+                     exclude=['ts']):
+        """Convert tower time-height data into a dataframe.
+        
+        Parameters
+        ----------
+        start_time: str or pd.Timestamp
+            The datetime index is constructed from a pd.TimedeltaIndex
+            plus this start_time, where the timedelta index is formed by
+            the saved time array.
+        time_unit: str
+            Timedelta unit for constructing datetime index, only used if
+            time_step is None.
+        time_step: float or None
+            Time-step size, in seconds, to override the output times in
+            the data files. Used in conjunction with start_time to form
+            the datetime index. May be useful if times in output files
+            do not have sufficient precision.
+        heights : array-like or None
+            If None, then use integer levels for the height index,
+            otherwise interpolate to the same heights at all times.
+        height_var : str
+            Name of attribute with actual height values to form the
+            height index (if heights is not None).
+        exclude : list
+            List of fields to excldue from the output dataframe. By
+            default, the surface time-series data ('ts') are excluded.
+        """
+        # convert varname list to lower case
+        varns0 = [ varn.lower() for varn in self.varns ]
+        # remove excluded vars
+        varns = [ varn for varn in varns0 if not varn in exclude ]
+        # setup index
+        start_time = pd.to_datetime(start_time)
+        if time_step is None:
+            times = start_time + pd.to_timedelta(self.time, unit=time_unit)
+        else:
+            timestep = pd.to_timedelta(time_step, unit='s')
+            endtime = start_time + self.nt*timestep
+            times = pd.date_range(start=start_time+timestep,
+                                  end=endtime,
+                                  periods=self.nt)
+        # combine data
+        if heights is None:
+            # heights will be an integer index
+            z = np.arange(self.nz)
+            columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
+            arraydata = np.concatenate(
+                [ getattr(self,varn) for varn in varns ], axis=1
+            )
+            df = pd.DataFrame(data=arraydata,index=times,columns=columns)
+            return df.stack()
+        else:
+            from scipy.interpolate import interp1d
+            z = np.array(heights)
+            # TODO
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
     '''Convert WRF times to year, month, day, hour'''
