@@ -21,7 +21,7 @@ class TowerArray(object):
     """
     varnames = ['uu','vv','ww','th','pr','ph']
 
-    def __init__(self,outdir,casedir,domain,towersubdir='towers'):
+    def __init__(self,outdir,casedir,domain,towersubdir='towers',verbose=True):
         """Create a TowerArray object from a WRF simulation with tslist
         output
 
@@ -38,6 +38,7 @@ class TowerArray(object):
         towersubdir : str, optional
             Expected name of subdirectory containing the tslist output.
         """
+        self.verbose = verbose # for debugging
         self.outdir = outdir
         self.casedir = casedir
         self.domain = domain
@@ -48,7 +49,7 @@ class TowerArray(object):
         assert os.path.isdir(self.towerdir), \
                 'towers subdirectory not found'
         self._load_tslist()
-        #self._load_data_if_needed()
+        self._load_data()
 
     def __repr__(self):
         return str(self.tslist)
@@ -64,7 +65,36 @@ class TowerArray(object):
                                                                  varname.upper()))
                 assert os.path.isfile(fpath), '{:s} not found'.format(fpath)
 
-    #def _load_data_if_needed(self):
+    def _load_data(self):
+        """Load ncfile(s) if they exist, or generate them using the
+        Tower class"""
+        self.data = {}
+        for prefix in self.tslist['prefix']:
+            fpath = os.path.join(self.outdir, prefix+'.nc')
+            if os.path.isfile(fpath):
+                if self.verbose: print('Reading',fpath)
+                self.data[prefix] = xr.open_dataset(fpath)
+            else:
+                if self.verbose: print('Creating',fpath)
+                self.data[prefix] = self._process_tower(prefix,fpath)
+
+    def _process_tower(self,prefix,outfile=None):
+        """Use Tower.to_dataframe() to create a dataframe, to which we
+        add tower latitude/longitude. Setting them as indices makes the
+        recognizable as coordinates by xarray.
+        """
+        fpath = os.path.join(self.towerdir,'{:s}.d{:02d}.*'.format(prefix,self.domain))
+        df = Tower(fpath,varlist=self.varnames).to_dataframe(start_time=starttime,
+                                                             time_step=dt,
+                                                             heights=None)
+        df['lat'] = self.tslist[prefix]['lat']
+        df['lon'] = self.tslist[prefix]['lon']
+        df.set_index(['lat','lon'], append=True, inplace=True)
+        nc = df.to_xarray()
+        if outfile is not None:
+            nc.to_netcdf(outfile)
+        return nc
+
         
 
 
