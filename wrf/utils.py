@@ -223,24 +223,39 @@ class Tower():
         'th': 'theta', # virtual potential temperature
     }
 
-    def __init__(self,fstr):
+    def __init__(self,fstr,varlist=None):
         """The file-path string should be:
             '[path to towers]/[tower abrv.].d0[domain].*'
         """
         self.time = None
         self.nt = None
         self.nz = None
-        self._getvars(fstr)
+        self._getvars(fstr,requested_varns=varlist)
         self._getdata()
 
-    def _getvars(self,fstr):
-        if not fstr.endswith('*'):
-            fstr += '*'
-        self.filelist = glob.glob(fstr)
-        self.nvars = len(self.filelist)
-        self.varns = []
-        for fpath in self.filelist:
-            self.varns.append(fpath.split('.')[-1])
+    def _getvars(self,fstr,requested_varns=None):
+        if not fstr.endswith('*'): fstr += '*'
+        if requested_varns is None:
+            self.filelist = glob.glob(fstr)
+            self.nvars = len(self.filelist)
+            self.varns = [
+                fpath.split('.')[-1] for fpath in self.filelist
+            ]
+        else:
+            self.filelist = []
+            self.varns = []
+            # convert to uppercase per WRF convention
+            requested_varns = [ varn.upper() for varn in requested_varns ]
+            # check that requested var names were found in the path
+            for varn in requested_varns:
+                files = glob.glob(fstr+varn)
+                if len(files) == 0:
+                    print('requested variable',varn,'not available in file path')
+                else:
+                    assert (len(files)==1), \
+                            'found multiple files for {:s}: {:s}'.format(varn,files)
+                    self.varns.append(varn)
+                    self.filelist.append(files[0])
 
     def _getdata(self): # Get all the data
         for varn,fpath in zip(self.varns, self.filelist):
@@ -346,6 +361,7 @@ class Tower():
             from scipy.interpolate import interp1d
             z = np.array(heights)
             # TODO
+            print('Interpolating to',z,'not implemented yet')
         # standardize names
         df.rename(columns=self.standard_names, inplace=True)
         return df
