@@ -16,6 +16,7 @@ from __future__ import print_function
 import os, glob
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 from datetime import datetime
 import netCDF4
 import xarray
@@ -30,6 +31,12 @@ default_4D_fields = ['U','V','W','T',
                      'RU_TEND','RU_TEND_ADV','RU_TEND_PGF','RU_TEND_COR','RU_TEND_PHYS',
                      'RV_TEND','RV_TEND_ADV','RV_TEND_PGF','RV_TEND_COR','RV_TEND_PHYS',
                      'T_TEND_ADV',]
+
+
+def read_tslist(fpath):
+    return pd.read_csv(fpath,comment='#',delim_whitespace=True,
+                       names=['name','prefix','lat','lon'])
+
 
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
