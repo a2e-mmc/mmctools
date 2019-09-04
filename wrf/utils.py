@@ -269,11 +269,11 @@ class Tower():
                     header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
                     self.longname = header[0]
                     self.abbr     = header[3]
-                    self.lat      = header[4]
-                    self.lon      = header[5]
-                    self.loci     = header[6]
-                    self.locj     = header[7]
-                    self.stationz = header[10]
+                    self.lat      = float(header[4])
+                    self.lon      = float(header[5])
+                    self.loci     = int(header[6])
+                    self.locj     = int(header[7])
+                    self.stationz = float(header[10])
                     # Note: need to look up what tslist outputs to know which
                     # vars are where...
                     self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
