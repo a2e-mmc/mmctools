@@ -58,7 +58,6 @@ class TowerArray(object):
         self.towerdir = os.path.join(casedir, towersubdir)
         self._check_inputs()
         self._load_tslist()
-        self._load_data()
 
     def __repr__(self):
         return str(self.tslist)
@@ -83,21 +82,32 @@ class TowerArray(object):
                 assert os.path.isfile(fpath), '{:s} not found'.format(fpath)
         self.tslist.set_index('prefix',inplace=True)
 
-    def _load_data(self):
+    def load_data(self,heights=None,overwrite=False):
         """Load ncfile(s) if they exist, or generate them using the
-        Tower class"""
+        Tower class
+
+        Parameters
+        ----------
+        heights : array-like or None
+            Interpolate to these heights at all times; ignored if data
+            are read from disk instead of processed from WRF output.
+        overwrite : bool
+            Generate new data (to be written as nc files).
+        """
         self.data = {}
         self.filelist = [ os.path.join(self.outdir, prefix+'.nc')
                           for prefix in self.tslist.index ]
         for prefix,fpath in zip(self.tslist.index, self.filelist):
-            if os.path.isfile(fpath):
+            if os.path.isfile(fpath) and not overwrite:
                 if self.verbose: print('Reading',fpath)
                 self.data[prefix] = xr.open_dataset(fpath)
             else:
                 if self.verbose: print('Creating',fpath)
-                self.data[prefix] = self._process_tower(prefix,fpath)
+                self.data[prefix] = self._process_tower(prefix,
+                                                        heights=heights,
+                                                        outfile=fpath)
 
-    def _process_tower(self,prefix,outfile=None):
+    def _process_tower(self,prefix,heights=None,outfile=None):
         """Use Tower.to_dataframe() to create a dataframe, to which we
         add tower latitude/longitude. Setting them as indices makes the
         recognizable as coordinates by xarray.
@@ -105,7 +115,8 @@ class TowerArray(object):
         towerfile = '{:s}.d{:02d}.*'.format(prefix, self.domain)
         fpath = os.path.join(self.towerdir,towerfile)
         df = Tower(fpath,varlist=self.varnames).to_dataframe(
-                start_time=self.starttime, time_step=self.timestep, heights=None)
+                start_time=self.starttime, time_step=self.timestep,
+                heights=heights)
         towerinfo = self.tslist.loc[prefix]
         df['lat'] = towerinfo['lat']
         df['lon'] = towerinfo['lon']
