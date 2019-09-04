@@ -245,11 +245,9 @@ class Tower():
                 # Open again for reading
                 with open(fpath) as f:
                     self.header = f.readline().split() # Header information
-                    for tt,line in enumerate(f.readlines()):
-                        line = line.split() # reading one profile
-                        times[tt] = line[0] # First element is time
-                        var[tt,:] = line[1:]
-                self.time = times # time
+                    data = pd.read_csv(f,delim_whitespace=True,header=None).values
+                self.time = data[:,0]
+                var = data[:,1:]
                 self.nt = nt # Number of times
                 self.nz = nz # Number of heights
                 setattr(self, varn.lower(), var)
@@ -267,11 +265,11 @@ class Tower():
                     self.loci     = header[6]
                     self.locj     = header[7]
                     self.stationz = header[10]
-                    for tt,line in enumerate(f.readlines()): # Loop over all times
-                        line = line.split() # One time, all surface variables
-                        var[tt,:] = line[2:]
-                self.ts = var # Need to look up what tslist outputs to know which
-                              # vars are where...
+                    # Note: need to look up what tslist outputs to know which
+                    # vars are where...
+                    self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
+
+    #def to_dataframe():
 
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
