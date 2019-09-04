@@ -322,7 +322,9 @@ class Tower():
             otherwise interpolate to the same heights at all times.
         height_var : str
             Name of attribute with actual height values to form the
-            height index (if heights is not None).
+            height index. If heights is None, then this must match the
+            number of height levels; otherwise, this may be constant
+            or variable in time.
         exclude : list
             List of fields to excldue from the output dataframe. By
             default, the surface time-series data ('ts') are excluded.
@@ -345,8 +347,14 @@ class Tower():
                                   name='datetime')
         # combine data
         if heights is None:
-            # heights will be an integer index
-            z = np.arange(self.nz)
+            if hasattr(self, height_var):
+                # heights (constant in time) were separately calculated
+                z = getattr(self, height_var)
+                assert (len(z.shape) == 1) and (len(z) == self.nz), \
+                        'tower '+height_var+' attribute should correspond to fixed height levels'
+            else:
+                # heights will be an integer index
+                z = np.arange(self.nz)
             columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
             arraydata = np.concatenate(
                 [ getattr(self,varn) for varn in varns ], axis=1
