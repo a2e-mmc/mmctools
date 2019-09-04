@@ -36,10 +36,16 @@ class TowerArray(object):
         """
         self.casedir = casedir
         self.outdir = outdir
+        self.tslistpath = os.path.join(casedir,'tslist')
         self.towerdir = os.path.join(casedir, towersubdir)
-        assert os.path.isfile(os.path.join(casedir,'tslist')), \
+        assert os.path.isfile(self.tslistpath), \
                 'tslist not found in WRF case directory'
         assert os.path.isdir(self.towerdir), \
                 'towers subdirectory not found'
+        self.tslist = read_tslist(self.tslistpath)
+
+    def __repr__(self):
+        return str(self.tslist)
+
 
 
