@@ -33,11 +33,6 @@ default_4D_fields = ['U','V','W','T',
                      'T_TEND_ADV',]
 
 
-def read_tslist(fpath):
-    return pd.read_csv(fpath,comment='#',delim_whitespace=True,
-                       names=['name','prefix','lat','lon'])
-
-
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
     and xarray
