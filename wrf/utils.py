@@ -219,6 +219,9 @@ class Tower():
         """The file-path string should be:
             '[path to towers]/[tower abrv.].d0[domain].*'
         """
+        self.time = None
+        self.nt = None
+        self.nz = None
         self._getvars(fstr)
         self._getdata()
 
@@ -236,26 +239,32 @@ class Tower():
             # Get number of times,heights
             with open(fpath) as f:
                 for nt,line in enumerate(f.readlines()): pass
-            times = np.zeros((nt,))
 
             # Read profile data
             if varn != 'TS': # TS is different structure...
                 nz = len(line.split()) - 1
-                var = np.zeros((nt,nz))
                 # Open again for reading
                 with open(fpath) as f:
                     self.header = f.readline().split() # Header information
                     data = pd.read_csv(f,delim_whitespace=True,header=None).values
-                self.time = data[:,0]
                 var = data[:,1:]
-                self.nt = nt # Number of times
-                self.nz = nz # Number of heights
                 setattr(self, varn.lower(), var)
+                if self.time is None:
+                    self.time = data[:,0]
+                else:
+                    assert np.all(self.time == data[:,0]), 'tower data at different times'
+                if self.nt is None:
+                    self.nt = nt # Number of times
+                else:
+                    assert (self.nt == nt), 'tower data has different number of times'
+                if self.nz is None:
+                    self.nz = nz # Number of heights
+                else:
+                    assert (self.nz == nz), 'tower data has different number of heights'
 
             # Read surface variables (no height component)
             elif varn == 'TS':
                 nv = len(line.split()) - 2
-                var = np.zeros((nt,nv))
                 with open(fpath) as f:
                     header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
                     self.longname = header[0]
@@ -268,6 +277,7 @@ class Tower():
                     # Note: need to look up what tslist outputs to know which
                     # vars are where...
                     self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
+                    assert (self.ts.shape == (nt,nv))
 
     #def to_dataframe():
 
