@@ -215,6 +215,14 @@ class Tower():
     ''' 
     Tower class: put tower data into an object variable
     '''
+
+    standard_names = {
+        'uu': 'u',
+        'vv': 'v',
+        'ww': 'w',
+        'th': 'theta', # virtual potential temperature
+    }
+
     def __init__(self,fstr):
         """The file-path string should be:
             '[path to towers]/[tower abrv.].d0[domain].*'
@@ -317,12 +325,14 @@ class Tower():
         start_time = pd.to_datetime(start_time)
         if time_step is None:
             times = start_time + pd.to_timedelta(self.time, unit=time_unit)
+            times.name = 'datetime'
         else:
             timestep = pd.to_timedelta(time_step, unit='s')
             endtime = start_time + self.nt*timestep
             times = pd.date_range(start=start_time+timestep,
                                   end=endtime,
-                                  periods=self.nt)
+                                  periods=self.nt,
+                                  name='datetime')
         # combine data
         if heights is None:
             # heights will be an integer index
@@ -331,12 +341,14 @@ class Tower():
             arraydata = np.concatenate(
                 [ getattr(self,varn) for varn in varns ], axis=1
             )
-            df = pd.DataFrame(data=arraydata,index=times,columns=columns)
-            return df.stack()
+            df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
         else:
             from scipy.interpolate import interp1d
             z = np.array(heights)
             # TODO
+        # standardize names
+        df.rename(columns=self.standard_names, inplace=True)
+        return df
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
     '''Convert WRF times to year, month, day, hour'''
