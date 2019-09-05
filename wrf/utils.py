@@ -284,14 +284,23 @@ class Tower():
             elif varn == 'TS':
                 nv = len(line.split()) - 2
                 with open(fpath) as f:
-                    header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
-                    self.longname = header[0]
-                    self.abbr     = header[3]
-                    self.lat      = float(header[4])
-                    self.lon      = float(header[5])
-                    self.loci     = int(header[6])
-                    self.locj     = int(header[7])
-                    self.stationz = float(header[10])
+                    # Fortran formatted output creates problems when the
+                    #   time-series id is 3 digits long and blends with the
+                    #   domain number...
+                    # FMT='(A26,I2,I3,A6,A2,F7.3,A1,F8.3,A3,I4,A1,I4,A3,F7.3,A1,F8.3,A2,F6.1,A7)')
+                    # idx:  0   26 28 31 37,  39,46,  47,55,58,62,63,67,  70,77,  78,86,  88,94
+                    header = f.readline()
+                    self.longname = header[:26].strip()
+                    self.domain   = int(header[26:28])
+                    self.tsid     = int(header[28:31])
+                    self.abbr     = header[31:37].strip()
+                    self.lat      = float(header[39:46])
+                    self.lon      = float(header[47:55])
+                    self.loci     = int(header[58:62])
+                    self.locj     = int(header[63:67])
+                    self.gridlat  = float(header[70:77])
+                    self.gridlon  = float(header[78:86])
+                    self.stationz = float(header[88:94])
                     # Note: need to look up what tslist outputs to know which
                     # vars are where...
                     self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
