@@ -5,6 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 import xarray as xr
+import time
 
 from .utils import Tower
 
@@ -133,9 +134,12 @@ class TowerArray(object):
         """
         towerfile = '{:s}.d{:02d}.*'.format(prefix, self.domain)
         fpath = os.path.join(self.towerdir,towerfile)
+
         # create Tower object
+        totaltime0 = time.time()
         tow = Tower(fpath,varlist=self.varnames)
         excludelist = ['ts'] # skip surface data
+
         # set up height variable if needed
         if heights is not None:
             assert (height_var is not None), 'height attribute unknown'
@@ -162,21 +166,34 @@ class TowerArray(object):
                 tow.height = mean_height
         elif height_var != 'height':
             raise ValueError('Unexpected height_var='+height_var+'; heights not calculated')
+
         # now convert to a dataframe (note that height interpolation
         # will be (optionally) performed here
+        time0 = time.time()
         df = tow.to_dataframe(start_time=self.starttime,
                               time_step=self.timestep,
                               heights=heights,
                               exclude=excludelist)
+        time1 = time.time()
+        if self.verbose: print('  to_dataframe() time = {:g}s'.format(time1-time0))
+
         # add additional tower data
         towerinfo = self.tslist.loc[prefix]
         df['lat'] = towerinfo['lat']
         df['lon'] = towerinfo['lon']
         df.set_index(['lat','lon'], append=True, inplace=True)
+
         # convert to xarray (and save)
+        time0 = time.time()
         nc = df.to_xarray()
+        time1 = time.time()
+        if self.verbose: print('  to_xarray() time = {:g}s'.format(time1-time0))
         if outfile is not None:
             nc.to_netcdf(outfile)
+        totaltime1 = time.time()
+        if self.verbose:
+            print('  xarray output time = {:g}s'.format(totaltime1-time1))
+            print('  TOTAL time = {:g}s'.format(totaltime1-totaltime0))
         return nc
 
     def combine(self,cleanup=True):
