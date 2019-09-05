@@ -32,6 +32,7 @@ def read_tslist(fpath,snap_to_grid=None,grid_order='F',max_shift=1e-3):
     df = pd.read_csv(fpath,comment='#',delim_whitespace=True,
                      names=['name','prefix','lat','lon'])
     if snap_to_grid is not None:
+        print('Attemping to adjust grid lat/lon')
         assert (len(snap_to_grid) == 2), 'snap_to_grid should be (Nlat,Nlon)'
         Nlat,Nlon = snap_to_grid
         # original center of sampling grid
@@ -43,7 +44,7 @@ def read_tslist(fpath,snap_to_grid=None,grid_order='F',max_shift=1e-3):
         # calculate 1-d lat/lon vectors from average spacing
         delta_lat = np.mean(np.diff(lat, axis=0))
         delta_lon = np.mean(np.diff(lon, axis=1))
-        print('lat/lon spacings:',delta_lat,delta_lon)
+        print('  lat/lon spacings:',delta_lat,delta_lon)
         new_lat1 = np.linspace(lat[0,0], lat[0,0]+(Nlat-1)*delta_lat, Nlat)
         new_lon1 = np.linspace(lon[0,0], lon[0,0]+(Nlon-1)*delta_lon, Nlon)
         # calculate new lat/lon grid
@@ -55,7 +56,7 @@ def read_tslist(fpath,snap_to_grid=None,grid_order='F',max_shift=1e-3):
         lat_shift = lat0 - new_lat0
         lon_shift = lon0 - new_lon0
         if (np.abs(lat_shift) < max_shift) and (np.abs(lon_shift) < max_shift):
-            print('shifting lat/lon grid by ({:g}, {:g})'.format(lat_shift, lon_shift))
+            print('  shifting lat/lon grid by ({:g}, {:g})'.format(lat_shift, lon_shift))
             new_lat += lat_shift
             new_lon += lon_shift
             new_lat = new_lat.ravel(order=grid_order)
@@ -67,6 +68,9 @@ def read_tslist(fpath,snap_to_grid=None,grid_order='F',max_shift=1e-3):
             # now update the df
             df['lat'] = new_lat
             df['lon'] = new_lon
+        else:
+            print('  grid NOT shifted, delta lat/lon ({:g}, {:g}) > {:g}'.format(
+                    lat_shift, lon_shift, max_shift))
     return df
 
 
@@ -79,7 +83,6 @@ class TowerArray(object):
     def __init__(self,outdir,casedir,domain,
                  starttime,timestep=10.0,
                  towersubdir='towers',
-                 snap_to_grid=None,
                  verbose=True,
                  **tslist_args):
         """Create a TowerArray object from a WRF simulation with tslist
@@ -117,7 +120,7 @@ class TowerArray(object):
         self.tslistpath = os.path.join(casedir,'tslist')
         self.towerdir = os.path.join(casedir, towersubdir)
         self._check_inputs()
-        self._load_tslist()
+        self._load_tslist(**tslist_args)
 
     def __repr__(self):
         return str(self.tslist)
@@ -130,8 +133,8 @@ class TowerArray(object):
         assert os.path.isdir(self.towerdir), \
                 'towers subdirectory not found'
 
-    def _load_tslist(self):
-        self.tslist = read_tslist(self.tslistpath)
+    def _load_tslist(self,**kwargs):
+        self.tslist = read_tslist(self.tslistpath, **kwargs)
         # check availability of all towers
         for prefix in self.tslist['prefix']:
             for varname in self.varnames:
