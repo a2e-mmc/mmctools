@@ -346,6 +346,9 @@ class Tower():
                                   periods=self.nt,
                                   name='datetime')
         # combine data
+        arraydata = np.concatenate(
+            [ getattr(self,varn) for varn in varns ], axis=1
+        )
         if heights is None:
             if hasattr(self, height_var):
                 # heights (constant in time) were separately calculated
@@ -356,15 +359,29 @@ class Tower():
                 # heights will be an integer index
                 z = np.arange(self.nz)
             columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
-            arraydata = np.concatenate(
-                [ getattr(self,varn) for varn in varns ], axis=1
-            )
             df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
         else:
             from scipy.interpolate import interp1d
             z = np.array(heights)
-            # TODO
-            print('Interpolating to',z,'not implemented yet')
+            zt = getattr(self, height_var)
+            if len(zt.shape) == 1:
+                # approx constant height (with time)
+                assert len(zt) == self.nz
+                columns = pd.MultiIndex.from_product([varns,zt],names=[None,'height'])
+                df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
+                # now unstack the times to get a height index
+                unstacked = df.unstack(level=0)
+                interpfun = interp1d(unstacked.index, unstacked.values, axis=0,
+                                     bounds_error=False,
+                                     fill_value='extrapolate')
+                interpdata = interpfun(z)
+                unstacked = pd.DataFrame(data=interpdata,
+                                         index=z, columns=unstacked.columns)
+                unstacked.index.name = 'height'
+                df = unstacked.stack().reset_index().set_index(['datetime','height'])
+            else:
+                # interpolate for all times
+                print('Interpolating to',z,' for all times not implemented yet')
         # standardize names
         df.rename(columns=self.standard_names, inplace=True)
         return df
