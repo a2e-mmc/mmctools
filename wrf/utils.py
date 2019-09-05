@@ -354,7 +354,9 @@ class Tower():
                                   end=endtime,
                                   periods=self.nt,
                                   name='datetime')
-        # combine data
+        # combine (and interpolate) time-height data
+        # - note 1: self.[varn].shape == self.height.shape == (self.nt, self.nz)
+        # - note 2: arraydata.shape == (self.nt, len(varns)*self.nz)
         arraydata = np.concatenate(
             [ getattr(self,varn) for varn in varns ], axis=1
         )
@@ -374,7 +376,7 @@ class Tower():
             z = np.array(heights)
             zt = getattr(self, height_var)
             if len(zt.shape) == 1:
-                # approx constant height (with time)
+                # approximately constant height (with time)
                 assert len(zt) == self.nz
                 columns = pd.MultiIndex.from_product([varns,zt],names=[None,'height'])
                 df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
@@ -390,7 +392,24 @@ class Tower():
                 df = unstacked.stack().reorder_levels(order=['datetime','height']).sort_index()
             else:
                 # interpolate for all times
-                print('Interpolating to',z,' for all times not implemented yet')
+                assert zt.shape == (self.nt, self.nz), \
+                        'heights should correspond to time-height indices'
+                nvarns = len(varns)
+                newarraydatalist = []
+                for varn in varns:
+                    newarraydata = np.empty((self.nt, len(z)))
+                    curfield = getattr(self,varn)
+                    for itime in range(self.nt):
+                        interpfun = interp1d(zt[itime,:], curfield[itime,:],
+                                             bounds_error=False,
+                                             fill_value='extrapolate')
+                        newarraydata[itime,:] = interpfun(z)
+                    newarraydatalist.append(newarraydata)
+                newarraydata = np.concatenate(newarraydatalist, axis=1)
+                columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
+                unstacked = pd.DataFrame(data=newarraydata,index=times,columns=columns)
+                df = unstacked.stack()
+
         # standardize names
         df.rename(columns=self.standard_names, inplace=True)
         return df
