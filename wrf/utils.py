@@ -414,6 +414,7 @@ class Tower():
         df.rename(columns=self.standard_names, inplace=True)
         return df
 
+
 def wrf_times_to_hours(wrfdata,timename='Times'):
     '''Convert WRF times to year, month, day, hour'''
     nt = np.shape(wrfdata.variables['Times'][:])[0]

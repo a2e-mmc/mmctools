@@ -10,10 +10,64 @@ import time
 from .utils import Tower
 
 
-def read_tslist(fpath):
-    """Read the description of sampling locations"""
-    return pd.read_csv(fpath,comment='#',delim_whitespace=True,
-                       names=['name','prefix','lat','lon'])
+def read_tslist(fpath,snap_to_grid=None,grid_order='F',max_shift=1e-3):
+    """Read the description of sampling locations
+
+    Parameters
+    ----------
+    fpath : str
+        Path to tslist file
+    snap_to_grid : list or tuple, or None
+        If not None, then adjust the lat/lon coordinates so that they
+        lie on a regular grid with shape (Nlat, Nlon). Assume that the
+        sampling locations are regularly ordered.
+    grid_order : str
+        Either 'F' or 'C' for Fortran (axis=0 changes fastest) and C
+        ordering (axis=-1 changes fastest), respectively.
+    max_shift : float
+        If snap_to_grid is True, then this is the maximum amount (in
+        degrees) that a tower location will change in latitude or
+        longitude.
+    """
+    df = pd.read_csv(fpath,comment='#',delim_whitespace=True,
+                     names=['name','prefix','lat','lon'])
+    if snap_to_grid is not None:
+        assert (len(snap_to_grid) == 2), 'snap_to_grid should be (Nlat,Nlon)'
+        Nlat,Nlon = snap_to_grid
+        # original center of sampling grid
+        lat0 = df['lat'].mean()
+        lon0 = df['lon'].mean()
+        # lat/lon have correspond to the first and second dims, respectively
+        lat = np.reshape(df['lat'].values, snap_to_grid, order=grid_order)
+        lon = np.reshape(df['lon'].values, snap_to_grid, order=grid_order)
+        # calculate 1-d lat/lon vectors from average spacing
+        delta_lat = np.mean(np.diff(lat, axis=0))
+        delta_lon = np.mean(np.diff(lon, axis=1))
+        print('lat/lon spacings:',delta_lat,delta_lon)
+        new_lat1 = np.linspace(lat[0,0], lat[0,0]+(Nlat-1)*delta_lat, Nlat)
+        new_lon1 = np.linspace(lon[0,0], lon[0,0]+(Nlon-1)*delta_lon, Nlon)
+        # calculate new lat/lon grid
+        new_lat, new_lon = np.meshgrid(new_lat1, new_lon1, indexing='ij')
+        # calculate new center
+        new_lat0 = np.mean(new_lat1)
+        new_lon0 = np.mean(new_lon1)
+        # shift
+        lat_shift = lat0 - new_lat0
+        lon_shift = lon0 - new_lon0
+        if (np.abs(lat_shift) < max_shift) and (np.abs(lon_shift) < max_shift):
+            print('shifting lat/lon grid by ({:g}, {:g})'.format(lat_shift, lon_shift))
+            new_lat += lat_shift
+            new_lon += lon_shift
+            new_lat = new_lat.ravel(order=grid_order)
+            new_lon = new_lon.ravel(order=grid_order)
+            # one last sanity check, to make sure we didn't screw up
+            #   anything during renumbering
+            assert np.all(np.abs(new_lat - df['lat']) < max_shift)
+            assert np.all(np.abs(new_lon - df['lon']) < max_shift)
+            # now update the df
+            df['lat'] = new_lat
+            df['lon'] = new_lon
+    return df
 
 
 class TowerArray(object):
@@ -25,7 +79,9 @@ class TowerArray(object):
     def __init__(self,outdir,casedir,domain,
                  starttime,timestep=10.0,
                  towersubdir='towers',
-                 verbose=True):
+                 snap_to_grid=None,
+                 verbose=True,
+                 **tslist_args):
         """Create a TowerArray object from a WRF simulation with tslist
         output
 
@@ -48,6 +104,9 @@ class TowerArray(object):
             WRF domain to use (domain >= 1)
         towersubdir : str, optional
             Expected name of subdirectory containing the tslist output.
+        tslist_args : optional
+            Keyword arguments passed to read_tslist, e.g., `snap_to_grid`
+            to enforce a regular lat/lon grid.
         """
         self.verbose = verbose # for debugging
         self.outdir = outdir
@@ -181,6 +240,8 @@ class TowerArray(object):
         towerinfo = self.tslist.loc[prefix]
         df['lat'] = towerinfo['lat']
         df['lon'] = towerinfo['lon']
+        if self.verbose:
+            print('  tower lat/lon:',str(towerinfo[['lat','lon']].values))
         df.set_index(['lat','lon'], append=True, inplace=True)
 
         # convert to xarray (and save)
