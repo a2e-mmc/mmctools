@@ -387,7 +387,7 @@ class Tower():
                 unstacked = pd.DataFrame(data=interpdata,
                                          index=z, columns=unstacked.columns)
                 unstacked.index.name = 'height'
-                df = unstacked.stack().reset_index().set_index(['datetime','height'])
+                df = unstacked.stack().reorder_levels(order=['datetime','height']).sort_index()
             else:
                 # interpolate for all times
                 print('Interpolating to',z,' for all times not implemented yet')
