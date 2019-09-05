@@ -147,17 +147,18 @@ class TowerArray(object):
                 mean_height = np.mean(tow.height, axis=0)
                 if self.verbose:
                     # diagnostics
-                    zmax = np.max(heights)
-                    heights_within_micro_dom = np.ma.masked_array(
-                            tow.height, tow.height > zmax)
                     stdev0 = np.std(tow.height, axis=0)
                     kmax0 = np.argmax(stdev0)
-                    stdev = np.std(heights_within_micro_dom, axis=0)
-                    kmax = np.argmax(stdev)
                     print('  max stdev in height at (z~={:g}m) : {:g}'.format(
                             mean_height[kmax0], stdev0[kmax0]))
-                    print('  max stdev in height (up to z={:g} m) at (z~={:g} m) : {:g}'.format(
-                            np.max(heights_within_micro_dom), mean_height[kmax], stdev[kmax]))
+                    if heights is not None:
+                        zmax = np.max(heights)
+                        heights_within_micro_dom = np.ma.masked_array(
+                                tow.height, tow.height > zmax)
+                        stdev = np.std(heights_within_micro_dom, axis=0)
+                        kmax = np.argmax(stdev)
+                        print('  max stdev in height (up to z={:g} m) at (z~={:g} m) : {:g}'.format(
+                                np.max(heights_within_micro_dom), mean_height[kmax], stdev[kmax]))
                 tow.height = mean_height
         elif height_var != 'height':
             raise ValueError('Unexpected height_var='+height_var+'; heights not calculated')
