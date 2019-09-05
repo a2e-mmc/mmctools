@@ -284,14 +284,23 @@ class Tower():
             elif varn == 'TS':
                 nv = len(line.split()) - 2
                 with open(fpath) as f:
-                    header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
-                    self.longname = header[0]
-                    self.abbr     = header[3]
-                    self.lat      = float(header[4])
-                    self.lon      = float(header[5])
-                    self.loci     = int(header[6])
-                    self.locj     = int(header[7])
-                    self.stationz = float(header[10])
+                    # Fortran formatted output creates problems when the
+                    #   time-series id is 3 digits long and blends with the
+                    #   domain number...
+                    # FMT='(A26,I2,I3,A6,A2,F7.3,A1,F8.3,A3,I4,A1,I4,A3,F7.3,A1,F8.3,A2,F6.1,A7)')
+                    # idx:  0   26 28 31 37,  39,46,  47,55,58,62,63,67,  70,77,  78,86,  88,94
+                    header = f.readline()
+                    self.longname = header[:26].strip()
+                    self.domain   = int(header[26:28])
+                    self.tsid     = int(header[28:31])
+                    self.abbr     = header[31:37].strip()
+                    self.lat      = float(header[39:46])
+                    self.lon      = float(header[47:55])
+                    self.loci     = int(header[58:62])
+                    self.locj     = int(header[63:67])
+                    self.gridlat  = float(header[70:77])
+                    self.gridlon  = float(header[78:86])
+                    self.stationz = float(header[88:94])
                     # Note: need to look up what tslist outputs to know which
                     # vars are where...
                     self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
@@ -322,7 +331,9 @@ class Tower():
             otherwise interpolate to the same heights at all times.
         height_var : str
             Name of attribute with actual height values to form the
-            height index (if heights is not None).
+            height index. If heights is None, then this must match the
+            number of height levels; otherwise, this may be constant
+            or variable in time.
         exclude : list
             List of fields to excldue from the output dataframe. By
             default, the surface time-series data ('ts') are excluded.
@@ -344,19 +355,42 @@ class Tower():
                                   periods=self.nt,
                                   name='datetime')
         # combine data
+        arraydata = np.concatenate(
+            [ getattr(self,varn) for varn in varns ], axis=1
+        )
         if heights is None:
-            # heights will be an integer index
-            z = np.arange(self.nz)
+            if hasattr(self, height_var):
+                # heights (constant in time) were separately calculated
+                z = getattr(self, height_var)
+                assert (len(z.shape) == 1) and (len(z) == self.nz), \
+                        'tower '+height_var+' attribute should correspond to fixed height levels'
+            else:
+                # heights will be an integer index
+                z = np.arange(self.nz)
             columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
-            arraydata = np.concatenate(
-                [ getattr(self,varn) for varn in varns ], axis=1
-            )
             df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
         else:
             from scipy.interpolate import interp1d
             z = np.array(heights)
-            # TODO
-            print('Interpolating to',z,'not implemented yet')
+            zt = getattr(self, height_var)
+            if len(zt.shape) == 1:
+                # approx constant height (with time)
+                assert len(zt) == self.nz
+                columns = pd.MultiIndex.from_product([varns,zt],names=[None,'height'])
+                df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
+                # now unstack the times to get a height index
+                unstacked = df.unstack(level=0)
+                interpfun = interp1d(unstacked.index, unstacked.values, axis=0,
+                                     bounds_error=False,
+                                     fill_value='extrapolate')
+                interpdata = interpfun(z)
+                unstacked = pd.DataFrame(data=interpdata,
+                                         index=z, columns=unstacked.columns)
+                unstacked.index.name = 'height'
+                df = unstacked.stack().reset_index().set_index(['datetime','height'])
+            else:
+                # interpolate for all times
+                print('Interpolating to',z,' for all times not implemented yet')
         # standardize names
         df.rename(columns=self.standard_names, inplace=True)
         return df

@@ -135,12 +135,14 @@ class TowerArray(object):
         fpath = os.path.join(self.towerdir,towerfile)
         # create Tower object
         tow = Tower(fpath,varlist=self.varnames)
+        excludelist = ['ts'] # skip surface data
         # set up height variable if needed
         if heights is not None:
             assert (height_var is not None), 'height attribute unknown'
         if height_var == 'ph':
             # this creates a time-heightlevel varying height
             tow.height = getattr(tow,height_var) - tow.stationz
+            excludelist += [height_var]
             if approx_height:
                 mean_height = np.mean(tow.height, axis=0)
                 if self.verbose:
@@ -152,20 +154,19 @@ class TowerArray(object):
                     kmax0 = np.argmax(stdev0)
                     stdev = np.std(heights_within_micro_dom, axis=0)
                     kmax = np.argmax(stdev)
-                    print('max stdev in height at (z~={:g}m) : {:g}'.format(
+                    print('  max stdev in height at (z~={:g}m) : {:g}'.format(
                             mean_height[kmax0], stdev0[kmax0]))
-                    print('max stdev in height (up to z={:g} m) at (z~={:g} m) : {:g}'.format(
+                    print('  max stdev in height (up to z={:g} m) at (z~={:g} m) : {:g}'.format(
                             np.max(heights_within_micro_dom), mean_height[kmax], stdev[kmax]))
-                tow.height[:,:] = mean_height[np.newaxis,:] 
-                for k,hgt in enumerate(mean_height):
-                    assert np.all(tow.height[:,k] == hgt)
+                tow.height = mean_height
         elif height_var != 'height':
             raise ValueError('Unexpected height_var='+height_var+'; heights not calculated')
         # now convert to a dataframe (note that height interpolation
         # will be (optionally) performed here
         df = tow.to_dataframe(start_time=self.starttime,
                               time_step=self.timestep,
-                              heights=heights)
+                              heights=heights,
+                              exclude=excludelist)
         # add additional tower data
         towerinfo = self.tslist.loc[prefix]
         df['lat'] = towerinfo['lat']
@@ -178,7 +179,9 @@ class TowerArray(object):
         return nc
 
     def combine(self,cleanup=True):
-        """At the moment, xr.combine_by_coords() is not generally
+        """Create combined volume data (excluding surface data).
+        
+        At the moment, xr.combine_by_coords() is not generally
         available (at least not from the default conda xarray package,
         version 0.12.1). As a workaround, xr.open_mfdataset() can
         accomplish the same thing with an add I/O step.
