@@ -247,28 +247,37 @@ class TowerArray(object):
             print('  tower lat/lon:',str(towerinfo[['lat','lon']].values))
         df.set_index(['lat','lon'], append=True, inplace=True)
 
-        # convert to xarray (and save)
+        # convert to xarray
         time0 = time.time()
-        nc = df.to_xarray()
+        ds = df.to_xarray()
         time1 = time.time()
         if self.verbose: print('  to_xarray() time = {:g}s'.format(time1-time0))
+
+        # save
+        time0 = time.time()
         if outfile is not None:
-            nc.to_netcdf(outfile)
+            ds.to_netcdf(outfile)
         totaltime1 = time.time()
         if self.verbose:
-            print('  xarray output time = {:g}s'.format(totaltime1-time1))
+            print('  xarray output time = {:g}s'.format(totaltime1-time0))
             print('  TOTAL time = {:g}s'.format(totaltime1-totaltime0))
-        return nc
+        return ds
 
-    def combine(self,cleanup=True):
-        """Create combined volume data (excluding surface data).
-        
-        At the moment, xr.combine_by_coords() is not generally
-        available (at least not from the default conda xarray package,
-        version 0.12.1). As a workaround, xr.open_mfdataset() can
-        accomplish the same thing with an add I/O step.
+    def combine(self,cleanup=False):
+        """Create volume data (excluding surface data) by combining
+        lat/lon coordinates across all datasets. Tested for data on a
+        regular grid.
+
+        Notes:
+        - This has a _very_ large memory overhead, i.e., need enough
+          memory to store and manipulate all of the tower data
+          simultaneously, otherwise it may hang.
+        - xarray.combine_by_coords fails with a cryptic "the supplied
+          objects do not form a hypercube" message if the lat/lon values
+          do not form a regular grid
         """
-        self.ds = xr.open_mfdataset(self.filelist)
+        datalist = [ data for key,data in self.data.items() ]
+        self.ds = xr.combine_by_coords(datalist)
         if cleanup is True:
             import gc # garbage collector
             try:
