@@ -186,6 +186,22 @@ class TowerArray(object):
                                                         height_var=height_var,
                                                         approx_height=approx_height,
                                                         outfile=fpath)
+    
+    def load_combined_data(self,fpath,chunks=None):
+        """Load data generated with combine() to avoid having to reload
+        the combined dataset. The `chunks` kwarg may be used to load the
+        dataset with dask. Tips:
+        http://xarray.pydata.org/en/stable/dask.html#chunking-and-performance
+
+        Parameters
+        ----------
+        chunks : int or dict, optional
+            If chunks is provided, it used to load the new dataset into dask
+            arrays. ``chunks={}`` loads the dataset with dask using a single
+            chunk for all arrays.
+        """
+        self.ds = xr.open_dataset(fpath, chunks=chunks)
+        return self.ds
 
     def _process_tower(self,prefix,
                        heights=None,height_var=None,approx_height=True,
