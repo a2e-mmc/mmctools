@@ -10,7 +10,9 @@ import time
 from .utils import Tower
 
 
-def read_tslist(fpath,snap_to_grid=None,grid_order='F',max_shift=1e-3):
+def read_tslist(fpath,
+                snap_to_grid=None,grid_order='F',max_shift=1e-3,
+                convert_to_xy=None, latlon_ref=(0,0)):
     """Read the description of sampling locations
 
     Parameters
@@ -28,6 +30,12 @@ def read_tslist(fpath,snap_to_grid=None,grid_order='F',max_shift=1e-3):
         If snap_to_grid is True, then this is the maximum amount (in
         degrees) that a tower location will change in latitude or
         longitude.
+    convert_to_xy : str or None
+        Mapping to use for converting from lat/lon to x/y coordinates.
+        If None, x and y are not calculated
+    latlon_ref : list or tuple
+        Latitude and longitude to use as a reference to determine the
+        zone number and relative distances x,y.
     """
     df = pd.read_csv(fpath,comment='#',delim_whitespace=True,
                      names=['name','prefix','lat','lon'])
@@ -71,6 +79,16 @@ def read_tslist(fpath,snap_to_grid=None,grid_order='F',max_shift=1e-3):
         else:
             print('  grid NOT shifted, delta lat/lon ({:g}, {:g}) > {:g}'.format(
                     lat_shift, lon_shift, max_shift))
+        if convert_to_xy == 'utm':
+            import utm
+            x0,y0,zone0,_ = utm.from_latlon(*latlon_ref)
+            for prefix,row in df.iterrows():
+                x,y,_,_ = utm.from_latlon(row['lat'], row['lon'],
+                                          force_zone_number=zone0)
+                df.loc[prefix,'x'] = x - x0
+                df.loc[prefix,'y'] = y - y0
+        elif convert_to_xy is not None:
+            print('Unrecognized mapping:',convert_to_xy)
     return df
 
 
