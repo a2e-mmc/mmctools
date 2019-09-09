@@ -86,14 +86,10 @@ class MMCData():
         self.dataSetLength = 0
         data = []
         while True:
-            #line = f.readline()
-            #if line == '':
-            #    break
             recordheader = read_ascii_recordheader(f);
-            if(not bool(recordheader)):
+            if (len(recordheader)==0) or (recordheader is None): #is recordheader={} or Null value? if so break, otherwise read a record
                 break
             else:  
-                #print(recordheader)
                 recordarray = read_ascii_records(f,self.description['levels'])
                 data.append([recordheader, recordarray])
                 self.dataSetLength += 1
@@ -150,7 +146,7 @@ class MMCData():
         else:
             # Otherwise expect heights in meters as they should be
             self.dataDict['z'] = np.asarray(z)
-        if map_to_met_coords:      #map TTU-somic (unorth, vwest) sonic coords to standard meteorology coordinates
+        if map_to_met_coords:      #map TTU-sonic (unorth, vwest) coords to standard meteorology coordinates
             self.dataDict['u']     = np.asarray(v)
             self.dataDict['v']     = -np.asarray(u)
         else:
