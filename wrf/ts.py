@@ -98,9 +98,9 @@ class TowerArray(object):
     """
     varnames = ['uu','vv','ww','th','pr','ph','ts']
 
-    def __init__(self,outdir,casedir,domain,
+    def __init__(self,outdir,towerdir,domain,
                  starttime,timestep=10.0,
-                 towersubdir='towers',
+                 tslistpath=None,
                  verbose=True,
                  **tslist_args):
         """Create a TowerArray object from a WRF simulation with tslist
@@ -111,9 +111,10 @@ class TowerArray(object):
         outdir : str
             Directory path to where data products, e.g., tower output
             converted into netcdf files, are to be stored.
-        casedir : str
-            Directory path to where WRF was run, which should contain
-            the tslist file and a towers subdirectory.
+        towerdir : str
+            Path to directory where tslist sampling outputs are stored.
+        domain : int
+            WRF domain to use (domain >= 1)
         starttime : str or Timestamp
             The datetime at which the simulation was started
             (corresponding to t=0 in the sampling output), which should
@@ -121,32 +122,29 @@ class TowerArray(object):
             namelist.input.
         timestep : float
             The timestep for the selected WRF domain, in seconds.
-        domain : int
-            WRF domain to use (domain >= 1)
-        towersubdir : str, optional
-            Expected name of subdirectory containing the tslist output.
+        tslistpath : str, optional
+            Path to tslist file, which explicitly specifies the names
+            and lat/lon values for each tower.
         tslist_args : optional
             Keyword arguments passed to read_tslist, e.g., `snap_to_grid`
             to enforce a regular lat/lon grid.
         """
         self.verbose = verbose # for debugging
         self.outdir = outdir
-        self.casedir = casedir
+        self.towerdir = towerdir
+        self.domain = domain
         self.starttime = pd.to_datetime(starttime)
         self.timestep = timestep
-        self.domain = domain
-        self.tslistpath = os.path.join(casedir,'tslist')
-        self.towerdir = os.path.join(casedir, towersubdir)
+        self.tslistpath = tslistpath
         self._check_inputs()
         self._load_tslist(**tslist_args)
 
     def _check_inputs(self):
         if not os.path.isdir(self.outdir):
             os.makedirs(self.outdir)
-        assert os.path.isfile(self.tslistpath), \
-                'tslist not found in WRF case directory'
-        assert os.path.isdir(self.towerdir), \
-                'towers subdirectory not found'
+        if self.tslistpath is not None:
+            assert os.path.isfile(self.tslistpath), 'tslist not found'
+        assert os.path.isdir(self.towerdir), 'tower directory not found'
 
     def _load_tslist(self,**kwargs):
         if not os.path.isfile(self.tslistpath):
