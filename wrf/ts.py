@@ -1,7 +1,7 @@
 """
 Module to process WRF time-series output
 """
-import os
+import os, glob
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -147,20 +147,37 @@ class TowerArray(object):
         assert os.path.isdir(self.towerdir), 'tower directory not found'
 
     def _load_tslist(self,**kwargs):
-        if not os.path.isfile(self.tslistpath):
-            print('tslist not found')
+        try:
+            self.tslist = read_tslist(self.tslistpath, **kwargs)
+        except (ValueError,IOError):
             self.tslist = None
-            return
-        self.tslist = read_tslist(self.tslistpath, **kwargs)
-        # check availability of all towers
-        for prefix in self.tslist['prefix']:
+            # manually determine list of available tower prefixes
+            files = glob.glob(
+                    os.path.join(self.towerdir,
+                                 '*.d{:02d}.TS'.format(self.domain)))
+            self.prefixlist = [
+                os.path.split(fpath)[1].split('.d')[0] for fpath in files
+            ]
+        else:
+            # tslist was read successfully
+            self.prefixlist = list(self.tslist['prefix'])
+            self.tslist.set_index('prefix',inplace=True)
+        self._catalog_files()
+
+    def _catalog_files(self):
+        """Check availability of all towers and then create a list of
+        filepaths for each tower, domain, and output variable.
+        """
+        self.tsfiles = {}
+        for prefix in self.prefixlist:
+            self.tsfiles[prefix] = {}
             for varname in self.varnames:
                 fpath = os.path.join(self.towerdir,
                                      '{:s}.d{:02d}.{:2s}'.format(prefix,
                                                                  self.domain,
                                                                  varname.upper()))
                 assert os.path.isfile(fpath), '{:s} not found'.format(fpath)
-        self.tslist.set_index('prefix',inplace=True)
+                self.tsfiles[prefix][varname] = fpath
 
     def load_data(self,
                   heights=None,height_var='height',approx_height=True,
@@ -190,9 +207,8 @@ class TowerArray(object):
             Generate new data (to be written as nc files).
         """
         self.data = {}
-        self.filelist = [ os.path.join(self.outdir, prefix+'.nc')
-                          for prefix in self.tslist.index ]
-        for prefix,fpath in zip(self.tslist.index, self.filelist):
+        for prefix in self.prefixlist:
+            fpath = os.path.join(self.outdir, prefix+'.nc')
             if os.path.isfile(fpath) and not overwrite:
                 if self.verbose: print('Reading',fpath)
                 self.data[prefix] = xr.open_dataset(fpath)
