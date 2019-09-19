@@ -288,10 +288,21 @@ class TowerArray(object):
         time1 = time.time()
         if self.verbose: print('  to_dataframe() time = {:g}s'.format(time1-time0))
 
+        if self.tslist is not None:
+            # check tower info against tslist
+            towerinfo = self.tslist.loc[prefix]
+            if not (np.isclose(tow.lat, towerinfo['lat'])
+                    and np.isclose(tow.lon, towerinfo['lon'])):
+                print('  lat/lon mismatch :',
+                      ' tslist ({:f},{:f}),'.format(towerinfo['lat'],towerinfo['lon']),
+                      ' tower ({:f},{:f}),'.format(tow.lat,tow.lon))
+            lat,lon = towerinfo['lat'], towerinfo['lon']
+        else:
+            lat,lon = tow.lat, tow.lon
+                      
         # add additional tower data
-        towerinfo = self.tslist.loc[prefix]
-        df['lat'] = towerinfo['lat']
-        df['lon'] = towerinfo['lon']
+        df['lat'] = lat
+        df['lon'] = lon
         if self.verbose:
             print('  tower lat/lon:',str(towerinfo[['lat','lon']].values))
         df.set_index(['lat','lon'], append=True, inplace=True)
