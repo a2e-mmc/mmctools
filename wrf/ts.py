@@ -140,9 +140,6 @@ class TowerArray(object):
         self._check_inputs()
         self._load_tslist(**tslist_args)
 
-    def __repr__(self):
-        return str(self.tslist)
-
     def _check_inputs(self):
         if not os.path.isdir(self.outdir):
             os.makedirs(self.outdir)
@@ -152,6 +149,10 @@ class TowerArray(object):
                 'towers subdirectory not found'
 
     def _load_tslist(self,**kwargs):
+        if not os.path.isfile(self.tslistpath):
+            print('tslist not found')
+            self.tslist = None
+            return
         self.tslist = read_tslist(self.tslistpath, **kwargs)
         # check availability of all towers
         for prefix in self.tslist['prefix']:
