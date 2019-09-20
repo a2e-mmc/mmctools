@@ -414,6 +414,17 @@ class Tower():
         df.rename(columns=self.standard_names, inplace=True)
         return df
 
+    def to_xarray(self,
+                  start_time='2013-11-08',time_unit='h',time_step=None,
+                  heights=None,height_var='height',
+                  exclude=['ts']):
+        df = self.to_dataframe(start_time,time_unit,time_step,heights,height_var,exclude)
+        ds = df.to_xarray().reset_index(['height'], drop = True, inplace = True).rename_dims(
+                                        {'height':'nz'}).expand_dims(['ny','nx'],axis=[2,3])
+        ds = ds.assign_coords(height=ds.ph).assign_coords(i=self.loci).assign_coords(j=self.locj)
+        ds["lat"]=(['ny','nx'],  np.ones((1,1))*self.gridlat)
+        ds["lon"]=(['ny','nx'],  np.ones((1,1))*self.gridlon)
+        return ds
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
     '''Convert WRF times to year, month, day, hour'''
