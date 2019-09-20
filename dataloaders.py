@@ -119,6 +119,9 @@ def read_date_dirs(dpath='.',dir_filter='*',
                    **kwargs):
     """Wrapper around pandas read_csv() or data reader function. 
 
+    If expected_date_format is None, then the datetime is assumed to be
+    in seconds (e.g., a timedelta or simulation time).
+
     Additional readers:
     - measurements/metmast
     - measurements/radar
@@ -138,9 +141,13 @@ def read_date_dirs(dpath='.',dir_filter='*',
         dname = os.path.split(fullpath)[-1]
         if os.path.isdir(fullpath):
             try:
-                collection_date = pd.to_datetime(dname,
-                                                 format=expected_date_format)
+                if expected_date_format is None:
+                    timedelta = float(dname)
+                else:
+                    collection_date = pd.to_datetime(
+                            dname, format=expected_date_format)
             except ValueError:
+                # could not convert to datetime (with the provided format)
                 if verbose:
                     print('Skipping '+dname)
             else:
