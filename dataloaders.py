@@ -111,10 +111,9 @@ def read_dir(dpath='.',file_filter='*',
     return df
 
 
-def read_date_dirs(dpath='.',dir_filter='*',
+def read_date_dirs(dpath='.',dir_filter='*',file_filter='*',
                    expected_date_format='%Y%m%d',
                    reader=pd.read_csv,
-                   ext='csv',
                    verbose=False,
                    **kwargs):
     """Wrapper around pandas read_csv() or data reader function. 
@@ -152,11 +151,10 @@ def read_date_dirs(dpath='.',dir_filter='*',
                     print('Skipping '+dname)
             else:
                 print('Processing '+fullpath)
-                for fname in sorted(os.listdir(fullpath)):
-                    fpath = os.path.join(fullpath,fname)
-                    if not fname.endswith(ext): continue
+                filelist = glob.glob(os.path.join(fullpath,file_filter))
+                for fpath in sorted(filelist):
                     if verbose:
-                        print('  reading '+fname)
+                        print('  reading '+fpath)
                     try:
                         df = reader(fpath,verbose=verbose,**kwargs)
                     except reader_exceptions as err:
