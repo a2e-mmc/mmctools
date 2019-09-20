@@ -266,24 +266,10 @@ class TowerArray(object):
         # now convert to a dataframe (note that height interpolation
         # will be (optionally) performed here
         time0 = time.time()
-        df = tow.to_dataframe(start_time=self.starttime,
-                              time_step=self.timestep,
-                              heights=heights,
-                              exclude=excludelist)
-        time1 = time.time()
-        if self.verbose: print('  to_dataframe() time = {:g}s'.format(time1-time0))
-
-        # add additional tower data
-        towerinfo = self.tslist.loc[prefix]
-        df['lat'] = towerinfo['lat']
-        df['lon'] = towerinfo['lon']
-        if self.verbose:
-            print('  tower lat/lon:',str(towerinfo[['lat','lon']].values))
-        df.set_index(['lat','lon'], append=True, inplace=True)
-
-        # convert to xarray
-        time0 = time.time()
-        ds = df.to_xarray()
+        ds = tow.to_xarray(start_time=self.starttime,
+                           time_step=self.timestep,
+                           heights=heights,
+                           exclude=excludelist)
         time1 = time.time()
         if self.verbose: print('  to_xarray() time = {:g}s'.format(time1-time0))
 
