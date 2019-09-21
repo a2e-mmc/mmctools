@@ -147,14 +147,12 @@ def read_date_dirs(dpath='.',dir_filter='*',file_filter='*',
                             dname, format=expected_date_format)
             except ValueError:
                 # could not convert to datetime (with the provided format)
-                if verbose:
-                    print('Skipping '+dname)
+                if verbose: print('Skipping '+dname)
             else:
-                print('Processing '+fullpath)
+                if verbose: print('Processing '+fullpath)
                 filelist = glob.glob(os.path.join(fullpath,file_filter))
                 for fpath in sorted(filelist):
-                    if verbose:
-                        print('  reading '+fpath)
+                    if verbose: print('  reading '+fpath)
                     try:
                         df = reader(fpath,verbose=verbose,**kwargs)
                     except reader_exceptions as err:
@@ -162,9 +160,9 @@ def read_date_dirs(dpath='.',dir_filter='*',file_filter='*',
                     else:
                         dataframes.append(df)
                     Nfiles += 1
-            print('  {} dataframes added'.format(Nfiles))
+            if verbose: print('  {} dataframes added'.format(Nfiles))
     if len(dataframes) == 0:
-        print('No dataframes were read!')
+        print('No dataframes read from',fullpath)
         df = None
     else:
         df = _concat(dataframes)
