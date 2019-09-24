@@ -55,7 +55,10 @@ class MMCData():
     """
     def __init__(self,asciifile=None,pklfile=None,pkldata=None,**kwargs):
         """Read ascii data in the legacy MMC format from `asciifile` or
-        pickled data in list form from `pklfile`. 
+        pickled data in list form from `pklfile`. **kwargs can include
+        convert_ft_to_m=True, or specified_date="YYYY-MM-DD", e.g.
+        specified_date='2013-11-08' if necessary for specific legacy data 
+        files.
         """
         self.description = None
         self.records = []
@@ -73,7 +76,6 @@ class MMCData():
             self.dataSetLength = len(pkldata) - 1
             self.description = pkldata[0]
             if self.dataSetLength > 0:
-                #JAS: try to get all records... self.dataSetLength = len(pkldata)-1
                 self._process_data(pkldata[1:],**kwargs)
         else:
             raise ValueError('Need to specify asciifile, pklfile, or pkldata')
@@ -84,16 +86,16 @@ class MMCData():
         self.dataSetLength = 0
         data = []
         while True:
-            line = f.readline()
-            if line == '':
-                break
             recordheader = read_ascii_recordheader(f);
-            recordarray = read_ascii_records(f,self.description['levels'])
-            data.append([recordheader, recordarray])
-            self.dataSetLength += 1
+            if (len(recordheader)==0) or (recordheader is None): #is recordheader={} or Null value? if so break, otherwise read a record
+                break
+            else:  
+                recordarray = read_ascii_records(f,self.description['levels'])
+                data.append([recordheader, recordarray])
+                self.dataSetLength += 1
         return data
 
-    def _process_data(self,data,convert_ft_to_m=False):
+    def _process_data(self,data,convert_ft_to_m=False,specified_date=None,map_to_met_coords=False):
         """Updates dataset description, records, and dataDict"""
         time=[]
         datetime=[]
@@ -115,7 +117,10 @@ class MMCData():
             recordheader, recordarray = record
             self.records.append(recordheader)
             time.append(recordheader['time'].strip())
-            dtstr = recordheader['date'] + "_" + recordheader['time'].strip()
+            if specified_date is None:
+                dtstr = recordheader['date'] + "_" + recordheader['time'].strip()
+            else: 
+                dtstr = '{:s}_{:s}'.format(specified_date,recordheader['time'].strip())
             datetime.append(dt.datetime.strptime(dtstr, '%Y-%m-%d_%H:%M:%S'))
             z.append(recordarray[:,0])
             u.append(recordarray[:,1])
@@ -141,8 +146,12 @@ class MMCData():
         else:
             # Otherwise expect heights in meters as they should be
             self.dataDict['z'] = np.asarray(z)
-        self.dataDict['u']     = np.asarray(u)
-        self.dataDict['v']     = np.asarray(v)
+        if map_to_met_coords:      #map TTU-sonic (unorth, vwest) coords to standard meteorology coordinates
+            self.dataDict['u']     = np.asarray(v)
+            self.dataDict['v']     = -np.asarray(u)
+        else:
+            self.dataDict['u']     = np.asarray(u)
+            self.dataDict['v']     = np.asarray(v)
         self.dataDict['w']     = np.asarray(w)
         self.dataDict['theta'] = np.asarray(theta)
         self.dataDict['pres']  = np.asarray(pres)
@@ -157,6 +166,9 @@ class MMCData():
         self.dataDict['wspd']  = np.sqrt(self.dataDict['u']**2
                                        + self.dataDict['v']**2)
         self.dataDict['wdir']  = (270.0-np.arctan2(self.dataDict['v'],self.dataDict['u'])*180./np.pi)%360 
+        ### The follwing will yield correct results, but sneaky usage of arctan2 where first argument is defined as y-oriented
+        ### self.dataDict['wdir']  = 180. + np.arctan2(self.dataDict['v'],self.dataDict['u'])*180./np.pi
+
         #Declare and initialize to 0 the *_mean arrays
         self.dataDict['u_mean']     = np.zeros(self.dataDict['u'].shape)
         self.dataDict['v_mean']     = np.zeros(self.dataDict['u'].shape)
@@ -187,15 +199,15 @@ class MMCData():
         df = self.to_xarray().to_dataframe()
         # the resulting dataframe has an integer multiindex formed by
         # range(num_samples) and range(num_levels)
-        df = df.reset_index().drop(columns=['Time','bottom_top'])
+        df = df.reset_index().drop(columns=['Times','bottom_top'])
         return df.set_index(['datetime','height'])
           
-    def to_xarray(self,timedim='Time',heightdim='bottom_top'):
+    def to_xarray(self,timedim='Times',heightdim='bottom_top'):
         """return an xarray dataset with standard variables"""
         coords = {
             'datetime': xarray.DataArray(self.dataDict['datetime'],
                                   name='datetime',
-                                  dims=timedim),
+                                  dims=[timedim]),
             'height': xarray.DataArray(self.dataDict['z'],
                                   name='height',
                                   dims=[timedim, heightdim],
@@ -223,7 +235,14 @@ class MMCData():
                                   dims=[timedim, heightdim],
                                   attrs={'units':'mbar'}),
         }
-        return xarray.Dataset(data_vars,coords)
+        #ds=xarray.decode_cf(xarray.Dataset(data_vars,coords))
+        ds=xarray.Dataset(data_vars,coords)
+        #Remove the time dependence of heights by setting heights from each level as their temporal mean
+        heights=ds['height'].groupby('bottom_top').mean()
+        Nt,Nz = ds['height'].shape
+        for i in range(Nt):
+            ds['height'][i,:]=heights
+        return ds
 
     def getDataSetDict(self):
         return self.description
@@ -383,40 +402,46 @@ def read_ascii_header(f):
 def read_ascii_recordheader(f):
     """Read a record from legacy MMC file, called by _read_ascii()"""
     try:
-        head1 = f.readline()
-        head2 = f.readline()
-        head3 = f.readline()
-        head4 = f.readline()
-        head5 = f.readline()
-        head6 = f.readline()
-        head7 = f.readline()
-        date  = head1[12:22]
-        time  = head2[12:22]
-        ustar = float(head3[26:36].strip())
-        z0    = float(head4[26:36].strip())
-        tskin = float(head5[26:36])
-        hflux = float(head6[26:36])
-        varlist = head7.split()
+        pos0=f.tell()
+        head0 = f.readline()
+        pos1=f.tell()
+        if pos1==pos0:
+            recordheader = {}
+        else:
+            head1 = f.readline()
+            head2 = f.readline()
+            head3 = f.readline()
+            head4 = f.readline()
+            head5 = f.readline()
+            head6 = f.readline()
+            head7 = f.readline()
+            date  = head1[12:22]
+            time  = head2[12:22]
+            ustar = float(head3[26:36].strip())
+            z0    = float(head4[26:36].strip())
+            tskin = float(head5[26:36])
+            hflux = float(head6[26:36])
+            varlist = head7.split()
 
-        varnames=[]
-        varunits=[]
+            varnames=[]
+            varunits=[]
 
-        for i in range(len(varlist)):
-            if (i % 2) == 0:
-                varnames.append(varlist[i])
-            if (i % 2) == 1:
-                varunits.append(varlist[i])
+            for i in range(len(varlist)):
+                if (i % 2) == 0:
+                    varnames.append(varlist[i])
+                if (i % 2) == 1:
+                    varunits.append(varlist[i])
 
-        recordheader = {
-            'date':date,
-            'time':time,
-            'ustar':ustar,
-            'z0':z0,
-            'tskin':tskin,
-            'hflux':hflux,
-            'varnames':varnames,
-            'varunits':varunits,
-        }
+            recordheader = {
+                'date':date,
+                'time':time,
+                'ustar':ustar,
+                'z0':z0,
+                'tskin':tskin,
+                'hflux':hflux,
+                'varnames':varnames,
+                'varunits':varunits,
+            }
 
     except:
         print("Error in readrecordheader... Check your datafile for bad records!!\n Lines read are")
