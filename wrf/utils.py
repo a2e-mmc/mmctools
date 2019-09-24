@@ -311,6 +311,19 @@ class Tower():
                      heights=None,height_var='height',
                      exclude=['ts']):
         """Convert tower time-height data into a dataframe.
+
+        Treatment of the time-varying height coordinates is summarized
+        below:
+
+        heights  height_var  resulting height index
+        -------  ----------  ------------------------------------------
+        None     n/a         levels (Int64Index)
+        None     1d array    assumed constant in time (Float64Index)
+        input    1d array    interpolate to input heights, assuming
+                             constant heights in time (Float64Index)
+        input    2d array    interpolate to input heights at all times
+                             accounting for change in heights over time
+                             (Float64Index)
         
         Parameters
         ----------
@@ -419,6 +432,19 @@ class Tower():
                   heights=None,height_var='height',
                   exclude=['ts']):
         """Convert tower time-height data into a xarray dataset.
+        
+        Treatment of the time-varying height coordinates is summarized
+        below:
+
+        heights  height_var  resulting height index
+        -------  ----------  ------------------------------------------
+        None     n/a         levels (Int64Index)
+        None     1d array    assumed constant in time (Float64Index)
+        input    1d array    interpolate to input heights, assuming
+                             constant heights in time (Float64Index)
+        input    2d array    interpolate to input heights at all times
+                             accounting for change in heights over time
+                             (Float64Index)
         
         Parameters
         ----------
