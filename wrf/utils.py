@@ -18,11 +18,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 import netCDF4
-import xarray
-import utm # need to pip install!
+import xarray as xr
+##JAS temp remove###  import utm # need to pip install!
 from scipy.spatial import KDTree
 from scipy.interpolate import interp1d, LinearNDInterpolator
-
+import wrf as wrfpy
 
 # List of default WRF fields for extract_column_from_wrfdata
 default_3D_fields = ['U10','V10','T2','TSK','UST','PSFC','HFX','LH','MUU','MUV','MUT']
@@ -208,6 +208,8 @@ class Tower():
     Tower class: put tower data into an object variable
     Call with: twr = wrfdict.tower('[path to towers]/[tower abrv.].d0[domain].*')
     '''
+
+
     def __init__(self,fstr):
         self.fstr = fstr
         self.getvars()
@@ -579,3 +581,66 @@ def extract_column_from_wrfdata(fpath, coords,
     xn['theta'].attrs['description'] = 'potential temperature'
 
     return xn
+
+def wrfout_seriesReader(wrfpath,wrfFileFilter):
+    """
+    Construct an a2e-mmc standard, xarrays-based, data structure from a
+    series of 3-dimensional WRF output files
+
+    Note: Base state theta= 300.0 K is assumed by convention in WRF, this function 
+	follow this convention.
+
+    Usage
+    ====
+    wrfpath : string 
+        The path to directory containing wrfout files to be processed
+    wrfFileFilter : string-glob expression
+	A string-glob expression to filter a set of 4-dimensional WRF output files.
+    """
+    TH0 = 300.0 #WRF convention base-state theta = 300.0 K
+    ds=xr.open_mfdataset(wrfpath+wrfFileFilter,chunks={'Time': 10},combine='nested',concat_dim='Time')
+    dim_keys = ["Time","bottom_top","south_north","west_east"] 
+    horiz_dim_keys = ["south_north","west_east"]
+    print('Finished opening/concatenating datasets...')
+    ds_subset=ds[['XTIME']]
+    print('Establishing coordinate variables, x,y,z, zSurface...')
+    ds_subset['z']=xr.DataArray(wrfpy.destagger((ds['PHB']+ds['PH'])/9.8,stagger_dim=1,meta=False),
+                                      dims=dim_keys)
+    ds_subset['y'] = xr.DataArray(np.transpose(ds.DY*np.tile(0.5+np.arange(ds.dims['south_north']),
+							     (ds.dims['west_east'],1))),
+                                       dims=horiz_dim_keys)
+    ds_subset['x'] = xr.DataArray(ds_subset.DX*np.tile(0.5+np.arange(ds_subset.dims['west_east']),
+ 						       (ds_subset.dims['south_north'],1)),
+                                  dims=horiz_dim_keys)
+    ## Assume terrain height is static in time even though WRF allows for it to be time-varying for moving grids
+    ds_subset['zsurface'] = xr.DataArray(ds['HGT'].isel(Time=0),dims=horiz_dim_keys)
+    print('Destaggering data variables, u,v,w...')
+    ds_subset['u']=xr.DataArray(wrfpy.destagger(ds['U'],stagger_dim=3,meta=False),
+                 dims=dim_keys)
+    ds_subset['v']=xr.DataArray(wrfpy.destagger(ds['V'],stagger_dim=2,meta=False),
+                 dims=dim_keys)
+    ds_subset['w']=xr.DataArray(wrfpy.destagger(ds['W'],stagger_dim=1,meta=False),
+                 dims=dim_keys)
+    print('Extracting data variables, p,theta...')
+    ds_subset['p']=xr.DataArray(ds['P']+ds['PB'],dims=dim_keys)
+    ds_subset['theta']=xr.DataArray(ds['THM']+TH0,dims=dim_keys)
+    print('Calculating derived data variables, wspd,wdir...')
+    ds_subset['wspd'] = xr.DataArray(np.sqrt(ds_subset['u']**2 + ds_subset['v']**2),
+                      dims=dim_keys)
+    ds_subset['wdir'] = xr.DataArray(180. + np.arctan2(ds_subset['u'],ds_subset['v'])*180./np.pi,
+                      dims=dim_keys)
+    
+    #assign 'height' as a coordinate in the dataset
+    ds_subset=ds_subset.rename({'XTIME': 'datetime'})  #Rename after defining the component DataArrays in the DataSet
+    ds_subset=ds_subset.assign_coords(z=ds_subset['z'])
+    ds_subset=ds_subset.assign_coords(y=ds_subset['y'])
+    ds_subset=ds_subset.assign_coords(x=ds_subset['x'])
+    ds_subset=ds_subset.assign_coords(zsurface=ds_subset['zsurface'])
+    ds_subset=ds_subset.rename_vars({'XLONG':'lon'})
+    ds_subset=ds_subset.rename_vars({'XLAT':'lat'})
+    ds_subset=ds_subset.rename_dims(dims_dict = {'Time':'datetime',
+                                                 'bottom_top':'nz',
+                                                 'south_north': 'ny',
+                                                 'west_east':'nx'})
+    return ds_subset
+
