@@ -174,8 +174,10 @@ class InternalCoupling(object):
                          temp=None,
                          ):
         """
-        Write time-height data to SOWFA-readable input file for solver (to be
-        included in constant/ABLProperties)
+        Write time-height data to SOWFA-readable input file for solver
+        (to be included in constant/ABLProperties). Note that if any
+        momentum data output is specified, then all components should be
+        specified together for SOWFA to function properly.
     
         Usage
         =====
@@ -190,6 +192,12 @@ class InternalCoupling(object):
         temp : str or None
             Field name corresponding to potential temperature (field or tendency)
         """
+        have_xyz_mom = [(comp is not None) for comp in [xmom,ymom,zmom]]
+        if any(have_xyz_mom):
+            assert all(have_xyz_mom), 'Need to specify all momentum components'
+            write_mom = True
+        else:
+            write_mom = False
     
         # extract time and height array
         zs = self.df.height.unique()
@@ -212,12 +220,11 @@ class InternalCoupling(object):
     
         # write data to SOWFA readable file
         with open(os.path.join(self.dpath,fname),'w') as fid:
-            if xmom or ymom or zmom:
+            if write_mom:
                 # Write the height list for the momentum fields
                 fid.write('sourceHeightsMomentum\n')    
                 np.savetxt(fid,zs,fmt='    %g',header='(',footer=');\n',comments='')
                   
-            if xmom:
                 # Write the x-velocity
                 fid.write('sourceTableMomentumX\n')
                 fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
@@ -225,7 +232,6 @@ class InternalCoupling(object):
                            np.concatenate((ts.reshape((nt,1)),df_pivot[xmom].values),axis=1),
                            fmt=fmt, header='(', footer=');\n', comments='')
     
-            if ymom:
                 # Write the y-velocity
                 fid.write('sourceTableMomentumY\n')
                 fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
@@ -233,7 +239,6 @@ class InternalCoupling(object):
                            np.concatenate((ts.reshape((nt,1)),df_pivot[ymom].values),axis=1),
                            fmt=fmt, header='(', footer=');\n', comments='')
     
-            if zmom:
                 # Write the z-velocity
                 fid.write('sourceTableMomentumZ\n')
                 fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
