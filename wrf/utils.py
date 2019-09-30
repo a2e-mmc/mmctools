@@ -662,8 +662,5 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter,desiredHeights):
     ds_subset=ds_subset.rename_vars({'XLONG':'lon'})
     ds_subset=ds_subset.rename_vars({'XLAT':'lat'})
     ds_subset=ds_subset.rename_dims(dims_dict)
-                                                 'bottom_top':'nz',
-                                                 'south_north': 'ny',
-                                                 'west_east':'nx'})
     return ds_subset
 
