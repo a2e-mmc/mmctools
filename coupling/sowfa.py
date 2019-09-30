@@ -31,14 +31,19 @@ class InternalCoupling(object):
             Folder to write files to
         df : pandas.DataFrame
             Data (index should be called datetime)
-        dateref : str
-            Reference datetime, SOWFA uses seconds since this datetime
-        datefrom : str
+        dateref : str, optional
+            Reference datetime, used to construct a pd.DateTimeIndex
+            with SOWFA time 0 corresponding to dateref; if not
+            specified, then the time index will be the simulation time
+            as a pd.TimedeltaIndex
+        datefrom : str, optional
             Start date of the period that will be written out, if None
-            start from the first timestamp in df
-        dateto : str
+            start from the first timestamp in df; only used if dateref
+            is specified
+        dateto : str, optional
             End date of the period that will be written out, if None end
-            with the last timestamp in df
+            with the last timestamp in df; only used if dateref is
+            specified
         """
         
         self.dpath = dpath
