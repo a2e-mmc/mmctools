@@ -607,7 +607,11 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter,desiredHeights):
         'south_north': 'ny',
         'west_east':'nx',
     }
-    ds=xr.open_mfdataset(wrfpath+wrfFileFilter,chunks={'Time': 10},combine='nested',concat_dim='Time')
+
+    ds = xr.open_mfdataset(os.path.join(wrfpath,wrfFileFilter),
+                           chunks={'Time': 10},
+                           combine='nested',
+                           concat_dim='Time')
     dim_keys = ["Time","bottom_top","south_north","west_east"] 
     horiz_dim_keys = ["south_north","west_east"]
     print('Finished opening/concatenating datasets...')
