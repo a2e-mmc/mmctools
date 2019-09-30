@@ -582,7 +582,7 @@ def extract_column_from_wrfdata(fpath, coords,
 
     return xn
 
-def wrfout_seriesReader(wrfpath,wrfFileFilter,desiredHeights):
+def wrfout_seriesReader(wrfpath,wrfFileFilter,desiredHeights=None):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
     series of 3-dimensional WRF output files
