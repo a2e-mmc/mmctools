@@ -598,6 +598,12 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
 	A string-glob expression to filter a set of 4-dimensional WRF output files.
     """
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
+    dims_dict = {
+        'Time':'datetime',
+        'bottom_top':'nz',
+        'south_north': 'ny',
+        'west_east':'nx',
+    }
     ds=xr.open_mfdataset(wrfpath+wrfFileFilter,chunks={'Time': 10},combine='nested',concat_dim='Time')
     dim_keys = ["Time","bottom_top","south_north","west_east"] 
     horiz_dim_keys = ["south_north","west_east"]
@@ -638,7 +644,7 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
     ds_subset=ds_subset.assign_coords(zsurface=ds_subset['zsurface'])
     ds_subset=ds_subset.rename_vars({'XLONG':'lon'})
     ds_subset=ds_subset.rename_vars({'XLAT':'lat'})
-    ds_subset=ds_subset.rename_dims(dims_dict = {'Time':'datetime',
+    ds_subset=ds_subset.rename_dims(dims_dict)
                                                  'bottom_top':'nz',
                                                  'south_north': 'ny',
                                                  'west_east':'nx'})
