@@ -582,7 +582,7 @@ def extract_column_from_wrfdata(fpath, coords,
 
     return xn
 
-def wrfout_seriesReader(wrfpath,wrfFileFilter):
+def wrfout_seriesReader(wrfpath,wrfFileFilter,desiredHeights):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
     series of 3-dimensional WRF output files
@@ -596,6 +596,9 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
         The path to directory containing wrfout files to be processed
     wrfFileFilter : string-glob expression
 	A string-glob expression to filter a set of 4-dimensional WRF output files.
+    desiredHeights : list-like
+        A list of static heights to which all data variables should be
+        interpolated.
     """
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
@@ -632,11 +635,12 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
     ds_subset['theta']=xr.DataArray(ds['THM']+TH0,dims=dim_keys)
 
     # interpolate to static heights
-    if desired_heights is not None:
+    if desiredHeights is not None:
         zarr = ds_subset['z']
         for var in ['u','v','w','p','theta']:
             print('Interpolating',var)
-            ds_subset[var] = wrf.interplevel(ds_subset[var], zarr, desired_heights).expand_dims('Time',axis=0)
+            interpolated = wrf.interplevel(ds_subset[var], zarr, desiredHeights)
+            ds_subset[var] = interpolated.expand_dims('Time', axis=0)
         ds_subset = ds_subset.drop_dims('bottom_top').rename({'level':'z'})
         dim_keys[1] = 'z'
         dims_dict.pop('bottom_top')
@@ -650,7 +654,7 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
     
     #assign 'height' as a coordinate in the dataset
     ds_subset=ds_subset.rename({'XTIME': 'datetime'})  #Rename after defining the component DataArrays in the DataSet
-    if desired_heights is None:
+    if desiredHeights is None:
         ds_subset=ds_subset.assign_coords(z=ds_subset['z'])
     ds_subset=ds_subset.assign_coords(y=ds_subset['y'])
     ds_subset=ds_subset.assign_coords(x=ds_subset['x'])
