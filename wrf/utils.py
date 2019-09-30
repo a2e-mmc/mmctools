@@ -630,6 +630,18 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
     print('Extracting data variables, p,theta...')
     ds_subset['p']=xr.DataArray(ds['P']+ds['PB'],dims=dim_keys)
     ds_subset['theta']=xr.DataArray(ds['THM']+TH0,dims=dim_keys)
+
+    # interpolate to static heights
+    if desired_heights is not None:
+        zarr = ds_subset['z']
+        for var in ['u','v','w','p','theta']:
+            print('Interpolating',var)
+            ds_subset[var] = wrf.interplevel(ds_subset[var], zarr, desired_heights).expand_dims('Time',axis=0)
+        ds_subset = ds_subset.drop_dims('bottom_top').rename({'level':'z'})
+        dim_keys[1] = 'z'
+        dims_dict.pop('bottom_top')
+        
+    # calcualte derived variables
     print('Calculating derived data variables, wspd,wdir...')
     ds_subset['wspd'] = xr.DataArray(np.sqrt(ds_subset['u']**2 + ds_subset['v']**2),
                       dims=dim_keys)
@@ -638,7 +650,8 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
     
     #assign 'height' as a coordinate in the dataset
     ds_subset=ds_subset.rename({'XTIME': 'datetime'})  #Rename after defining the component DataArrays in the DataSet
-    ds_subset=ds_subset.assign_coords(z=ds_subset['z'])
+    if desired_heights is None:
+        ds_subset=ds_subset.assign_coords(z=ds_subset['z'])
     ds_subset=ds_subset.assign_coords(y=ds_subset['y'])
     ds_subset=ds_subset.assign_coords(x=ds_subset['x'])
     ds_subset=ds_subset.assign_coords(zsurface=ds_subset['zsurface'])
