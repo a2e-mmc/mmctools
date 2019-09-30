@@ -19,7 +19,7 @@ class InternalCoupling(object):
     def __init__(self,
                  dpath,
                  df,
-                 dateref,
+                 dateref=None,
                  datefrom=None,
                  dateto=None):
         """
@@ -59,11 +59,16 @@ class InternalCoupling(object):
         self.datefrom = datefrom
 
         # calculate time in seconds since reference date
-        dateref = pd.to_datetime(dateref)
-        tdelta = pd.Timedelta(1,unit='s')
-        self.df.reset_index(inplace=True)
-        self.df['t_index'] = (self.df['datetime'] - dateref) / tdelta
-        self.df.set_index('datetime',inplace=True)
+        if dateref is not None:
+            # self.df['datetime'] exists and is a DateTimeIndex
+            dateref = pd.to_datetime(dateref)
+            tdelta = pd.Timedelta(1,unit='s')
+            self.df.reset_index(inplace=True)
+            self.df['t_index'] = (self.df['datetime'] - dateref) / tdelta
+            self.df.set_index('datetime',inplace=True)
+        else:
+            # self.df['t'] exists and is a TimedeltaIndex
+            self.df['t_index'] = self.df.index.total_seconds()
 
     def write_BCs(self,
                   fname,
