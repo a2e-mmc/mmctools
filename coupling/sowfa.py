@@ -168,10 +168,10 @@ class InternalCoupling(object):
 
     def write_timeheight(self,
                          fname,
-                         xmom = 'u',
-                         ymom = 'v',
-                         zmom = 'w',
-                         temp = 'theta',
+                         xmom=None,
+                         ymom=None,
+                         zmom=None,
+                         temp=None,
                          ):
         """
         Write time-height data to SOWFA-readable input file for solver (to be
@@ -181,13 +181,13 @@ class InternalCoupling(object):
         =====
         fname : str
             Filename
-        xmom : str
+        xmom : str or None
             Field name corresponding to x momentum (field or tendency)
-        ymom : str
+        ymom : str or None
             Field name corresponding to y momentum (field or tendency)
-        zmom : str
+        zmom : str or None
             Field name corresponding to z momentum (field or tendency)
-        temp : str
+        temp : str or None
             Field name corresponding to potential temperature (field or tendency)
         """
     
@@ -200,8 +200,9 @@ class InternalCoupling(object):
         # set missing fields to zero
         fieldNames = [xmom, ymom, zmom, temp]
         for field in fieldNames:
-            if not field in self.df.columns:
+            if (field is not None) and (field not in self.df.columns):
                 self.df.loc[:,field] = 0.0
+        fieldNames = [name for name in fieldNames if name is not None]
     
         # pivot data to time-height arrays
         df_pivot = self.df.pivot(columns='height',values=fieldNames)
@@ -211,36 +212,45 @@ class InternalCoupling(object):
     
         # write data to SOWFA readable file
         with open(os.path.join(self.dpath,fname),'w') as fid:
-            # Write the height list for the momentum fields
-            fid.write('sourceHeightsMomentum\n')    
-            np.savetxt(fid,zs,fmt='    %g',header='(',footer=');\n',comments='')
+            if xmom or ymom or zmom:
+                # Write the height list for the momentum fields
+                fid.write('sourceHeightsMomentum\n')    
+                np.savetxt(fid,zs,fmt='    %g',header='(',footer=');\n',comments='')
                   
-            # Write the x-velocity
-            fid.write('sourceTableMomentumX\n')
-            fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
-            np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),df_pivot[xmom].values),axis=1),fmt=fmt,
-                header='(',footer=');\n',comments='')
+            if xmom:
+                # Write the x-velocity
+                fid.write('sourceTableMomentumX\n')
+                fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
+                np.savetxt(fid,
+                           np.concatenate((ts.reshape((nt,1)),df_pivot[xmom].values),axis=1),
+                           fmt=fmt, header='(', footer=');\n', comments='')
     
-            # Write the y-velocity
-            fid.write('sourceTableMomentumY\n')
-            fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
-            np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),df_pivot[ymom].values),axis=1),fmt=fmt,
-                header='(',footer=');\n',comments='')
+            if ymom:
+                # Write the y-velocity
+                fid.write('sourceTableMomentumY\n')
+                fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
+                np.savetxt(fid,
+                           np.concatenate((ts.reshape((nt,1)),df_pivot[ymom].values),axis=1),
+                           fmt=fmt, header='(', footer=');\n', comments='')
     
-            # Write the z-velocity
-            fid.write('sourceTableMomentumZ\n')
-            fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
-            np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),df_pivot[zmom].values),axis=1),fmt=fmt,
-                header='(',footer=');\n',comments='')
+            if zmom:
+                # Write the z-velocity
+                fid.write('sourceTableMomentumZ\n')
+                fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
+                np.savetxt(fid,
+                           np.concatenate((ts.reshape((nt,1)),df_pivot[zmom].values),axis=1),
+                           fmt=fmt, header='(', footer=');\n', comments='')
     
-            # Write the height list for the temperature fields
-            fid.write('sourceHeightsTemperature\n') 
-            np.savetxt(fid,zs,fmt='    %g',header='(',footer=');\n',comments='')
-    
-            # Write the temperature
-            fid.write('sourceTableTemperature\n')
-            fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
-            np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),df_pivot[temp].values),axis=1),fmt=fmt,
-                header='(',footer=');\n',comments='')
+            if temp:
+                # Write the height list for the temperature fields
+                fid.write('sourceHeightsTemperature\n') 
+                np.savetxt(fid,zs,fmt='    %g',header='(',footer=');\n',comments='')
+        
+                # Write the temperature
+                fid.write('sourceTableTemperature\n')
+                fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
+                np.savetxt(fid,
+                           np.concatenate((ts.reshape((nt,1)),df_pivot[temp].values),axis=1),
+                           fmt=fmt, header='(', footer=');\n', comments='')
     
         return
