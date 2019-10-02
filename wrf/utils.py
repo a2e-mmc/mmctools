@@ -582,7 +582,7 @@ def extract_column_from_wrfdata(fpath, coords,
 
     return xn
 
-def wrfout_seriesReader(wrfpath,wrfFileFilter):
+def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
     series of 3-dimensional WRF output files
@@ -594,9 +594,13 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
     ====
     wrfpath : string 
         The path to directory containing wrfout files to be processed
-    wrfFileFilter : string-glob expression
+    wrf_file_filter : string-glob expression
         A string-glob expression to filter a set of 4-dimensional WRF
         output files.
+    specified_heights : list-like	
+        A list of static heights to which all data variables should be	
+        interpolated. Note that this significantly increases the data	
+        read time.
     """
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
@@ -606,7 +610,7 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
         'west_east':'nx',
     }
 
-    ds = xr.open_mfdataset(os.path.join(wrfpath,wrfFileFilter),
+    ds = xr.open_mfdataset(os.path.join(wrf_path,wrf_file_filter),
                            chunks={'Time': 10},
                            combine='nested',
                            concat_dim='Time')
@@ -616,14 +620,18 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
 
     ds_subset = ds[['XTIME']]
     print('Establishing coordinate variables, x,y,z, zSurface...')
-    height = wrfpy.destagger((ds['PHB'] + ds['PH']) / 9.8, stagger_dim=1, meta=False)
-    ycoord = ds.DY * np.tile(0.5 + np.arange(ds.dims['south_north']),
-                             (ds.dims['west_east'],1))
-    xcoord = ds.DX * np.tile(0.5 + np.arange(ds.dims['west_east']),
-                             (ds.dims['south_north'],1)) 
-    ds_subset['z'] = xr.DataArray(height, dims=dim_keys)
-    ds_subset['y'] = xr.DataArray(np.transpose(ycoord), dims=horiz_dim_keys)
-    ds_subset['x'] = xr.DataArray(xcoord, dims=horiz_dim_keys)
+    zcoord = wrfpy.destagger((ds['PHB'] + ds['PH']) / 9.8, stagger_dim=1, meta=False)
+    #ycoord = ds.DY * np.tile(0.5 + np.arange(ds.dims['south_north']),
+    #                         (ds.dims['west_east'],1))
+    #xcoord = ds.DX * np.tile(0.5 + np.arange(ds.dims['west_east']),
+    #                         (ds.dims['south_north'],1)) 
+    ycoord = ds.DY * (0.5 + np.arange(ds.dims['south_north']))
+    xcoord = ds.DX * (0.5 + np.arange(ds.dims['west_east']))
+    ds_subset['z'] = xr.DataArray(zcoord, dims=dim_keys)
+    #ds_subset['y'] = xr.DataArray(np.transpose(ycoord), dims=horiz_dim_keys)
+    #ds_subset['x'] = xr.DataArray(xcoord, dims=horiz_dim_keys)
+    ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
+    ds_subset['x'] = xr.DataArray(xcoord, dims='west_east')
 
     # Assume terrain height is static in time even though WRF allows
     # for it to be time-varying for moving grids
@@ -640,20 +648,36 @@ def wrfout_seriesReader(wrfpath,wrfFileFilter):
     ds_subset['p'] = xr.DataArray(ds['P']+ds['PB'], dims=dim_keys)
     ds_subset['theta'] = xr.DataArray(ds['THM']+TH0, dims=dim_keys)
 
+    # optionally, interpolate to static heights	
+    if specified_heights is not None:	
+        zarr = ds_subset['z']	
+        for var in ['u','v','w','p','theta']:	
+            print('Interpolating',var)	
+            interpolated = wrfpy.interplevel(ds_subset[var], zarr, specified_heights)	
+            ds_subset[var] = interpolated #.expand_dims('Time', axis=0)	
+            #print(ds_subset[var])
+        ds_subset = ds_subset.drop_dims('bottom_top').rename({'level':'z'})	
+        dim_keys[1] = 'z'	
+        dims_dict.pop('bottom_top')
+        print(dims_dict)
+
     # calculate derived variables
-    print('Calculating derived data variables, wspd,wdir...')
+    print('Calculating derived data variables, wspd, wdir...')
     ds_subset['wspd'] = xr.DataArray(np.sqrt(ds_subset['u']**2 + ds_subset['v']**2),
                                      dims=dim_keys)
     ds_subset['wdir'] = xr.DataArray(180. + np.arctan2(ds_subset['u'],ds_subset['v'])*180./np.pi,
                                      dims=dim_keys)
     
-    # assign 'height' as a coordinate in the dataset
+    # assign rename coord variable for time, and assign ccordinates 
     ds_subset = ds_subset.rename({'XTIME': 'datetime'})  #Rename after defining the component DataArrays in the DataSet
-    ds_subset = ds_subset.assign_coords(z=ds_subset['z'])
+    if specified_heights is None:
+        ds_subset = ds_subset.assign_coords(z=ds_subset['z'])
     ds_subset = ds_subset.assign_coords(y=ds_subset['y'])
     ds_subset = ds_subset.assign_coords(x=ds_subset['x'])
     ds_subset = ds_subset.assign_coords(zsurface=ds_subset['zsurface'])
     ds_subset = ds_subset.rename_vars({'XLAT':'lat', 'XLONG':'lon'})
+    #print(ds_subset)
     ds_subset = ds_subset.rename_dims(dims_dict)
+    #print(ds_subset)
     return ds_subset
 

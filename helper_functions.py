@@ -311,25 +311,24 @@ def model4D_calcQOIs(ds,mean_dim):
 
     dim_keys = [*ds.dims.keys()]
     ds_means = ds.mean(dim=mean_dim)
-    ds_perts=ds-ds_means
+    ds_perts = ds-ds_means
 
+    ds['uMean'] = ds_means['u']
+    ds['vMean'] = ds_means['v']
+    ds['wMean'] = ds_means['w']
+    ds['pMean'] = ds_means['p']
+    ds['thetaMean'] = ds_means['theta']
+    ds['UMean'] = ds_means['wspd']
+    ds['UdirMean'] = ds_means['wdir']
 
-    ds['uMean']=ds_means['u']
-    ds['vMean']=ds_means['v']
-    ds['wMean']=ds_means['w']
-    ds['pMean']=ds_means['p']
-    ds['thetaMean']=ds_means['theta']
-    ds['UMean']=ds_means['wspd']
-    ds['UdirMean']=ds_means['wdir']
-
-    ds['uu']=ds_perts['u']**2
-    ds['vv']=ds_perts['v']**2
-    ds['ww']=ds_perts['w']**2
-    ds['uv']=ds_perts['u']*ds_perts['v']
-    ds['uw']=ds_perts['u']*ds_perts['w']
-    ds['vw']=ds_perts['v']*ds_perts['w']
-    ds['wth']=ds_perts['w']*ds_perts['theta']
-    ds['UU']=ds_perts['wspd']**2
-    ds['Uw']=ds_perts['wspd']**2
-    ds['TKE']=0.5*np.sqrt(ds['UU']+ds['ww'])
+    ds['uu'] = ds_perts['u']**2
+    ds['vv'] = ds_perts['v']**2
+    ds['ww'] = ds_perts['w']**2
+    ds['uv'] = ds_perts['u']*ds_perts['v']
+    ds['uw'] = ds_perts['u']*ds_perts['w']
+    ds['vw'] = ds_perts['v']*ds_perts['w']
+    ds['wth'] = ds_perts['w']*ds_perts['theta']
+    ds['UU'] = ds_perts['wspd']**2
+    ds['Uw'] = ds_perts['wspd']**2
+    ds['TKE'] = 0.5*np.sqrt(ds['UU']+ds['ww'])
     return ds
