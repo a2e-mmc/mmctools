@@ -597,10 +597,10 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
     wrf_file_filter : string-glob expression
         A string-glob expression to filter a set of 4-dimensional WRF
         output files.
-    specified_heights : list-like	
-        A list of static heights to which all data variables should be	
-        interpolated. Note that this significantly increases the data	
-        read time.
+    specified_heights : list-like, optional	
+        If not None, then a list of static heights to which all data
+        variables should be	interpolated. Note that this significantly
+        increases the data read time.
     """
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
