@@ -334,7 +334,7 @@ def model4D_calcQOIs(ds,mean_dim):
     ds['TKE'] = 0.5*np.sqrt(ds['UU']+ds['ww'])
     return ds
 
-def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs):
+def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs,fld,fldMean):
     """
     Using an a2e-mmc standard, xarrays-based, data structure of 
     4-dimensional model output with space-based quantities of interest,
@@ -348,9 +348,13 @@ def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs):
     spectra_dim : string 
         Dimension along which to calculate spectra
     vert_levels :
-	vertical levels over which to caluclate spectra
+	vertical levels over which to calculate spectra
     horizontal_locs : 
 	horizontal (non-spectra_dim) locations at which to calculate spectra
+    fld : string
+        Name of the field in the dataset tocalculate spectra of 
+    fldMean : string
+        Name of the mean of fld in the dataset
     """
     from scipy.signal import welch
     from scipy.signal.windows import hann, hamming
@@ -372,7 +376,7 @@ def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs):
         for level in vert_levels:
             cnt_i = 0
             for iLoc in horizontal_locs:
-                series = ds['wspd'].isel(datetime=it,nz=level,nx=iLoc)-ds['UMean'].isel(datetime=it,nz=level,nx=iLoc)
+                series = ds[fld].isel(datetime=it,nz=level,nx=iLoc)-ds[fldMean].isel(datetime=it,nz=level,nx=iLoc)
 
                 f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
                 Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
@@ -383,7 +387,71 @@ def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs):
                     cnt_i = cnt_i+1
             cnt_lvl = cnt_lvl + 1
         cnt = cnt+1.0
-    Puuf = (1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims['ny']/2).astype(int))]
+    Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims['ny']/2).astype(int))]   ###2.0 is to account for the dropping of the negative side of the FFT 
+    f = f[:(np.floor(ds.dims['ny']/2).astype(int))]
+
+    return f,Puuf
+
+def model4D_spatial_cospectra(ds,spectra_dim,vert_levels,horizontal_locs,fldv0,fldv0Mean,fldv1,fldv1Mean):
+    """
+    Using an a2e-mmc standard, xarrays-based, data structure of 
+    4-dimensional model output with space-based quantities of interest,
+    calculate cospectra from two fields at specified vertical indices and 
+    streamwise horizontal indices, averaged over the time instances in ds.
+
+    Usage
+    ====
+    ds : mmc-4D standard xarray DataSet 
+        The raw standard mmc-4D data structure 
+    spectra_dim : string 
+        Dimension along which to calculate spectra
+    vert_levels :
+        vertical levels over which to caluclate spectra
+    horizontal_locs : 
+        horizontal (non-spectra_dim) locations at which to calculate spectra
+    fldv0 : string
+        Name of the first field in the dataset in desired cospectra of 
+    fldv0Mean : string
+        Name of the mean of fldv0 in the dataset
+    fldv1 : string
+        Name of the second field in the dataset in deisred cospectra  
+    fldv1Mean : string
+        Name of the mean of fldv1 in the dataset
+    """
+    from scipy.signal import welch
+    from scipy.signal.windows import hann, hamming
+
+    print('Averaging spectra over {:d} time-instances'.format(ds.dims['datetime']))
+    nblock = ds.dims[spectra_dim]
+    if 'y' in spectra_dim:
+        dt = ds.attrs['DY']
+    elif 'x' in spectra_dim:
+        dt = ds.attrs['DX']
+    fs = 1 / dt
+    overlap = 0
+    win = hamming(nblock, True) #Assumed non-periodic in the spectra_dim
+    Puuf_cum = np.zeros((len(vert_levels),len(horizontal_locs),ds.dims[spectra_dim]))
+
+    cnt=0.0
+    for it in range(ds.dims['datetime']):
+        cnt_lvl = 0
+        for level in vert_levels:
+            cnt_i = 0
+            for iLoc in horizontal_locs:
+                series0 = ds[fldv0].isel(datetime=it,nz=level,nx=iLoc)-ds[fldv0Mean].isel(datetime=it,nz=level,nx=iLoc)
+                f, Pxxfc0 = welch(series0, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
+                series1 = ds[fldv1].isel(datetime=it,nz=level,nx=iLoc)-ds[fldv1Mean].isel(datetime=it,nz=level,nx=iLoc)
+                f, Pxxfc1 = welch(series1, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
+
+                Pxxf = (np.multiply(np.real(Pxxfc0),np.conj(Pxxfc1))+np.multiply(np.real(Pxxfc1),np.conj(Pxxfc0)))
+                if it is 0:
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
+                else:
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
+                    cnt_i = cnt_i+1
+            cnt_lvl = cnt_lvl + 1
+        cnt = cnt+1.0
+    Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims['ny']/2).astype(int))]  ###2.0 is to account for the dropping of the negative side of the FFT
     f = f[:(np.floor(ds.dims['ny']/2).astype(int))]
 
     return f,Puuf
@@ -408,7 +476,7 @@ def model4D_spatial_pdfs(ds,pdf_dim,vert_levels,horizontal_locs,fld,fldMean,bins
     fld : string
 	Name of the field in the dataset to calculate pdfs on
     fldMean : string
-	Name of the mean of fld in the dataset
+	Name of the mean of fld in the dataset 
     """
 
     from scipy.stats import skew,kurtosis
