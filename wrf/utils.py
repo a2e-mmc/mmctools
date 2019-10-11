@@ -49,19 +49,19 @@ def _get_dim(wrfdata,dimname):
     else:
         raise AttributeError('Unexpected WRF data type')
 
-def _get_dim_names(wrfdata,varname):
+def _get_dim_names(wrfdata,dimname):
     """Returns dimension names of the specified variable,
     with support for both netCDF4 and xarray
     """
     if isinstance(wrfdata, netCDF4.Dataset):
         try:
-            return wrfdata.variables[varname].dimensions
+            return wrfdata.variables[dimname].dimensions
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
     elif isinstance(wrfdata, xr.Dataset):
         try:
-            return wrfdata.variables[varname].dims
+            return wrfdata.variables[dimname].dims
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
