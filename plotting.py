@@ -1569,7 +1569,7 @@ def _format_time_axis(fig,ax,
     hour_interval = _determine_hourlocator_interval(ax[-1],timelimits)
     if plot_local_time:
         # Format first axis (local time)
-        ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
+        ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(0,24,hour_interval)))
         ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%I %P'))
         ax[-1].xaxis.set_major_locator(mdates.DayLocator(interval=12)) #Choose large interval so dates are not plotted
         ax[-1].xaxis.set_major_formatter(mdates.DateFormatter(''))
@@ -1625,7 +1625,7 @@ def _format_time_axis(fig,ax,
             ax2 = np.array(ax2)
             fig.align_xlabels(ax2)
     else:
-        ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(24),interval=hour_interval))
+        ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(0,24,hour_interval)))
         ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%H%M'))
         ax[-1].xaxis.set_major_locator(mdates.DayLocator())
         ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('\n%Y-%m-%d'))
@@ -1636,6 +1636,10 @@ def _format_time_axis(fig,ax,
 
         tstr = 'UTC time'
         ax2 = None
+
+    # Make sure both major and minor axis labels are visible when they are at
+    # the same time
+    ax[-1].xaxis.remove_overlapping_locs = False
 
     # Set time label
     for axi in ax:
