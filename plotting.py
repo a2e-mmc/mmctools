@@ -1637,6 +1637,10 @@ def _format_time_axis(fig,ax,
         tstr = 'UTC time'
         ax2 = None
 
+    # Make sure both major and minor axis labels are visible when they are at
+    # the same time
+    ax[-1].xaxis.remove_overlapping_locs = False
+
     # Set time label
     for axi in ax:
         axi.set_xlabel(tstr)
