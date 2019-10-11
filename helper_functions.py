@@ -139,7 +139,11 @@ def calc_wind(df,u='u',v='v'):
     """Calculate wind speed and direction from horizontal velocity
     components, u and v.
     """
-    if not all(velcomp in df.columns for velcomp in [u,v]):
+    if isinstance(df,pd.DataFrame):
+        fields = df.columns
+    elif isinstance(df,xr.Dataset):
+        fields = df.variables
+    if not all(velcomp in fields for velcomp in [u,v]):
         print(('velocity components u/v not found; '
                'set u and/or v to calculate wind speed/direction'))
     else:
@@ -150,7 +154,11 @@ def calc_wind(df,u='u',v='v'):
 def calc_uv(df,wspd='wspd',wdir='wdir'):
     """Calculate velocity components from wind speed and direction.
     """
-    if not all(windvar in df.columns for windvar in [wspd,wdir]):
+    if isinstance(df,pd.DataFrame):
+        fields = df.columns
+    elif isinstance(df,xr.Dataset):
+        fields = df.variables
+    if not all(windvar in fields for windvar in [wspd,wdir]):
         print(('wind speed/direction not found; '
                'set wspd and/or wpd to calculate velocity components'))
     else:
