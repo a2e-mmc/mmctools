@@ -139,6 +139,8 @@ def get_unstaggered_var(wrfdata,varname):
     Extracts and unstaggers the specified variable
     '''
     var = _get_var(wrfdata,varname)
+    if var is None:
+        return None
     # Use dimension name to determine stagerred axis (staggered dimension name contain 'stag')
     stag_axs = [dim.endswith('_stag') for dim in _get_dim_names(wrfdata,varname)]
     assert(stag_axs.count(True) in [0,1]), \
@@ -454,11 +456,12 @@ def extract_column_from_wrfdata(fpath, coords,
     # 3D fields. WRF indexing Z[tdim,ydim,xdim]
     for field in fieldnames_3D:
         WRFdata[field] = get_unstaggered_var(ds,field)
-        
     
     # 4D fields. WRF indexing Z[tdim,zdim,ydim,xdim]
     for field in fieldnames_4D:
         WRFdata[field] = get_unstaggered_var(ds,field)
+        if WRFdata[field] is None:
+            continue
             
         # 4D field specific processing
         if field is 'T':
@@ -470,6 +473,17 @@ def extract_column_from_wrfdata(fpath, coords,
             WRFdata[field] = add_surface_plane(WRFdata[field])
         else:
             WRFdata[field] = add_surface_plane(WRFdata[field],plane=WRFdata[field][:,0,:,:])
+
+    # clean up empty fields
+    for name in list(WRFdata.keys()):
+        if WRFdata[name] is None:
+            del WRFdata[name]
+            try:
+                fieldnames_3D.remove(name)
+            except ValueError: pass
+            try:
+                fieldnames_4D.remove(name)
+            except ValueError: pass
     
     
     #---------------------------
