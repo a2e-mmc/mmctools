@@ -19,11 +19,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime
 import netCDF4
-import xarray
-import utm # need to pip install!
+import xarray as xr
 from scipy.spatial import KDTree
 from scipy.interpolate import interp1d, LinearNDInterpolator
-
+import wrf as wrfpy
 
 # List of default WRF fields for extract_column_from_wrfdata
 default_3D_fields = ['U10','V10','T2','TSK','UST','PSFC','HFX','LH','MUU','MUV','MUT']
@@ -43,7 +42,7 @@ def _get_dim(wrfdata,dimname):
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
-    elif isinstance(wrfdata, xarray.Dataset):
+    elif isinstance(wrfdata, xr.Dataset):
         try:
             return wrfdata.dims[dimname]
         except KeyError:
@@ -52,19 +51,19 @@ def _get_dim(wrfdata,dimname):
     else:
         raise AttributeError('Unexpected WRF data type')
 
-def _get_dim_names(wrfdata,varname):
+def _get_dim_names(wrfdata,dimname):
     """Returns dimension names of the specified variable,
     with support for both netCDF4 and xarray
     """
     if isinstance(wrfdata, netCDF4.Dataset):
         try:
-            return wrfdata.variables[varname].dimensions
+            return wrfdata.variables[dimname].dimensions
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
-    elif isinstance(wrfdata, xarray.Dataset):
+    elif isinstance(wrfdata, xr.Dataset):
         try:
-            return wrfdata.variables[varname].dims
+            return wrfdata.variables[dimname].dims
         except KeyError:
             print('No {:s} dimension'.format(dimname))
             return None
@@ -81,7 +80,7 @@ def _get_var(wrfdata,varname):
         except KeyError:
             print('No variable {:s}'.format(varname))
             return None
-    elif isinstance(wrfdata, xarray.Dataset):
+    elif isinstance(wrfdata, xr.Dataset):
         try:
             return wrfdata.variables[varname].values
         except KeyError:
@@ -142,6 +141,8 @@ def get_unstaggered_var(wrfdata,varname):
     Extracts and unstaggers the specified variable
     '''
     var = _get_var(wrfdata,varname)
+    if var is None:
+        return None
     # Use dimension name to determine stagerred axis (staggered dimension name contain 'stag')
     stag_axs = [dim.endswith('_stag') for dim in _get_dim_names(wrfdata,varname)]
     assert(stag_axs.count(True) in [0,1]), \
@@ -574,12 +575,13 @@ def extract_column_from_wrfdata(fpath, coords,
     additional_fields : list
         Additional fields to be processed
     """
+    import utm
     assert(spatial_filter in ['nearest','interpolate','average']),\
             'Spatial filtering type "'+spatial_filter+'" not recognised'
 
     # Load WRF data
-    xa = xarray.open_dataset(fpath)
-    tdim, zdim, ydim, xdim = get_wrf_dims(xa)
+    ds = xr.open_dataset(fpath)
+    tdim, zdim, ydim, xdim = get_wrf_dims(ds)
     
     
     #---------------------------
@@ -587,8 +589,8 @@ def extract_column_from_wrfdata(fpath, coords,
     #---------------------------
     
     # Extract WRF grid resolution
-    dx_meso = xa.attrs['DX']
-    assert(dx_meso == xa.attrs['DY'])
+    dx_meso = ds.attrs['DX']
+    assert(dx_meso == ds.attrs['DY'])
     
     
     # Number of additional points besides nearest grid point to perform spatial filtering
@@ -624,14 +626,14 @@ def extract_column_from_wrfdata(fpath, coords,
     fieldnames_4D = default_4D_fields
     for field in additional_fields:
         try:
-            ndim = len(xa[field].dims)
+            ndim = len(ds[field].dims)
         except KeyError:
             print('The additional field "'+field+'" is not available and will be ignored.')
         else:
-            if len(xa[field].dims) == 3:
+            if len(ds[field].dims) == 3:
                 if field not in fieldnames_3D:
                     fieldnames_3D.append(field)
-            elif len(xa[field].dims) == 4:
+            elif len(ds[field].dims) == 4:
                 if field not in fieldnames_4D:
                     fieldnames_4D.append(field)
             else:
@@ -645,21 +647,22 @@ def extract_column_from_wrfdata(fpath, coords,
     WRFdata = {}
     
     # Cell-centered coordinates
-    XLAT = xa.variables['XLAT'].values     # WRF indexing XLAT[time,lat,lon]
-    XLONG = xa.variables['XLONG'].values
+    XLAT = ds.variables['XLAT'].values     # WRF indexing XLAT[time,lat,lon]
+    XLONG = ds.variables['XLONG'].values
     
     # Height above ground level
-    WRFdata['Zagl'],_ = get_height(xa,timevarying=True)
+    WRFdata['Zagl'],_ = get_height(ds,timevarying=True)
     WRFdata['Zagl']   = add_surface_plane(WRFdata['Zagl'])
     
     # 3D fields. WRF indexing Z[tdim,ydim,xdim]
     for field in fieldnames_3D:
-        WRFdata[field] = get_unstaggered_var(xa,field)
-        
+        WRFdata[field] = get_unstaggered_var(ds,field)
     
     # 4D fields. WRF indexing Z[tdim,zdim,ydim,xdim]
     for field in fieldnames_4D:
-        WRFdata[field] = get_unstaggered_var(xa,field)
+        WRFdata[field] = get_unstaggered_var(ds,field)
+        if WRFdata[field] is None:
+            continue
             
         # 4D field specific processing
         if field is 'T':
@@ -671,6 +674,17 @@ def extract_column_from_wrfdata(fpath, coords,
             WRFdata[field] = add_surface_plane(WRFdata[field])
         else:
             WRFdata[field] = add_surface_plane(WRFdata[field],plane=WRFdata[field][:,0,:,:])
+
+    # clean up empty fields
+    for name in list(WRFdata.keys()):
+        if WRFdata[name] is None:
+            del WRFdata[name]
+            try:
+                fieldnames_3D.remove(name)
+            except ValueError: pass
+            try:
+                fieldnames_4D.remove(name)
+            except ValueError: pass
     
     
     #---------------------------
@@ -757,28 +771,128 @@ def extract_column_from_wrfdata(fpath, coords,
     # Store data in xarray
     #---------------------------
     
-    coords = {'Time': xa['XTIME'].values,
+    coords = {'Time': ds['XTIME'].values,
               'height': zmicro}
     
     data_vars = {}
     for field in fieldnames_3D:
         data_vars[field] = ('Time',
                             sitedata[field],
-                            {'description': xa[field].attrs['description'].lower(),
-                             'units': xa[field].attrs['units']}
+                            {'description': ds[field].attrs['description'].lower(),
+                             'units': ds[field].attrs['units']}
                            )
     for field in fieldnames_4D:
         data_vars[field] = (['Time','height'],
                             sitedata[field],
-                            {'description': xa[field].attrs['description'].lower(),
-                             'units': xa[field].attrs['units']}
+                            {'description': ds[field].attrs['description'].lower(),
+                             'units': ds[field].attrs['units']}
                            )
         
     
-    xn = xarray.Dataset(data_vars=data_vars,coords=coords)
+    xn = xr.Dataset(data_vars=data_vars,coords=coords)
     
     # Rename T to theta and adjust description
     xn = xn.rename({'T':'theta'})
     xn['theta'].attrs['description'] = 'potential temperature'
 
     return xn
+
+def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
+    """
+    Construct an a2e-mmc standard, xarrays-based, data structure from a
+    series of 3-dimensional WRF output files
+
+    Note: Base state theta= 300.0 K is assumed by convention in WRF,
+        this function follow this convention.
+
+    Usage
+    ====
+    wrfpath : string 
+        The path to directory containing wrfout files to be processed
+    wrf_file_filter : string-glob expression
+        A string-glob expression to filter a set of 4-dimensional WRF
+        output files.
+    specified_heights : list-like, optional	
+        If not None, then a list of static heights to which all data
+        variables should be	interpolated. Note that this significantly
+        increases the data read time.
+    """
+    TH0 = 300.0 #WRF convention base-state theta = 300.0 K
+    dims_dict = {
+        'Time':'datetime',
+        'bottom_top':'nz',
+        'south_north': 'ny',
+        'west_east':'nx',
+    }
+
+    ds = xr.open_mfdataset(os.path.join(wrf_path,wrf_file_filter),
+                           chunks={'Time': 10},
+                           combine='nested',
+                           concat_dim='Time')
+    dim_keys = ["Time","bottom_top","south_north","west_east"] 
+    horiz_dim_keys = ["south_north","west_east"]
+    print('Finished opening/concatenating datasets...')
+
+    ds_subset = ds[['XTIME']]
+    print('Establishing coordinate variables, x,y,z, zSurface...')
+    zcoord = wrfpy.destagger((ds['PHB'] + ds['PH']) / 9.8, stagger_dim=1, meta=False)
+    #ycoord = ds.DY * np.tile(0.5 + np.arange(ds.dims['south_north']),
+    #                         (ds.dims['west_east'],1))
+    #xcoord = ds.DX * np.tile(0.5 + np.arange(ds.dims['west_east']),
+    #                         (ds.dims['south_north'],1)) 
+    ycoord = ds.DY * (0.5 + np.arange(ds.dims['south_north']))
+    xcoord = ds.DX * (0.5 + np.arange(ds.dims['west_east']))
+    ds_subset['z'] = xr.DataArray(zcoord, dims=dim_keys)
+    #ds_subset['y'] = xr.DataArray(np.transpose(ycoord), dims=horiz_dim_keys)
+    #ds_subset['x'] = xr.DataArray(xcoord, dims=horiz_dim_keys)
+    ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
+    ds_subset['x'] = xr.DataArray(xcoord, dims='west_east')
+
+    # Assume terrain height is static in time even though WRF allows
+    # for it to be time-varying for moving grids
+    ds_subset['zsurface'] = xr.DataArray(ds['HGT'].isel(Time=0), dims=horiz_dim_keys)
+    print('Destaggering data variables, u,v,w...')
+    ds_subset['u'] = xr.DataArray(wrfpy.destagger(ds['U'],stagger_dim=3,meta=False),
+                                  dims=dim_keys)
+    ds_subset['v'] = xr.DataArray(wrfpy.destagger(ds['V'],stagger_dim=2,meta=False),
+                                  dims=dim_keys)
+    ds_subset['w'] = xr.DataArray(wrfpy.destagger(ds['W'],stagger_dim=1,meta=False),
+                                  dims=dim_keys)
+
+    print('Extracting data variables, p,theta...')
+    ds_subset['p'] = xr.DataArray(ds['P']+ds['PB'], dims=dim_keys)
+    ds_subset['theta'] = xr.DataArray(ds['THM']+TH0, dims=dim_keys)
+
+    # optionally, interpolate to static heights	
+    if specified_heights is not None:	
+        zarr = ds_subset['z']	
+        for var in ['u','v','w','p','theta']:	
+            print('Interpolating',var)	
+            interpolated = wrfpy.interplevel(ds_subset[var], zarr, specified_heights)	
+            ds_subset[var] = interpolated #.expand_dims('Time', axis=0)	
+            #print(ds_subset[var])
+        ds_subset = ds_subset.drop_dims('bottom_top').rename({'level':'z'})	
+        dim_keys[1] = 'z'	
+        dims_dict.pop('bottom_top')
+        print(dims_dict)
+
+    # calculate derived variables
+    print('Calculating derived data variables, wspd, wdir...')
+    ds_subset['wspd'] = xr.DataArray(np.sqrt(ds_subset['u']**2 + ds_subset['v']**2),
+                                     dims=dim_keys)
+    ds_subset['wdir'] = xr.DataArray(180. + np.arctan2(ds_subset['u'],ds_subset['v'])*180./np.pi,
+                                     dims=dim_keys)
+    
+    # assign rename coord variable for time, and assign ccordinates 
+    ds_subset = ds_subset.rename({'XTIME': 'datetime'})  #Rename after defining the component DataArrays in the DataSet
+    if specified_heights is None:
+        ds_subset = ds_subset.assign_coords(z=ds_subset['z'])
+    ds_subset = ds_subset.assign_coords(y=ds_subset['y'])
+    ds_subset = ds_subset.assign_coords(x=ds_subset['x'])
+    ds_subset = ds_subset.assign_coords(zsurface=ds_subset['zsurface'])
+    ds_subset = ds_subset.rename_vars({'XLAT':'lat', 'XLONG':'lon'})
+    #print(ds_subset)
+    ds_subset = ds_subset.rename_dims(dims_dict)
+    #print(ds_subset)
+    return ds_subset
+

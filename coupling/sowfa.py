@@ -19,7 +19,7 @@ class InternalCoupling(object):
     def __init__(self,
                  dpath,
                  df,
-                 dateref,
+                 dateref=None,
                  datefrom=None,
                  dateto=None):
         """
@@ -31,14 +31,19 @@ class InternalCoupling(object):
             Folder to write files to
         df : pandas.DataFrame
             Data (index should be called datetime)
-        dateref : str
-            Reference datetime, SOWFA uses seconds since this datetime
-        datefrom : str
+        dateref : str, optional
+            Reference datetime, used to construct a pd.DateTimeIndex
+            with SOWFA time 0 corresponding to dateref; if not
+            specified, then the time index will be the simulation time
+            as a pd.TimedeltaIndex
+        datefrom : str, optional
             Start date of the period that will be written out, if None
-            start from the first timestamp in df
-        dateto : str
+            start from the first timestamp in df; only used if dateref
+            is specified
+        dateto : str, optional
             End date of the period that will be written out, if None end
-            with the last timestamp in df
+            with the last timestamp in df; only used if dateref is
+            specified
         """
         
         self.dpath = dpath
@@ -59,11 +64,16 @@ class InternalCoupling(object):
         self.datefrom = datefrom
 
         # calculate time in seconds since reference date
-        dateref = pd.to_datetime(dateref)
-        tdelta = pd.Timedelta(1,unit='s')
-        self.df.reset_index(inplace=True)
-        self.df['t_index'] = (self.df['datetime'] - dateref) / tdelta
-        self.df.set_index('datetime',inplace=True)
+        if dateref is not None:
+            # self.df['datetime'] exists and is a DateTimeIndex
+            dateref = pd.to_datetime(dateref)
+            tdelta = pd.Timedelta(1,unit='s')
+            self.df.reset_index(inplace=True)
+            self.df['t_index'] = (self.df['datetime'] - dateref) / tdelta
+            self.df.set_index('datetime',inplace=True)
+        else:
+            # self.df['t'] exists and is a TimedeltaIndex
+            self.df['t_index'] = self.df.index.total_seconds()
 
     def write_BCs(self,
                   fname,
@@ -158,28 +168,36 @@ class InternalCoupling(object):
 
     def write_timeheight(self,
                          fname,
-                         xmom = 'u',
-                         ymom = 'v',
-                         zmom = 'w',
-                         temp = 'theta',
+                         xmom=None,
+                         ymom=None,
+                         zmom=None,
+                         temp=None,
                          ):
         """
-        Write time-height data to SOWFA-readable input file for solver (to be
-        included in constant/ABLProperties)
+        Write time-height data to SOWFA-readable input file for solver
+        (to be included in constant/ABLProperties). Note that if any
+        momentum data output is specified, then all components should be
+        specified together for SOWFA to function properly.
     
         Usage
         =====
         fname : str
             Filename
-        xmom : str
+        xmom : str or None
             Field name corresponding to x momentum (field or tendency)
-        ymom : str
+        ymom : str or None
             Field name corresponding to y momentum (field or tendency)
-        zmom : str
+        zmom : str or None
             Field name corresponding to z momentum (field or tendency)
-        temp : str
+        temp : str or None
             Field name corresponding to potential temperature (field or tendency)
         """
+        have_xyz_mom = [(comp is not None) for comp in [xmom,ymom,zmom]]
+        if any(have_xyz_mom):
+            assert all(have_xyz_mom), 'Need to specify all momentum components'
+            write_mom = True
+        else:
+            write_mom = False
     
         # extract time and height array
         zs = self.df.height.unique()
@@ -190,8 +208,9 @@ class InternalCoupling(object):
         # set missing fields to zero
         fieldNames = [xmom, ymom, zmom, temp]
         for field in fieldNames:
-            if not field in self.df.columns:
+            if (field is not None) and (field not in self.df.columns):
                 self.df.loc[:,field] = 0.0
+        fieldNames = [name for name in fieldNames if name is not None]
     
         # pivot data to time-height arrays
         df_pivot = self.df.pivot(columns='height',values=fieldNames)
@@ -201,36 +220,42 @@ class InternalCoupling(object):
     
         # write data to SOWFA readable file
         with open(os.path.join(self.dpath,fname),'w') as fid:
-            # Write the height list for the momentum fields
-            fid.write('sourceHeightsMomentum\n')    
-            np.savetxt(fid,zs,fmt='    %g',header='(',footer=');\n',comments='')
+            if write_mom:
+                # Write the height list for the momentum fields
+                fid.write('sourceHeightsMomentum\n')    
+                np.savetxt(fid,zs,fmt='    %g',header='(',footer=');\n',comments='')
                   
-            # Write the x-velocity
-            fid.write('sourceTableMomentumX\n')
-            fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
-            np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),df_pivot[xmom].values),axis=1),fmt=fmt,
-                header='(',footer=');\n',comments='')
+                # Write the x-velocity
+                fid.write('sourceTableMomentumX\n')
+                fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
+                np.savetxt(fid,
+                           np.concatenate((ts.reshape((nt,1)),df_pivot[xmom].values),axis=1),
+                           fmt=fmt, header='(', footer=');\n', comments='')
     
-            # Write the y-velocity
-            fid.write('sourceTableMomentumY\n')
-            fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
-            np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),df_pivot[ymom].values),axis=1),fmt=fmt,
-                header='(',footer=');\n',comments='')
+                # Write the y-velocity
+                fid.write('sourceTableMomentumY\n')
+                fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
+                np.savetxt(fid,
+                           np.concatenate((ts.reshape((nt,1)),df_pivot[ymom].values),axis=1),
+                           fmt=fmt, header='(', footer=');\n', comments='')
     
-            # Write the z-velocity
-            fid.write('sourceTableMomentumZ\n')
-            fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
-            np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),df_pivot[zmom].values),axis=1),fmt=fmt,
-                header='(',footer=');\n',comments='')
+                # Write the z-velocity
+                fid.write('sourceTableMomentumZ\n')
+                fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
+                np.savetxt(fid,
+                           np.concatenate((ts.reshape((nt,1)),df_pivot[zmom].values),axis=1),
+                           fmt=fmt, header='(', footer=');\n', comments='')
     
-            # Write the height list for the temperature fields
-            fid.write('sourceHeightsTemperature\n') 
-            np.savetxt(fid,zs,fmt='    %g',header='(',footer=');\n',comments='')
-    
-            # Write the temperature
-            fid.write('sourceTableTemperature\n')
-            fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
-            np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),df_pivot[temp].values),axis=1),fmt=fmt,
-                header='(',footer=');\n',comments='')
+            if temp:
+                # Write the height list for the temperature fields
+                fid.write('sourceHeightsTemperature\n') 
+                np.savetxt(fid,zs,fmt='    %g',header='(',footer=');\n',comments='')
+        
+                # Write the temperature
+                fid.write('sourceTableTemperature\n')
+                fmt = ['    (%g',] + ['%.12g']*(nz-1) + ['%.12g)',]
+                np.savetxt(fid,
+                           np.concatenate((ts.reshape((nt,1)),df_pivot[temp].values),axis=1),
+                           fmt=fmt, header='(', footer=');\n', comments='')
     
         return
