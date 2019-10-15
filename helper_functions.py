@@ -3,6 +3,7 @@ Helper functions for calculating standard meteorological quantities
 """
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 
 # constants
@@ -296,4 +297,220 @@ def fit_power_law_alpha(z,U,zref=80.0,Uref=8.0):
     R2 = 1.0 - (SSres/SStot)
     return alpha, R2
 
+def model4D_calcQOIs(ds,mean_dim):
+    """
+    Augment an a2e-mmc standard, xarrays-based, data structure of 
+    4-dimensional model output with space-based quantities of interest
 
+    Usage
+    ====
+    ds : mmc-4D standard xarray DataSet 
+        The raw standard mmc-4D data structure 
+    mean_dim : string 
+        Dimension along which to calculate mean and fluctuating (perturbation) parts
+    """
+
+    dim_keys = [*ds.dims.keys()]
+    ds_means = ds.mean(dim=mean_dim)
+    ds_perts = ds-ds_means
+
+    ds['uMean'] = ds_means['u']
+    ds['vMean'] = ds_means['v']
+    ds['wMean'] = ds_means['w']
+    ds['pMean'] = ds_means['p']
+    ds['thetaMean'] = ds_means['theta']
+    ds['UMean'] = ds_means['wspd']
+    ds['UdirMean'] = ds_means['wdir']
+
+    ds['uu'] = ds_perts['u']**2
+    ds['vv'] = ds_perts['v']**2
+    ds['ww'] = ds_perts['w']**2
+    ds['uv'] = ds_perts['u']*ds_perts['v']
+    ds['uw'] = ds_perts['u']*ds_perts['w']
+    ds['vw'] = ds_perts['v']*ds_perts['w']
+    ds['wth'] = ds_perts['w']*ds_perts['theta']
+    ds['UU'] = ds_perts['wspd']**2
+    ds['Uw'] = ds_perts['wspd']**2
+    ds['TKE'] = 0.5*np.sqrt(ds['UU']+ds['ww'])
+    return ds
+
+def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs,fld,fldMean):
+    """
+    Using an a2e-mmc standard, xarrays-based, data structure of 
+    4-dimensional model output with space-based quantities of interest,
+    calculate energy spectra at specified vertical indices and 
+    streamwise horizontal indices, averaged over the time instances in ds.
+
+    Usage
+    ====
+    ds : mmc-4D standard xarray DataSet 
+        The raw standard mmc-4D data structure 
+    spectra_dim : string 
+        Dimension along which to calculate spectra
+    vert_levels :
+	vertical levels over which to calculate spectra
+    horizontal_locs : 
+	horizontal (non-spectra_dim) locations at which to calculate spectra
+    fld : string
+        Name of the field in the dataset tocalculate spectra of 
+    fldMean : string
+        Name of the mean of fld in the dataset
+    """
+    from scipy.signal import welch
+    from scipy.signal.windows import hann, hamming
+
+    print('Averaging spectra over {:d} time-instances'.format(ds.dims['datetime']))
+    nblock = ds.dims[spectra_dim]
+    if 'y' in spectra_dim:
+        dt = ds.attrs['DY']
+    elif 'x' in spectra_dim:
+        dt = ds.attrs['DX']
+    fs = 1 / dt
+    overlap = 0
+    win = hamming(nblock, True) #Assumed non-periodic in the spectra_dim
+    Puuf_cum = np.zeros((len(vert_levels),len(horizontal_locs),ds.dims[spectra_dim]))
+
+    cnt=0.0
+    for it in range(ds.dims['datetime']):
+        cnt_lvl = 0
+        for level in vert_levels:
+            cnt_i = 0
+            for iLoc in horizontal_locs:
+                series = ds[fld].isel(datetime=it,nz=level,nx=iLoc)-ds[fldMean].isel(datetime=it,nz=level,nx=iLoc)
+
+                f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
+                Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
+                if it is 0:
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
+                else:
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
+                    cnt_i = cnt_i+1
+            cnt_lvl = cnt_lvl + 1
+        cnt = cnt+1.0
+    Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims['ny']/2).astype(int))]   ###2.0 is to account for the dropping of the negative side of the FFT 
+    f = f[:(np.floor(ds.dims['ny']/2).astype(int))]
+
+    return f,Puuf
+
+def model4D_spatial_cospectra(ds,spectra_dim,vert_levels,horizontal_locs,fldv0,fldv0Mean,fldv1,fldv1Mean):
+    """
+    Using an a2e-mmc standard, xarrays-based, data structure of 
+    4-dimensional model output with space-based quantities of interest,
+    calculate cospectra from two fields at specified vertical indices and 
+    streamwise horizontal indices, averaged over the time instances in ds.
+
+    Usage
+    ====
+    ds : mmc-4D standard xarray DataSet 
+        The raw standard mmc-4D data structure 
+    spectra_dim : string 
+        Dimension along which to calculate spectra
+    vert_levels :
+        vertical levels over which to caluclate spectra
+    horizontal_locs : 
+        horizontal (non-spectra_dim) locations at which to calculate spectra
+    fldv0 : string
+        Name of the first field in the dataset in desired cospectra of 
+    fldv0Mean : string
+        Name of the mean of fldv0 in the dataset
+    fldv1 : string
+        Name of the second field in the dataset in deisred cospectra  
+    fldv1Mean : string
+        Name of the mean of fldv1 in the dataset
+    """
+    from scipy.signal import welch
+    from scipy.signal.windows import hann, hamming
+
+    print('Averaging spectra over {:d} time-instances'.format(ds.dims['datetime']))
+    nblock = ds.dims[spectra_dim]
+    if 'y' in spectra_dim:
+        dt = ds.attrs['DY']
+    elif 'x' in spectra_dim:
+        dt = ds.attrs['DX']
+    fs = 1 / dt
+    overlap = 0
+    win = hamming(nblock, True) #Assumed non-periodic in the spectra_dim
+    Puuf_cum = np.zeros((len(vert_levels),len(horizontal_locs),ds.dims[spectra_dim]))
+
+    cnt=0.0
+    for it in range(ds.dims['datetime']):
+        cnt_lvl = 0
+        for level in vert_levels:
+            cnt_i = 0
+            for iLoc in horizontal_locs:
+                series0 = ds[fldv0].isel(datetime=it,nz=level,nx=iLoc)-ds[fldv0Mean].isel(datetime=it,nz=level,nx=iLoc)
+                f, Pxxfc0 = welch(series0, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
+                series1 = ds[fldv1].isel(datetime=it,nz=level,nx=iLoc)-ds[fldv1Mean].isel(datetime=it,nz=level,nx=iLoc)
+                f, Pxxfc1 = welch(series1, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
+
+                Pxxf = (np.multiply(np.real(Pxxfc0),np.conj(Pxxfc1))+np.multiply(np.real(Pxxfc1),np.conj(Pxxfc0)))
+                if it is 0:
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
+                else:
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
+                    cnt_i = cnt_i+1
+            cnt_lvl = cnt_lvl + 1
+        cnt = cnt+1.0
+    Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims['ny']/2).astype(int))]  ###2.0 is to account for the dropping of the negative side of the FFT
+    f = f[:(np.floor(ds.dims['ny']/2).astype(int))]
+
+    return f,Puuf
+
+def model4D_spatial_pdfs(ds,pdf_dim,vert_levels,horizontal_locs,fld,fldMean,bins_vector):
+    """
+    Using an a2e-mmc standard, xarrays-based, data structure of 
+    4-dimensional model output with space-based quantities of interest,
+    calculate probability distributions at specified vertical indices and 
+    streamwise horizontal indices, aiccumulated over the time instances in ds.
+
+    Usage
+    ====
+    ds : mmc-4D standard xarray DataSet 
+        The raw standard mmc-4D data structure 
+    pdf_dim : string 
+        Dimension along which to calculate probability distribution functions
+    vert_levels :
+        vertical levels over which to caluclate probability distribution functions
+    horizontal_locs : 
+        horizontal (non-pdf_dim) locations at which to calculate probability distribution functions
+    fld : string
+	Name of the field in the dataset to calculate pdfs on
+    fldMean : string
+	Name of the mean of fld in the dataset 
+    """
+
+    from scipy.stats import skew,kurtosis
+    print('Accumulating statistics over {:d} time-instances'.format(ds.dims['datetime']))
+    sk_vec=np.zeros((len(vert_levels),len(horizontal_locs)))
+    kurt_vec=np.zeros((len(vert_levels),len(horizontal_locs)))
+    hist_cum = np.zeros((len(vert_levels),len(horizontal_locs),bins_vector.size-1))
+    cnt_lvl = 0
+    for level in vert_levels:
+        cnt_i = 0
+        for iLoc in horizontal_locs:
+            dist=np.ndarray.flatten(((ds[fld]).isel(nz=level,nx=iLoc)-(ds[fldMean]).isel(nz=level,nx=iLoc)).values)
+            sk_vec[cnt_lvl,cnt_i]=skew(dist)
+            kurt_vec[cnt_lvl,cnt_i]=kurtosis(dist)
+            cnt_i = cnt_i+1
+        cnt_lvl = cnt_lvl+1
+    cnt=0.0
+    for it in range(ds.dims['datetime']):
+        ##### If it seems like this is taking a long time, check progress occasionally by uncommenting 2-lines below
+        #if int((it/ds.dims['datetime'])%10*100)%10 == 0:
+        #    print('working...{:2d}% complete'.format(int((it/ds.dims['datetime'])%10*100)))
+        cnt_lvl = 0
+        for level in vert_levels:
+            cnt_i = 0
+            for iLoc in horizontal_locs:
+                y = (ds[fld].isel(datetime=it,nz=level,nx=iLoc)-ds[fldMean].isel(datetime=it,nz=level,nx=iLoc))
+                #y = np.ndarray.flatten(dist.isel(nz=level,nx=iLoc).values)
+                hist,bin_edges=np.histogram(y, bins=bins_vector)
+                if it is 0:
+                    hist_cum[cnt_lvl,cnt_i,:] = hist
+                else:
+                    hist_cum[cnt_lvl,cnt_i,:] = hist_cum[cnt_lvl,cnt_i,:] + hist
+                cnt_i = cnt_i+1
+            cnt_lvl = cnt_lvl+1
+        cnt = cnt+1.0
+
+    return hist_cum, bin_edges, sk_vec, kurt_vec
