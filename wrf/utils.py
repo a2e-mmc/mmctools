@@ -795,7 +795,7 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
             elif return_type == 'dataframe':
                 data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_dataframe(start_time=simulation_start,
                                                                             time_step=0.1,height_var='k'))
-        data_block = xarray.combine_by_coords(data)
+        data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
                 data_previous = data_block
@@ -818,6 +818,9 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
     dataF = dataF.assign_coords(lat=dataF.lat).assign_coords(lon=dataF.lon)
     dataF = dataF.assign_coords(z=dataF.ph).reset_index(['i','j'],drop=True).drop('ph')
     dataF = dataF.assign_coords(zsurface=dataF.zsurface)
+
+    dataF['wspd'] = (dataF['u']**2.0 + dataF['v']**2.0)**0.5
+    dataF['wdir'] = 180. + np.degrees(np.arctan2(dataF['u'], dataF['v']))
     
     dataF.attrs['SIMULATION_START_DATE'] = simulation_start
     dataF.attrs['DX'] = dx
