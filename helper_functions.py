@@ -102,10 +102,15 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
             # we also have specific humidity, q, at this point (not needed)
             q = w / (1+w)
             print('q(T,p,RH) =',q)
-        # Using Wallace & Hobbs, Eqn 3.59
         if verbose:
-            # sanity check!
+            # sanity check: Wallace & Hobbs, Eqn 3.60
+            # - assumes mixing ratio is small (i.e., w^2 ~ 0)
+            #   Tv - T = (1-epsilon)/epsilon * wT / (1 + w)
+            #          = (1-epsilon)/epsilon * wT * (1 - w + w^2 + ...)
+            #         ~= (1-epsilon)/epsilon * wT
+            #      Tv ~= T*(1 + ((1-epsilon)/epsilon)*w)
             print('Tv(T,p,RH) ~=',T*(1+0.61*w))
+        # Using Wallace & Hobbs, Eqn 3.59
         Tv = T * (w/epsilon + 1) / (1 + w)
     elif (e is not None) and (p is not None):
         # Definition of virtual temperature
