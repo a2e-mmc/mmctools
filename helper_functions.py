@@ -342,7 +342,6 @@ def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_d
         sm_frac = win_size/series_length
 
         exog = np.arange(len(ds[mean_dim].data))
-#        lowess_delta =  1e-2 * np.size(exog)
 
         init_ds_means = True
         for varn in var_keys:
@@ -352,25 +351,26 @@ def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_d
             else:
                 var_str = '{:s}Mean'.format(varn)
 
-            lowess_smth = np.zeros((ds.datetime.data.size, ds.nz.data.size, ds.ny.data.size, ds.nx.data.size))
+            lowess_smth = np.zeros((ds.datetime.data.size, ds.nz.data.size, 
+                                    ds.ny.data.size, ds.nx.data.size))
             loop_start = time.time()
             for kk in ds.nz.data:
                 k_loop_start = time.time()
                 var = ds[varn].isel(nz=kk).values
                 for jj in ds.ny.data:
                     for ii in ds.nx.data:
-                        lowess_smth[:,kk,jj,ii] = lowess(var[:,jj,ii], exog, frac=sm_frac, delta=lowess_delta)[:,1]
+                        lowess_smth[:,kk,jj,ii] = lowess(var[:,jj,ii], exog, 
+                                                         frac=sm_frac, 
+                                                         delta=lowess_delta)[:,1]
                 print('k-loop: {} seconds'.format(time.time()-k_loop_start))
                 loop_end = time.time()
             print('total time: {} seconds'.format(loop_end - loop_start))
             if init_ds_means:
-                ds_means = xr.Dataset({varn : (['datetime','nz','ny','nx'], lowess_smth)},
+                ds_means = xr.Dataset({varn:(['datetime','nz','ny','nx'], lowess_smth)},
                                        coords=ds.coords)
                 init_ds_means = False
             else:
                 ds_means[varn] = (['datetime','nz','ny','nx'], lowess_smth)
-        
-
     else:
         print('Please select "static" or "lowess"')
         return
@@ -428,10 +428,9 @@ def model4D_spectra(ds,spectra_dim,average_dim,vert_levels,horizontal_locs,fld,f
     """
     from scipy.signal import welch
     from scipy.signal.windows import hann, hamming
-    import matplotlib.pyplot as plt
 
     print('Averaging spectra (in {:s}) over {:d} instances in {:s}'.format(
-                                            spectra_dim,ds.dims[average_dim],average_dim))
+                                spectra_dim,ds.dims[average_dim],average_dim))
     nblock = ds.dims[spectra_dim]
     if 'y' in spectra_dim:
         dt = ds.attrs['DY']
@@ -453,21 +452,18 @@ def model4D_spectra(ds,spectra_dim,average_dim,vert_levels,horizontal_locs,fld,f
         for cnt_i,iLoc in enumerate(horizontal_locs): # loop over x
             for cnt,it in enumerate(range(ds.dims[average_dim])): # loop over y
                 if spectra_dim == 'datetime':
-                    #series = ds[fld].isel(ny=it,nz=level,nx=iLoc)-ds[fldMean].isel(ny=it,nz=level,nx=iLoc)
                     series = series_lvl.isel(nx=iLoc,ny=it)
                 elif 'y' in spectra_dim:
-                    series = ds[fld].isel(datetime=it,nz=level,nx=iLoc)-ds[fldMean].isel(datetime=it,nz=level,nx=iLoc)
+                    series = series_lvl.isel(nx=iLoc,datetime=it)
                 else:
                     print('Please choose spectral_dim of \'ny\', or \'datetime\'')
-                #spec_start = time.time()
-                f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
-                #print(time.time() - spec_start)
+                f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, 
+                                 nfft=nblock, return_onesided=False, detrend='constant')
                 Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
                 if it is 0:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
                 else:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
-    print(cnt)
     Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims[spectra_dim]/2).astype(int))]   ###2.0 is to account for the dropping of the negative side of the FFT 
     f = f[:(np.floor(ds.dims[spectra_dim]/2).astype(int))]
 
@@ -487,9 +483,9 @@ def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs,fld,fldMe
     spectra_dim : string 
         Dimension along which to calculate spectra
     vert_levels :
-	vertical levels over which to calculate spectra
+        vertical levels over which to calculate spectra
     horizontal_locs : 
-	horizontal (non-spectra_dim) locations at which to calculate spectra
+        horizontal (non-spectra_dim) locations at which to calculate spectra
     fld : string
         Name of the field in the dataset tocalculate spectra of 
     fldMean : string
@@ -527,6 +523,83 @@ def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs,fld,fldMe
             cnt_lvl = cnt_lvl + 1
         cnt = cnt+1.0
     Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims['ny']/2).astype(int))]   ###2.0 is to account for the dropping of the negative side of the FFT 
+    f = f[:(np.floor(ds.dims['ny']/2).astype(int))]
+
+    return f,Puuf
+
+def model4D_cospectra(ds,spectra_dim,average_dim,vert_levels,horizontal_locs,fldv0,fldv0Mean,fldv1,fldv1Mean):
+    """
+    Using an a2e-mmc standard, xarrays-based, data structure of 
+    4-dimensional model output with space-based quantities of interest,
+    calculate cospectra from two fields at specified vertical indices and 
+    streamwise horizontal indices, averaged over the dimension specified
+    by average_dim.
+
+    Usage
+    ====
+    ds : mmc-4D standard xarray DataSet 
+        The raw standard mmc-4D data structure 
+    spectra_dim : string 
+        Dimension along which to calculate spectra
+    average_dim : string 
+        Dimension along which to averag the spectra
+    vert_levels :
+        vertical levels over which to caluclate spectra
+    horizontal_locs : 
+        horizontal (non-spectra_dim) locations at which to calculate spectra
+    fldv0 : string
+        Name of the first field in the dataset in desired cospectra of 
+    fldv0Mean : string
+        Name of the mean of fldv0 in the dataset
+    fldv1 : string
+        Name of the second field in the dataset in deisred cospectra  
+    fldv1Mean : string
+        Name of the mean of fldv1 in the dataset
+    """
+    from scipy.signal import welch
+    from scipy.signal.windows import hann, hamming
+
+    print('Averaging cospectra (in {:s}) over {:d} instances in {:s}'.format(
+          spectra_dim,ds.dims[average_dim],average_dim))
+    nblock = ds.dims[spectra_dim]
+    if 'y' in spectra_dim:
+        dt = ds.attrs['DY']
+    elif 'x' in spectra_dim:
+        dt = ds.attrs['DX']
+    elif spectra_dim == 'datetime':
+        dt = float(ds.datetime[1].data - ds.datetime[0].data)/1e9
+
+    fs = 1 / dt
+    overlap = 0
+    win = hamming(nblock, True) #Assumed non-periodic in the spectra_dim
+    Puuf_cum = np.zeros((len(vert_levels),len(horizontal_locs),ds.dims[spectra_dim]))
+
+    for cnt_lvl,level in enumerate(vert_levels): # loop over levels
+        spec_start = time.time()
+        print('Grabbing slices in z')
+        series0_lvl = ds[fldv0].isel(nz=level)-ds[fldv0Mean].isel(nz=level)
+        series1_lvl = ds[fldv1].isel(nz=level)-ds[fldv1Mean].isel(nz=level)
+        print(time.time() - spec_start)
+        for cnt_i,iLoc in enumerate(horizontal_locs): # loop over x
+            for cnt,it in enumerate(range(ds.dims[average_dim])): # loop over average dim
+                if spectra_dim == 'datetime':
+                    series0 = series0_lvl.isel(nx=iLoc,ny=it)
+                    series1 = series1_lvl.isel(nx=iLoc,ny=it)
+                elif spectra_dim == 'y':
+                    series0 = series0_lvl.isel(nx=iLoc,datetime=it)
+                    series1 = series1_lvl.isel(nx=iLoc,datetime=it)
+                f, Pxxfc0 = welch(series0, fs, window=win, noverlap=overlap, 
+                            nfft=nblock, return_onesided=False, detrend='constant')
+                f, Pxxfc1 = welch(series1, fs, window=win, noverlap=overlap, 
+                            nfft=nblock, return_onesided=False, detrend='constant')
+
+                Pxxf = (np.multiply(np.real(Pxxfc0),np.conj(Pxxfc1))+
+                        np.multiply(np.real(Pxxfc1),np.conj(Pxxfc0)))
+                if it is 0:
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
+                else:
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
+    Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims['ny']/2).astype(int))]  ###2.0 is to account for the dropping of the negative side of the FFT
     f = f[:(np.floor(ds.dims['ny']/2).astype(int))]
 
     return f,Puuf
