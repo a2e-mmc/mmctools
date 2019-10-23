@@ -1086,6 +1086,7 @@ class PlottingInput(object):
     supported_datatypes = (
         pd.Series,
         pd.DataFrame,
+        xr.DataArray,
         xr.Dataset,
     )
 
@@ -1112,8 +1113,13 @@ class PlottingInput(object):
             self.datasets = {'Dataset': self.datasets}
         for dfname,df in self.datasets.items():
             # convert dataset types here
-            if isinstance(df, xr.Dataset):
+            if isinstance(df, (xr.Dataset,xr.DataArray)):
+                # handle xarray datatypes
                 self.datasets[dfname] = df.to_dataframe()
+                columns = self.datasets[dfname].columns
+                if len(columns) == 1:
+                    # convert to pd.Series
+                    self.datasets[dfname] = self.datasets[dfname][columns[0]]
             else:
                 assert(isinstance(df, self.supported_datatypes)), \
                     "Dataset {:s} of type {:s} not supported".format(dfname,str(type(df)))
