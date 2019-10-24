@@ -172,7 +172,7 @@ def theta(T, p, p0=1000.):
     return T * (p0/p)**0.286
 
 
-def covariance(a,b,interval='10min',resample=False):
+def covariance(a,b,interval='10min',resample=False,**kwargs):
     """Calculate covariance between two series (with datetime index) in
     the specified interval, where the interval is defined by a pandas
     offset string
@@ -214,11 +214,11 @@ def covariance(a,b,interval='10min',resample=False):
     if resample:
         a_mean = a.resample(interval).mean()
         b_mean = b.resample(interval).mean()
-        ab_mean = (a*b).resample(interval).mean()
+        ab_mean = (a*b).resample(interval,**kwargs).mean()
     else:
         a_mean = a.rolling(interval).mean()
         b_mean = b.rolling(interval).mean()
-        ab_mean = (a*b).rolling(interval).mean()
+        ab_mean = (a*b).rolling(interval,**kwargs).mean()
     cov = ab_mean - a_mean*b_mean
     if have_multiindex:
         return cov.stack()
