@@ -12,7 +12,7 @@ epsilon = 0.622 # ratio of molecular weights of water to dry air
 
 def e_s(T, celsius=False, model='Tetens'):
     """Calculate the saturation vapor pressure of water, $e_s$ [mb]
-    given the air temperature.
+    given the air temperature ([K] by default).
     """
     if celsius:
         # input is deg C
@@ -60,12 +60,15 @@ def T_d(T, RH, celsius=False, model='NWS'):
     return Td
 
 
-def w_s(T,p,celsius=False):
+def w_s(T,p,**kwargs):
     """Calculate the saturation mixing ratio, $w_s$ [kg/kg] given the
-    air temperature and station pressure [mb].
+    air temperature ([K] by default) and station pressure [mb].
+
+    See e_s() for additional information for the kwargs.
     """
-    es = e_s(T,celsius)
-    # From Wallace & Hobbs, Eqn 3.63
+    # First calculate the saturation vapor pressure
+    es = e_s(T,**kwargs)
+    # From Wallace & Hobbs, Eqn 3.63:
     return epsilon * es / (p - es)
 
 
@@ -102,10 +105,15 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
             # we also have specific humidity, q, at this point (not needed)
             q = w / (1+w)
             print('q(T,p,RH) =',q)
-        # Using Wallace & Hobbs, Eqn 3.59
         if verbose:
-            # sanity check!
+            # sanity check: Wallace & Hobbs, Eqn 3.60
+            # - assumes mixing ratio is small (i.e., w^2 ~ 0)
+            #   Tv - T = (1-epsilon)/epsilon * wT / (1 + w)
+            #          = (1-epsilon)/epsilon * wT * (1 - w + w^2 + ...)
+            #         ~= (1-epsilon)/epsilon * wT
+            #      Tv ~= T*(1 + ((1-epsilon)/epsilon)*w)
             print('Tv(T,p,RH) ~=',T*(1+0.61*w))
+        # Using Wallace & Hobbs, Eqn 3.59
         Tv = T * (w/epsilon + 1) / (1 + w)
     elif (e is not None) and (p is not None):
         # Definition of virtual temperature
