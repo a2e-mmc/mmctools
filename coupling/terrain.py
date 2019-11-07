@@ -24,7 +24,10 @@ from rasterio.crs import CRS
 
 class SRTM(object):
     """Class for working with Shuttle Radar Topography Mission data"""
-    data_products = ['SRTM1','SRTM3']
+    data_products = {
+        'SRTM1': 30.0,
+        'SRTM3': 90.0,
+    }
 
     def __init__(self,latlon_bounds,fpath='output.tif',product='SRTM3',
                  margin=0.05):
@@ -50,8 +53,8 @@ class SRTM(object):
             self.bounds[2] += margin
             self.bounds[3] += margin
         self.output = fpath
-        assert (product in self.data_products), \
-                'product should be one of '+str(self.data_products)
+        assert (product in self.data_products.keys()), \
+                'product should be one of '+str(list(self.data_products.keys()))
         self.product = product
 
     def download(self):
@@ -59,16 +62,23 @@ class SRTM(object):
         elevation.clip(self.bounds, product=self.product, output=self.output)
         elevation.clean()
 
-    def to_terrain(self,dx,dy,resampling=warp.Resampling.bilinear):
+    def to_terrain(self,dx=None,dy=None,resampling=warp.Resampling.bilinear):
         """Load geospatial raster data and reproject onto specified grid
 
         Usage
         =====
         dx,dy : float
-            Grid spacings [m].
+            Grid spacings [m]. If dy is not specified, then uniform
+            spacing is assumed.
         resampling : warp.Resampling value, optional
             See `list(warp.Resampling)`.
         """
+        if dx is None:
+            dx = self.data_products[self.product]
+            print('Output grid at ds=',dx)
+        if dy is None:
+            dy = dx
+
         # load raster
         if not os.path.isfile(self.output):
             raise FileNotFoundError('Need to download()')
