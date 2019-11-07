@@ -96,6 +96,7 @@ class SRTM(object):
         lat0 = (north+south) / 2
         lon0 = (west+east) / 2
         x0,y0,zonenum,_ = utm.from_latlon(lat0,lon0)
+        self.zonenum = zonenum
         proj = '+proj=utm +zone={:d}'.format(zonenum) \
              + '+datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0'
         dst_crs = CRS.from_proj4(proj)
