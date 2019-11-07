@@ -101,6 +101,7 @@ class SRTM(object):
         proj = '+proj=utm +zone={:d}'.format(zonenum) \
              + '+datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0'
         dst_crs = CRS.from_proj4(proj)
+        self.utm_crs = dst_crs
         print('EPSG code:',dst_crs.to_epsg())
         # - get origin (the _upper_ left corner) from bounds
         orix,oriy,_,_ = utm.from_latlon(north,west,force_zone_number=zonenum)
@@ -113,7 +114,7 @@ class SRTM(object):
         Nx = int(Lx / dx)
         Ny = int(Ly / dy)
 
-        # reproject to UTM grid
+        # reproject to uniform grid in the UTM CRS
         dem_array = np.empty((Ny, Nx))
         warp.reproject(src, dem_array,
                        src_transform=src_transform, src_crs=src_crs,
@@ -123,4 +124,20 @@ class SRTM(object):
         utmy = oriy + np.arange((-Ny+1)*dy, dy, dy)
         self.x,self.y = np.meshgrid(utmx,utmy,indexing='ij')
         self.z = np.flipud(dem_array).T
+
         return self.x, self.y, self.z
+
+    def to_latlon(self,x,y):
+        """Transform uniform grid to lat/lon space"""
+        xlon, xlat = warp.transform(self.utm_crs,
+                                    CRS.from_dict(init='epsg:4326'),
+                                    x, y)
+        try:
+            shape = x.shape
+        except AttributeError:
+            pass
+        else:
+            xlat = np.reshape(xlat, shape)
+            xlon = np.reshape(xlon, shape)
+        return xlat,xlon
+
