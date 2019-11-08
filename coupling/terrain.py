@@ -175,12 +175,47 @@ class SRTM(object):
         ang *= np.pi/180.
 
         # direction specific code
-        x = self.x[:,0]
-        imin = 0 if xrange[0] is None else np.where(x <= xrange[0])[0][-1]
-        imax = len(x) if xrange[1] is None else np.where(x > xrange[1])[0][0]
-        x = x[imin:imax]
+        imin = 0 if (xrange[0] is None) else np.where(self.x <= xrange[0])[0][-1]
+        imax = None if (xrange[1] is None) else np.where(self.x > xrange[1])[0][0]
+        x = self.x[imin:imax,0]
         y = np.tan(ang) * (x-refloc[0]) + refloc[1]
         z = self.zfun(x,y,grid=False)
 
         return x-refloc[0], z
+
+    def ytransect(self,xy=None,latlon=None,wdir=180.0,yrange=(None,None)):
+        """Get terrain transect along x for a slice aligned with the
+        specified wind direction and going through a specified reference
+        point (defined by xy or latlon)
+
+        Usage
+        =====
+        xy : list or tuple
+            Reference location in the UTM coordinate reference system [m]
+        latlon : list-like
+            Reference location in latitude and longitude [deg]
+        wdir : float
+            Wind direction with which the slice is aligned [deg]
+        xrange : list or tuple, optional
+            Range of x values over which slice (or None to use min/max)
+        """
+        assert self.have_terrain, 'Need to call to_terrain()'
+        assert ((xy is not None) ^ (latlon is not None)), 'Specify xy or latlon'
+        if xy:
+            refloc = xy
+        elif latlon: 
+            x,y,_,_ = utm.from_latlon(*latlon)
+            refloc = (x,y)
+        ang = 180 - wdir
+        print('Slice through',refloc,'at',ang,'deg')
+        ang *= np.pi/180.
+
+        # direction specific code
+        jmin = 0 if (yrange[0] is None) else np.where(self.y <= yrange[0])[1][-1]
+        jmax = None if (yrange[1] is None) else np.where(self.y > yrange[1])[1][0]
+        y = self.y[0,jmin:jmax]
+        x = refloc[0] - np.tan(ang) * (y-refloc[1])
+        z = self.zfun(x,y,grid=False)
+
+        return y-refloc[1], z
 
