@@ -14,6 +14,7 @@ For processing downloaded GeoTIFF data:
 """
 import os
 import numpy as np
+from scipy.interpolate import RectBivariateSpline
 
 import utm
 import elevation
@@ -126,6 +127,8 @@ class SRTM(object):
         utmy = oriy + np.arange((-Ny+1)*dy, dy, dy)
         self.x,self.y = np.meshgrid(utmx,utmy,indexing='ij')
         self.z = np.flipud(dem_array).T
+
+        self.zfun = RectBivariateSpline(utmx,utmy,self.z)
         self.have_terrain = True
 
         return self.x, self.y, self.z
@@ -144,22 +147,40 @@ class SRTM(object):
             xlon = np.reshape(xlon, shape)
         return xlat,xlon
 
-    def xtransect(self,xy=None,latlon=None,wdir=270.0):
+    def xtransect(self,xy=None,latlon=None,wdir=270.0,xrange=(None,None)):
         """Get terrain transect along x for a slice aligned with the
         specified wind direction and going through a specified reference
         point (defined by xy or latlon)
 
         Usage
         =====
-        xy : list-like
+        xy : list or tuple
             Reference location in the UTM coordinate reference system [m]
         latlon : list-like
             Reference location in latitude and longitude [deg]
         wdir : float
             Wind direction with which the slice is aligned [deg]
+        xrange : list or tuple, optional
+            Range of x values over which slice (or None to use min/max)
         """
         assert self.have_terrain, 'Need to call to_terrain()'
-        assert ((xy is not None) ^ (latlon is not None)), \
-                'Specify xy or latlon'
-        
+        assert ((xy is not None) ^ (latlon is not None)), 'Specify xy or latlon'
+        if xy:
+            refloc = xy
+        elif latlon: 
+            x,y,_,_ = utm.from_latlon(*latlon)
+            refloc = (x,y)
+        ang = 270 - wdir
+        print('Slice through',refloc,'at',ang,'deg')
+        ang *= np.pi/180.
+
+        # direction specific code
+        x = self.x[:,0]
+        imin = 0 if xrange[0] is None else np.where(x <= xrange[0])[0][-1]
+        imax = len(x) if xrange[1] is None else np.where(x > xrange[1])[0][0]
+        x = x[imin:imax]
+        y = np.tan(ang) * (x-refloc[0]) + refloc[1]
+        z = self.zfun(x,y,grid=False)
+
+        return x-refloc[0], z
 
