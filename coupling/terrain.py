@@ -56,6 +56,7 @@ class SRTM(object):
         assert (product in self.data_products.keys()), \
                 'product should be one of '+str(list(self.data_products.keys()))
         self.product = product
+        self.have_terrain = False
 
     def download(self):
         """Download the SRTM data in GeoTIFF format"""
@@ -106,6 +107,7 @@ class SRTM(object):
         # - get origin (the _upper_ left corner) from bounds
         orix,oriy,_,_ = utm.from_latlon(north,west,force_zone_number=zonenum)
         origin = (orix, oriy)
+        self.origin = origin
         dst_transform = transform.from_origin(*origin, dx, dy)
         # - get extents from lower right corner
         LL_x,LL_y,_,_ = utm.from_latlon(south,east,force_zone_number=zonenum)
@@ -124,6 +126,7 @@ class SRTM(object):
         utmy = oriy + np.arange((-Ny+1)*dy, dy, dy)
         self.x,self.y = np.meshgrid(utmx,utmy,indexing='ij')
         self.z = np.flipud(dem_array).T
+        self.have_terrain = True
 
         return self.x, self.y, self.z
 
@@ -140,4 +143,23 @@ class SRTM(object):
             xlat = np.reshape(xlat, shape)
             xlon = np.reshape(xlon, shape)
         return xlat,xlon
+
+    def xtransect(self,xy=None,latlon=None,wdir=270.0):
+        """Get terrain transect along x for a slice aligned with the
+        specified wind direction and going through a specified reference
+        point (defined by xy or latlon)
+
+        Usage
+        =====
+        xy : list-like
+            Reference location in the UTM coordinate reference system [m]
+        latlon : list-like
+            Reference location in latitude and longitude [deg]
+        wdir : float
+            Wind direction with which the slice is aligned [deg]
+        """
+        assert self.have_terrain, 'Need to call to_terrain()'
+        assert ((xy is not None) ^ (latlon is not None)), \
+                'Specify xy or latlon'
+        
 
