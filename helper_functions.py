@@ -573,34 +573,31 @@ def model4D_cospectra(ds,spectra_dim,average_dim,vert_levels,horizontal_locs,fld
     overlap = 0
     win = hamming(nblock, True) #Assumed non-periodic in the spectra_dim
     Puuf_cum = np.zeros((len(vert_levels),len(horizontal_locs),ds.dims[spectra_dim]))
-
     for cnt_lvl,level in enumerate(vert_levels): # loop over levels
         spec_start = time.time()
         print('Grabbing slices in z')
         series0_lvl = ds[fldv0].isel(nz=level)-ds[fldv0Mean].isel(nz=level)
         series1_lvl = ds[fldv1].isel(nz=level)-ds[fldv1Mean].isel(nz=level)
-        print(time.time() - spec_start)
         for cnt_i,iLoc in enumerate(horizontal_locs): # loop over x
             for cnt,it in enumerate(range(ds.dims[average_dim])): # loop over average dim
                 if spectra_dim == 'datetime':
                     series0 = series0_lvl.isel(nx=iLoc,ny=it)
                     series1 = series1_lvl.isel(nx=iLoc,ny=it)
-                elif spectra_dim == 'y':
+                elif 'y' in spectra_dim:
                     series0 = series0_lvl.isel(nx=iLoc,datetime=it)
                     series1 = series1_lvl.isel(nx=iLoc,datetime=it)
                 f, Pxxfc0 = welch(series0, fs, window=win, noverlap=overlap, 
                             nfft=nblock, return_onesided=False, detrend='constant')
                 f, Pxxfc1 = welch(series1, fs, window=win, noverlap=overlap, 
                             nfft=nblock, return_onesided=False, detrend='constant')
-
                 Pxxf = (np.multiply(np.real(Pxxfc0),np.conj(Pxxfc1))+
                         np.multiply(np.real(Pxxfc1),np.conj(Pxxfc0)))
                 if it is 0:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
                 else:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
-    Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims['ny']/2).astype(int))]  ###2.0 is to account for the dropping of the negative side of the FFT
-    f = f[:(np.floor(ds.dims['ny']/2).astype(int))]
+    Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims[spectra_dim]/2).astype(int))]  ###2.0 is to account for the dropping of the negative side of the FFT
+    f = f[:(np.floor(ds.dims[spectra_dim]/2).astype(int))]
 
     return f,Puuf
 
@@ -787,3 +784,28 @@ def model4D_spatial_pdfs(ds,pdf_dim,vert_levels,horizontal_locs,fld,fldMean,bins
         cnt = cnt+1.0
 
     return hist_cum, bin_edges, sk_vec, kurt_vec
+
+
+def reference_lines(x_range, y_start, slopes, line_type='log'):
+    '''
+    This will generate an array of y-values over a specified x-range for
+    the provided slopes. All lines will start from the specified
+    location. For now, this is only assumed useful for log-log plots.
+    x_range : array
+        values over which to plot the lines (requires 2 or more values)
+    y_start : float
+        where the lines will start in y
+    slopes : float or array
+        the slopes to be plotted (can be 1 or several)
+    '''
+    if type(slopes)==float:
+        y_range = np.asarray(x_range)**slopes
+        shift = y_start/y_range[0]
+        y_range = y_range*shift
+    elif isinstance(slopes,(list,np.ndarray)):
+        y_range = np.zeros((np.shape(x_range)[0],np.shape(slopes)[0]))
+        for ss,slope in enumerate(slopes):
+            y_range[:,ss] = np.asarray(x_range)**slope
+            shift = y_start/y_range[0,ss]
+            y_range[:,ss] = y_range[:,ss]*shift
+    return(y_range)
