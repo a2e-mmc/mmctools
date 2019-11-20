@@ -858,7 +858,7 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     tower_names = file_list.copy()
     for ff,file in enumerate(file_list):
         tower_names[ff] = file.split('/')[-1]
-    #tower_names = tower_names[:2]
+#    tower_names = tower_names[150:156]
     dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,return_type='xarray')
     return dsF
 
