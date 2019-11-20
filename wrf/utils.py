@@ -259,6 +259,7 @@ class Tower():
             self.varns = [
                 fpath.split('.')[-1] for fpath in self.filelist
             ]
+            print(fstr)
         else:
             self.filelist = []
             self.varns = []
@@ -440,16 +441,26 @@ class Tower():
     def to_xarray(self,
                   start_time='2013-11-08',time_unit='h',time_step=None,
                   heights=None,height_var='height',
-                  exclude=['ts']):
+                  exclude=['ts'],
+                  structure='ordered'):
+        
         df = self.to_dataframe(start_time,time_unit,time_step,heights,height_var,exclude)
-        ds = df.to_xarray().assign_coords(i=self.loci).assign_coords(j=self.locj).expand_dims(['j','i'],axis=[2,3])
+        if structure == 'ordered':
+            ds = df.to_xarray().assign_coords(i=self.loci).assign_coords(j=self.locj).expand_dims(['j','i'],axis=[2,3])
+            ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
+            ds = ds.assign_coords(height=ds.ph)
+            ds["lat"] = (['j','i'],  np.ones((1,1))*self.gridlat)
+            ds["lon"] = (['j','i'],  np.ones((1,1))*self.gridlon)
+            # Add zsurface (station height) as a data variable:
+            ds['zsurface'] = (['j','i'],  np.ones((1,1))*self.stationz)
+        elif structure == 'unordered':
+            ds = df.to_xarray().assign_coords(station=self.abbr).expand_dims(['station'],axis=[2])
+            ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
+            ds = ds.assign_coords(height=ds.ph)
+            ds["lat"] = (['station'],  [self.gridlat])
+            ds["lon"] = (['station'],  [self.gridlon])
+            ds['zsurface'] = (['station'],  [self.stationz])
 
-        ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
-        ds = ds.assign_coords(height=ds.ph)
-        ds["lat"] = (['j','i'],  np.ones((1,1))*self.gridlat)
-        ds["lon"] = (['j','i'],  np.ones((1,1))*self.gridlon)
-        # Add zsurface (station height) as a data variable:
-        ds['zsurface'] = (['j','i'],  np.ones((1,1))*self.stationz)
         return ds
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
@@ -769,7 +780,8 @@ def extract_column_from_wrfdata(fpath, coords,
     return xn
 
 
-def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'):
+def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray', structure='ordered',
+                   time_step=None):
     '''
     Combine together tslist files in time where, if there is any overlap, the later file
     will overwrite the earlier file. This makes the assumption that all of the tslist 
@@ -781,6 +793,7 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
     simulation_start = '2000-01-01 00:00'
     fname            = ['t0001.d02'] (Note: this is the prefix for the tower + domain)
     return_type      = 'xarray' or 'dataframe'
+    structure        = 'ordered' or 'unordered'
 
     This will work with a pandas df or an xarray ds/da
     '''
@@ -788,13 +801,16 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
         print('restart: {}'.format(restart))
         data = []
         for ff in fname:
+            
             print('starting {}'.format(ff))
             if return_type == 'xarray':
                 data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_xarray(start_time=simulation_start,
-                                                                            time_step=0.1,height_var='k'))
+                                                                            time_step=time_step,height_var='k',
+                                                                            structure=structure))
             elif return_type == 'dataframe':
                 data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_dataframe(start_time=simulation_start,
-                                                                            time_step=0.1,height_var='k'))
+                                                                            time_step=time_step,height_var='k',
+                                                                            structure=structure))
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
@@ -805,26 +821,26 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
                 data_previous = dataF
         else:
             dataF = data_block
-
-
+    if structure == 'ordered':
     # -------------------------------------------------------       
     #               MMC Format specifications
-    dataF = dataF.rename_dims({'k':'nz',
-                               'i':'nx',
-                               'j':'ny'})
-    dx,dy = 12.0, 12.0
-    xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
-    dataF = dataF.assign_coords(x=(('ny','nx'),xcoord)).assign_coords(y=(('ny','nx'),ycoord))
+        dataF = dataF.rename_dims({'k':'nz',
+                                   'i':'nx',
+                                   'j':'ny'})
+        dx,dy = 12.0, 12.0
+        xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
+        dataF = dataF.assign_coords(x=(('ny','nx'),xcoord)).assign_coords(y=(('ny','nx'),ycoord))
+        dataF = dataF.assign_coords(z=dataF.ph).reset_index(['i','j'],drop=True).drop('ph')
+        dataF.attrs['DX'] = dx
+        dataF.attrs['DY'] = dy
+    elif structure == 'unordered':
+        dataF = dataF.rename_dims({'k':'nz'})
     dataF = dataF.assign_coords(lat=dataF.lat).assign_coords(lon=dataF.lon)
-    dataF = dataF.assign_coords(z=dataF.ph).reset_index(['i','j'],drop=True).drop('ph')
     dataF = dataF.assign_coords(zsurface=dataF.zsurface)
-
     dataF['wspd'] = (dataF['u']**2.0 + dataF['v']**2.0)**0.5
-    dataF['wdir'] = 180. + np.degrees(np.arctan2(dataF['u'], dataF['v']))
-    
+    dataF['wdir'] = 180. + np.degrees(np.arctan2(dataF['u'], dataF['v']))        
+
     dataF.attrs['SIMULATION_START_DATE'] = simulation_start
-    dataF.attrs['DX'] = dx
-    dataF.attrs['DY'] = dy
     dataF.attrs['CREATED_FROM'] = fdir
 
     # -------------------------------------------------------       
@@ -836,7 +852,8 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
     return dataF
 
 
-def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest):
+def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest, structure='ordered',
+                       time_step=None):
     '''
     This will combine a series of tslist output over time and location based on the
     path to the case (fdir), the restart directories (restarts), a model start time 
@@ -859,7 +876,8 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     for ff,file in enumerate(file_list):
         tower_names[ff] = file.split('/')[-1]
     #tower_names = tower_names[:2]
-    dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,return_type='xarray')
+    dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,return_type='xarray',
+                         structure=structure, time_step=time_step)
     return dsF
 
 
