@@ -16,6 +16,7 @@ from __future__ import print_function
 import os, glob
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 from datetime import datetime
 import netCDF4
 import xarray as xr
@@ -29,6 +30,7 @@ default_4D_fields = ['U','V','W','T',
                      'RU_TEND','RU_TEND_ADV','RU_TEND_PGF','RU_TEND_COR','RU_TEND_PHYS',
                      'RV_TEND','RV_TEND_ADV','RV_TEND_PGF','RV_TEND_COR','RV_TEND_PHYS',
                      'T_TEND_ADV',]
+
 
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
@@ -204,81 +206,161 @@ def twrloc_ll(twr_file_name):
     stnlat = float(header[8])
     return stnlat,stnlon
 
+
 class Tower():
     ''' 
     Tower class: put tower data into an object variable
-    Call with: twr = wrfdict.tower('[path to towers]/[tower abrv.].d0[domain].*')
     '''
 
+    standard_names = {
+        'uu': 'u',
+        'vv': 'v',
+        'ww': 'w',
+        'th': 'theta', # virtual potential temperature
+    }
 
-    def __init__(self,fstr):
-        self.fstr = fstr
-        self.getvars()
-        self.getdata()
-    def getvars(self): # find available vars
-        varns = glob.glob('{:s}*'.format(self.fstr))
-        nvars = np.shape(varns)[0] # Number of variables
-        for vv in range(0,nvars): # Loop over all variables
-            varns[vv] = varns[vv].replace(self.fstr,'').replace('.','')
-        self.varns = varns # variable names
-        self.nvars = nvars # number of variables
-    def getdata(self): # Get all the data
-        for vv in range(0,self.nvars): # Loop over all variables
-            if self.varns[vv] != 'TS': # TS is different structure...
-                # Get number of times
-                f = open('%s%s' % (self.fstr,self.varns[vv]))
-                nt = sum(1 for line in f)-1; f.close()
+    def __init__(self,fstr,varlist=None):
+        """The file-path string should be:
+            '[path to towers]/[tower abrv.].d0[domain].*'
+        """
+        self.time = None
+        self.nt = None
+        self.nz = None
+        self._getvars(fstr,requested_varns=varlist)
+        self._getdata()
+
+    def _getvars(self,fstr,requested_varns=None):
+        if not fstr.endswith('*'): fstr += '*'
+        if requested_varns is None:
+            self.filelist = glob.glob(fstr)
+            self.nvars = len(self.filelist)
+            self.varns = [
+                fpath.split('.')[-1] for fpath in self.filelist
+            ]
+        else:
+            self.filelist = []
+            self.varns = []
+            # convert to uppercase per WRF convention
+            requested_varns = [ varn.upper() for varn in requested_varns ]
+            # check that requested var names were found in the path
+            for varn in requested_varns:
+                files = glob.glob(fstr+varn)
+                if len(files) == 0:
+                    print('requested variable',varn,'not available in file path')
+                else:
+                    assert (len(files)==1), \
+                            'found multiple files for {:s}: {:s}'.format(varn,files)
+                    self.varns.append(varn)
+                    self.filelist.append(files[0])
+
+    def _getdata(self): # Get all the data
+        for varn,fpath in zip(self.varns, self.filelist):
+            # Get number of times,heights
+            with open(fpath) as f:
+                for nt,line in enumerate(f.readlines()): pass
+
+            # Read profile data
+            if varn != 'TS': # TS is different structure...
+                nz = len(line.split()) - 1
                 # Open again for reading
-                f = open('%s%s' % (self.fstr,self.varns[vv]))
-                self.header = f.readline().split() # Header information
-                for tt in np.arange(0,nt): # Loop over times
-                    line = f.readline().split() # reading one profile
-                    if tt == 0: # Initialize and get number of heights
-                        nz = np.shape(line)[0]-1
-                        var = np.zeros((nt,nz))
-                        ttime = np.zeros((nt))
-                    var[tt,:] = line[1:] # First element is time
-                    ttime[tt] = np.float(line[0])
-                self.nt   = nt # Number of times
-                self.time = ttime # time
-                self.nz = nz # Number of heights
-                # Set each of the variables to their own name
-                if self.varns[vv] == 'PH':
-                    self.ph = var
-                elif self.varns[vv] == 'QV':
-                    self.qv = var
-                elif self.varns[vv] == 'TH':
-                    self.th = var
-                elif self.varns[vv] == 'UU':
-                    self.uu = var
-                elif self.varns[vv] == 'VV':
-                    self.vv = var
-                elif self.varns[vv] == 'WW':
-                    self.ww = var
-                elif self.varns[vv] == 'PP':
-                    self.pp = var
-            elif self.varns[vv] == 'TS': # Time series are surface variables
-                                         # (no height component)
-                f = open('%s%s' % (self.fstr,self.varns[vv])) # Number of times
-                nt = sum(1 for line in f)-1; f.close()
-                f = open('%s%s' % (self.fstr,self.varns[vv])) # Open to get vars
-                header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split() # Skip header
-                self.longname = header[0]
-                self.abbr     = header[3]
-                self.lat      = header[4]
-                self.lon      = header[5]
-                self.loci     = header[6]
-                self.locj     = header[7]
-                self.stationz = header[10]
-                for tt in np.arange(0,nt): # Loop over all times
-                    line = f.readline().split() # One time, all surface variables
-                    if tt == 0: # Initialize number of variables
-                        nv = np.shape(line)[0]-2
-                        var = np.zeros((nt,nv))
-                    var[tt,:] = line[2:]
-                self.ts = var # Need to look up what tslist outputs to know which
-                              # vars are where...
+                with open(fpath) as f:
+                    self.header = f.readline().split() # Header information
+                    data = pd.read_csv(f,delim_whitespace=True,header=None).values
+                var = data[:,1:]
+                setattr(self, varn.lower(), var)
+                if self.time is None:
+                    self.time = data[:,0]
+                else:
+                    assert np.all(self.time == data[:,0]), 'tower data at different times'
+                if self.nt is None:
+                    self.nt = nt # Number of times
+                else:
+                    assert (self.nt == nt), 'tower data has different number of times'
+                if self.nz is None:
+                    self.nz = nz # Number of heights
+                else:
+                    assert (self.nz == nz), 'tower data has different number of heights'
 
+            # Read surface variables (no height component)
+            elif varn == 'TS':
+                nv = len(line.split()) - 2
+                with open(fpath) as f:
+                    header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
+                    self.longname = header[0]
+                    self.abbr     = header[3]
+                    self.lat      = float(header[4])
+                    self.lon      = float(header[5])
+                    self.loci     = int(header[6])
+                    self.locj     = int(header[7])
+                    self.stationz = float(header[10])
+                    # Note: need to look up what tslist outputs to know which
+                    # vars are where...
+                    self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
+                    assert (self.ts.shape == (nt,nv))
+
+    def to_dataframe(self,
+                     start_time='2013-11-08',time_unit='h',time_step=None,
+                     heights=None,height_var='height',
+                     exclude=['ts']):
+        """Convert tower time-height data into a dataframe.
+        
+        Parameters
+        ----------
+        start_time: str or pd.Timestamp
+            The datetime index is constructed from a pd.TimedeltaIndex
+            plus this start_time, where the timedelta index is formed by
+            the saved time array.
+        time_unit: str
+            Timedelta unit for constructing datetime index, only used if
+            time_step is None.
+        time_step: float or None
+            Time-step size, in seconds, to override the output times in
+            the data files. Used in conjunction with start_time to form
+            the datetime index. May be useful if times in output files
+            do not have sufficient precision.
+        heights : array-like or None
+            If None, then use integer levels for the height index,
+            otherwise interpolate to the same heights at all times.
+        height_var : str
+            Name of attribute with actual height values to form the
+            height index (if heights is not None).
+        exclude : list
+            List of fields to excldue from the output dataframe. By
+            default, the surface time-series data ('ts') are excluded.
+        """
+        # convert varname list to lower case
+        varns0 = [ varn.lower() for varn in self.varns ]
+        # remove excluded vars
+        varns = [ varn for varn in varns0 if not varn in exclude ]
+        # setup index
+        start_time = pd.to_datetime(start_time)
+        if time_step is None:
+            times = start_time + pd.to_timedelta(self.time, unit=time_unit)
+            times.name = 'datetime'
+        else:
+            timestep = pd.to_timedelta(time_step, unit='s')
+            endtime = start_time + self.nt*timestep
+            times = pd.date_range(start=start_time+timestep,
+                                  end=endtime,
+                                  periods=self.nt,
+                                  name='datetime')
+        # combine data
+        if heights is None:
+            # heights will be an integer index
+            z = np.arange(self.nz)
+            columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
+            arraydata = np.concatenate(
+                [ getattr(self,varn) for varn in varns ], axis=1
+            )
+            df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
+        else:
+            from scipy.interpolate import interp1d
+            z = np.array(heights)
+            # TODO
+            print('Interpolating to',z,'not implemented yet')
+        # standardize names
+        df.rename(columns=self.standard_names, inplace=True)
+        return df
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
     '''Convert WRF times to year, month, day, hour'''
