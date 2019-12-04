@@ -175,6 +175,26 @@ def latlon(wrfdata):
     lon = wrfdata.variables['XLONG'][0,:,:]
     return lat,lon
 
+
+# - - - - - - - - - - - - - - - - - - - - - - - #
+#               TOWER UTILITIES                 #
+# - - - - - - - - - - - - - - - - - - - - - - - #
+def get_tower_header(header_line):
+    header = {'longname' : header_line[:26].strip(),
+              'domain'   : int(header_line[26:28]),
+              'tsid'     : int(header_line[28:31]),
+              'abbr'     : header_line[31:37].strip(),
+              'lat'      : float(header_line[39:46]),
+              'lon'      : float(header_line[47:55]),
+              'loci'     : int(header_line[58:62]),
+              'locj'     : int(header_line[63:67]),
+              'gridlat'  : float(header_line[70:77]),
+              'gridlon'  : float(header_line[78:86]),
+              'stationz' : float(header_line[88:94])
+             }
+    return (header)
+
+
 def get_tower_names(fdir,tstr):
     '''Get the names and locations of all towers in directory (fdir)'''
     f = open('%s%s' % (fdir,tstr))
@@ -190,11 +210,14 @@ def get_tower_names(fdir,tstr):
 
 def twrloc_ij(twr_file_name):
     '''Get the i,j location of the given tower'''
+    if twr_file_name[-4:-1] == '.d0':
+        twr_file_name = '{}.TS'.format(twr_file_name)
     twr = open(twr_file_name,'r')
-    header = twr.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
+    header_line = twr.readline()
     twr.close()
-    stni = int(header[6]) - 1
-    stnj = int(header[7]) - 1
+    header = get_tower_header(header_line)
+    stni = int(header['loci']) - 1
+    stnj = int(header['locj']) - 1
     return stni,stnj
 
 def twrloc_ll(twr_file_name):
@@ -205,7 +228,6 @@ def twrloc_ll(twr_file_name):
     stnlon = float(header[9])
     stnlat = float(header[8])
     return stnlat,stnlon
-
 
 class Tower():
     ''' 
@@ -237,6 +259,7 @@ class Tower():
             self.varns = [
                 fpath.split('.')[-1] for fpath in self.filelist
             ]
+            print(fstr)
         else:
             self.filelist = []
             self.varns = []
@@ -285,14 +308,23 @@ class Tower():
             elif varn == 'TS':
                 nv = len(line.split()) - 2
                 with open(fpath) as f:
-                    header = f.readline().replace('(',' ').replace(')',' ').replace(',',' ').split()
-                    self.longname = header[0]
-                    self.abbr     = header[3]
-                    self.lat      = float(header[4])
-                    self.lon      = float(header[5])
-                    self.loci     = int(header[6])
-                    self.locj     = int(header[7])
-                    self.stationz = float(header[10])
+                    # Fortran formatted output creates problems when the
+                    #   time-series id is 3 digits long and blends with the
+                    #   domain number...
+                    # FMT='(A26,I2,I3,A6,A2,F7.3,A1,F8.3,A3,I4,A1,I4,A3,F7.3,A1,F8.3,A2,F6.1,A7)')
+                    # idx:  0   26 28 31 37,  39,46,  47,55,58,62,63,67,  70,77,  78,86,  88,94
+                    header = f.readline()
+                    self.longname = header[:26].strip()
+                    self.domain   = int(header[26:28])
+                    self.tsid     = int(header[28:31])
+                    self.abbr     = header[31:37].strip()
+                    self.lat      = float(header[39:46])
+                    self.lon      = float(header[47:55])
+                    self.loci     = int(header[58:62])
+                    self.locj     = int(header[63:67])
+                    self.gridlat  = float(header[70:77])
+                    self.gridlon  = float(header[78:86])
+                    self.stationz = float(header[88:94])
                     # Note: need to look up what tslist outputs to know which
                     # vars are where...
                     self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
@@ -323,7 +355,9 @@ class Tower():
             otherwise interpolate to the same heights at all times.
         height_var : str
             Name of attribute with actual height values to form the
-            height index (if heights is not None).
+            height index. If heights is None, then this must match the
+            number of height levels; otherwise, this may be constant
+            or variable in time.
         exclude : list
             List of fields to excldue from the output dataframe. By
             default, the surface time-series data ('ts') are excluded.
@@ -339,28 +373,95 @@ class Tower():
             times.name = 'datetime'
         else:
             timestep = pd.to_timedelta(time_step, unit='s')
-            endtime = start_time + self.nt*timestep
-            times = pd.date_range(start=start_time+timestep,
+            endtime = start_time + self.nt*timestep + pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h')
+            times = pd.date_range(start=start_time+timestep+pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h'),
                                   end=endtime,
                                   periods=self.nt,
                                   name='datetime')
-        # combine data
+        # combine (and interpolate) time-height data
+        # - note 1: self.[varn].shape == self.height.shape == (self.nt, self.nz)
+        # - note 2: arraydata.shape == (self.nt, len(varns)*self.nz)
+        arraydata = np.concatenate(
+            [ getattr(self,varn) for varn in varns ], axis=1
+        )
         if heights is None:
-            # heights will be an integer index
-            z = np.arange(self.nz)
+            if hasattr(self, height_var):
+                # heights (constant in time) were separately calculated
+                z = getattr(self, height_var)
+                assert (len(z.shape) == 1) and (len(z) == self.nz), \
+                        'tower '+height_var+' attribute should correspond to fixed height levels'
+            else:
+                # heights will be an integer index
+                z = np.arange(self.nz)
             columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
-            arraydata = np.concatenate(
-                [ getattr(self,varn) for varn in varns ], axis=1
-            )
             df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
         else:
             from scipy.interpolate import interp1d
             z = np.array(heights)
-            # TODO
-            print('Interpolating to',z,'not implemented yet')
+            zt = getattr(self, height_var)
+            if len(zt.shape) == 1:
+                # approximately constant height (with time)
+                assert len(zt) == self.nz
+                columns = pd.MultiIndex.from_product([varns,zt],names=[None,'height'])
+                df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
+                # now unstack the times to get a height index
+                unstacked = df.unstack(level=0)
+                interpfun = interp1d(unstacked.index, unstacked.values, axis=0,
+                                     bounds_error=False,
+                                     fill_value='extrapolate')
+                interpdata = interpfun(z)
+                unstacked = pd.DataFrame(data=interpdata,
+                                         index=z, columns=unstacked.columns)
+                unstacked.index.name = 'height'
+                df = unstacked.stack().reorder_levels(order=['datetime','height']).sort_index()
+            else:
+                # interpolate for all times
+                assert zt.shape == (self.nt, self.nz), \
+                        'heights should correspond to time-height indices'
+                nvarns = len(varns)
+                newarraydatalist = []
+                for varn in varns:
+                    newarraydata = np.empty((self.nt, len(z)))
+                    curfield = getattr(self,varn)
+                    for itime in range(self.nt):
+                        interpfun = interp1d(zt[itime,:], curfield[itime,:],
+                                             bounds_error=False,
+                                             fill_value='extrapolate')
+                        newarraydata[itime,:] = interpfun(z)
+                    newarraydatalist.append(newarraydata)
+                newarraydata = np.concatenate(newarraydatalist, axis=1)
+                columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
+                unstacked = pd.DataFrame(data=newarraydata,index=times,columns=columns)
+                df = unstacked.stack()
+
         # standardize names
         df.rename(columns=self.standard_names, inplace=True)
         return df
+
+    def to_xarray(self,
+                  start_time='2013-11-08',time_unit='h',time_step=None,
+                  heights=None,height_var='height',
+                  exclude=['ts'],
+                  structure='ordered'):
+        
+        df = self.to_dataframe(start_time,time_unit,time_step,heights,height_var,exclude)
+        if structure == 'ordered':
+            ds = df.to_xarray().assign_coords(i=self.loci).assign_coords(j=self.locj).expand_dims(['j','i'],axis=[2,3])
+            ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
+            ds = ds.assign_coords(height=ds.ph)
+            ds["lat"] = (['j','i'],  np.ones((1,1))*self.gridlat)
+            ds["lon"] = (['j','i'],  np.ones((1,1))*self.gridlon)
+            # Add zsurface (station height) as a data variable:
+            ds['zsurface'] = (['j','i'],  np.ones((1,1))*self.stationz)
+        elif structure == 'unordered':
+            ds = df.to_xarray().assign_coords(station=self.abbr).expand_dims(['station'],axis=[2])
+            ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
+            ds = ds.assign_coords(height=ds.ph)
+            ds["lat"] = (['station'],  [self.gridlat])
+            ds["lon"] = (['station'],  [self.gridlon])
+            ds['zsurface'] = (['station'],  [self.stationz])
+
+        return ds
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
     '''Convert WRF times to year, month, day, hour'''
@@ -677,6 +778,119 @@ def extract_column_from_wrfdata(fpath, coords,
     xn['theta'].attrs['description'] = 'potential temperature'
 
     return xn
+
+
+def combine_towers(fdir, restarts, simulation_start, fname,
+                   return_type='xarray',
+                   structure='ordered',
+                   time_step=None):
+    '''
+    Combine together tslist files in time where, if there is any
+    overlap, the later file will overwrite the earlier file. This makes
+    the assumption that all of the tslist files are stored in separate
+    directories but named the same (default in WRF is to name them the
+    same).
+
+    This will work with a pd.DataFrame, xr.Dataset, or xr.DataArray
+
+    Usage
+    =====
+    fdir : str
+        E.g., 'path/to/restart/directories/'
+    restarts : list
+        E.g., ['restart_dir_1', 'restart_dir_2', 'restart_dir_3']
+    simulation_start : str
+        E.g., '2000-01-01 00:00'
+    fname : list
+        Prefix for the tower+domain, e.g., ['t0001.d02']
+    return_type : str
+        'xarray' or 'dataframe'
+    structure : str
+        'ordered' or 'unordered'
+    '''
+    for rst,restart in enumerate(restarts):
+        print('restart: {}'.format(restart))
+        data = []
+        for ff in fname:
+            
+            print('starting {}'.format(ff))
+            if return_type == 'xarray':
+                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_xarray(start_time=simulation_start,
+                                                                            time_step=time_step,height_var='k',
+                                                                            structure=structure))
+            elif return_type == 'dataframe':
+                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_dataframe(start_time=simulation_start,
+                                                                            time_step=time_step,height_var='k',
+                                                                            structure=structure))
+        data_block = xr.combine_by_coords(data)
+        if np.shape(restarts)[0] > 1:
+            if rst == 0:
+                data_previous = data_block
+
+            else:
+                dataF = data_block.combine_first(data_previous)
+                data_previous = dataF
+        else:
+            dataF = data_block
+    if structure == 'ordered':
+    # -------------------------------------------------------       
+    #               MMC Format specifications
+        dataF = dataF.rename_dims({'k':'nz',
+                                   'i':'nx',
+                                   'j':'ny'})
+        dx,dy = 12.0, 12.0
+        xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
+        dataF = dataF.assign_coords(x=(('ny','nx'),xcoord)).assign_coords(y=(('ny','nx'),ycoord))
+        dataF = dataF.assign_coords(z=dataF.ph).reset_index(['i','j'],drop=True).drop('ph')
+        dataF.attrs['DX'] = dx
+        dataF.attrs['DY'] = dy
+    elif structure == 'unordered':
+        dataF = dataF.rename_dims({'k':'nz'})
+    dataF = dataF.assign_coords(lat=dataF.lat).assign_coords(lon=dataF.lon)
+    dataF = dataF.assign_coords(zsurface=dataF.zsurface)
+    dataF['wspd'] = (dataF['u']**2.0 + dataF['v']**2.0)**0.5
+    dataF['wdir'] = 180. + np.degrees(np.arctan2(dataF['u'], dataF['v']))        
+
+    dataF.attrs['SIMULATION_START_DATE'] = simulation_start
+    dataF.attrs['CREATED_FROM'] = fdir
+
+    # -------------------------------------------------------       
+    #dx,dy = 12.0, 12.0
+    #xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
+    #dataF = dataF.assign_coords(x=(('j','i'),xcoord)).assign_coords(y=(('j','i'),ycoord)).assign_coords(lat=dataF.lat).assign_coords(lon=dataF.lon)
+    #dataF = dataF.assign_coords(z=dataF.ph).drop('ph').assign_coords(k=dataF.k)
+
+    return dataF
+
+
+def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest, structure='ordered',
+                       time_step=None):
+    '''
+    This will combine a series of tslist output over time and location based on the
+    path to the case (fdir), the restart directories (restarts), a model start time 
+    (simulation_start_time), and the domain of interest for the 
+    towers (domain_of_interest).
+
+    fdir                  = 'path/to/restart/directories/'
+    restarts              = ['tsout_1800_1830','tsout_1830_1900','tsout_1900_1930','tsout_1930_2000']
+    simulation_start_time = '2013-11-08 14:00'
+    domain_of_interest    = 'd02'
+    '''
+    ntimes = np.shape(restarts)[0]
+    floc = '{}{}/*{}*'.format(fdir,restarts[0],domain_of_interest)
+    file_list = glob.glob(floc)
+    for ff,file in enumerate(file_list):
+        file = file[:-3]
+        file_list[ff] = file
+    file_list = np.unique(file_list)
+    tower_names = file_list.copy()
+    for ff,file in enumerate(file_list):
+        tower_names[ff] = file.split('/')[-1]
+    #tower_names = tower_names[:2]
+    dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,return_type='xarray',
+                         structure=structure, time_step=time_step)
+    return dsF
+
 
 def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
     """
