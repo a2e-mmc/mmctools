@@ -780,22 +780,33 @@ def extract_column_from_wrfdata(fpath, coords,
     return xn
 
 
-def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray', structure='ordered',
+def combine_towers(fdir, restarts, simulation_start, fname,
+                   return_type='xarray',
+                   structure='ordered',
                    time_step=None):
     '''
-    Combine together tslist files in time where, if there is any overlap, the later file
-    will overwrite the earlier file. This makes the assumption that all of the tslist 
-    files are stored in separate directories but named the same (default in WRF is to 
-    name them the same).
+    Combine together tslist files in time where, if there is any
+    overlap, the later file will overwrite the earlier file. This makes
+    the assumption that all of the tslist files are stored in separate
+    directories but named the same (default in WRF is to name them the
+    same).
 
-    fdir             = 'path/to/restart/directories/'
-    restarts         = ['restart_dir_1', 'restart_dir_2', 'restart_dir_3']
-    simulation_start = '2000-01-01 00:00'
-    fname            = ['t0001.d02'] (Note: this is the prefix for the tower + domain)
-    return_type      = 'xarray' or 'dataframe'
-    structure        = 'ordered' or 'unordered'
+    This will work with a pd.DataFrame, xr.Dataset, or xr.DataArray
 
-    This will work with a pandas df or an xarray ds/da
+    Usage
+    =====
+    fdir : str
+        E.g., 'path/to/restart/directories/'
+    restarts : list
+        E.g., ['restart_dir_1', 'restart_dir_2', 'restart_dir_3']
+    simulation_start : str
+        E.g., '2000-01-01 00:00'
+    fname : list
+        Prefix for the tower+domain, e.g., ['t0001.d02']
+    return_type : str
+        'xarray' or 'dataframe'
+    structure : str
+        'ordered' or 'unordered'
     '''
     for rst,restart in enumerate(restarts):
         print('restart: {}'.format(restart))
