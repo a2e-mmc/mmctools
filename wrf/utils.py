@@ -332,7 +332,7 @@ class Tower():
 
     def to_dataframe(self,start_time,
                      time_unit='h',time_step=None,
-                     heights=None,height_var='height',
+                     heights=None,height_var='height',agl=False,
                      exclude=['ts']):
         """Convert tower time-height data into a dataframe.
         
@@ -358,6 +358,11 @@ class Tower():
             height index. If heights is None, then this must match the
             number of height levels; otherwise, this may be constant
             or variable in time.
+        agl : bool, optional
+            Heights by default are specified above sea level; if True,
+            then the "stationz" attribute is used to convert to heights
+            above ground level (AGL).  This only applies if heights are
+            specified.
         exclude : list, optional
             List of fields to excldue from the output dataframe. By
             default, the surface time-series data ('ts') are excluded.
@@ -399,6 +404,8 @@ class Tower():
             from scipy.interpolate import interp1d
             z = np.array(heights)
             zt = getattr(self, height_var)
+            if agl:
+                zt -= self.stationz
             if len(zt.shape) == 1:
                 # approximately constant height (with time)
                 assert len(zt) == self.nz
