@@ -135,13 +135,18 @@ class SRTM(object):
 
     def to_latlon(self,x,y):
         """Transform uniform grid to lat/lon space"""
+        if not hasattr(x, '__iter__'):
+            assert ~hasattr(x, '__iter__')
+            x = [x]
+            y = [y]
         xlon, xlat = warp.transform(self.utm_crs,
                                     CRS.from_dict(init='epsg:4326'),
                                     x, y)
         try:
             shape = x.shape
         except AttributeError:
-            pass
+            xlat = xlat[0]
+            xlon = xlon[0]
         else:
             xlat = np.reshape(xlat, shape)
             xlon = np.reshape(xlon, shape)
