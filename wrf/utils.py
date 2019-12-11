@@ -330,8 +330,8 @@ class Tower():
                     self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
                     assert (self.ts.shape == (nt,nv))
 
-    def to_dataframe(self,
-                     start_time='2013-11-08',time_unit='h',time_step=None,
+    def to_dataframe(self,start_time,
+                     time_unit='h',time_step=None,
                      heights=None,height_var='height',
                      exclude=['ts']):
         """Convert tower time-height data into a dataframe.
@@ -342,23 +342,23 @@ class Tower():
             The datetime index is constructed from a pd.TimedeltaIndex
             plus this start_time, where the timedelta index is formed by
             the saved time array.
-        time_unit: str
+        time_unit: str, optional
             Timedelta unit for constructing datetime index, only used if
             time_step is None.
-        time_step: float or None
+        time_step: float or None, optional
             Time-step size, in seconds, to override the output times in
             the data files. Used in conjunction with start_time to form
             the datetime index. May be useful if times in output files
             do not have sufficient precision.
-        heights : array-like or None
+        heights : array-like or None, optional
             If None, then use integer levels for the height index,
             otherwise interpolate to the same heights at all times.
-        height_var : str
+        height_var : str, optional
             Name of attribute with actual height values to form the
             height index. If heights is None, then this must match the
             number of height levels; otherwise, this may be constant
             or variable in time.
-        exclude : list
+        exclude : list, optional
             List of fields to excldue from the output dataframe. By
             default, the surface time-series data ('ts') are excluded.
         """
