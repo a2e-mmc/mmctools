@@ -101,6 +101,27 @@ class RDADataset(object):
                 p.check_returncode() 
 
 
+class FNL(RDADataset):
+    """NCEP FNL Operational Analysis
+
+    Description: https://rda.ucar.edu/datasets/ds083.2/
+    """
+    def download(self,datetimes):
+        """Download data at specified datetimes.
+
+        Files to download:
+        - https://rda.ucar.edu/datasets/ds083.2/grib2/YY/YY.MM/fnl_YYMMDD_HH_MM.grib2
+
+        Usage
+        =====
+        datetimes : timestamp or list of timestamps
+            Datetime, e.g., output from
+            pd.date_range(startdate,enddate,freq='21600s')
+        """
+        super().download(urlpath='ds083.2/grib2/%Y/%Y.%m/fnl_%Y%m%d_%H_%M.grib2',
+                         datetimes=datetimes)
+
+
 class ERAInterim(RDADataset):
     """ERA-Interim Reanalysis
 
