@@ -14,6 +14,10 @@ def prompt(s):
 class RDADataset(object):
     """Class to help with downloading initial and boundary conditions
     to use with WPS.
+
+    Users should generally import and use one of the derived classes:
+    - FNL
+    - ERAInterim
     """
     auth_status = 'auth_status.rda.ucar.edu'
     default_opts = ['-N']
