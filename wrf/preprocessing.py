@@ -63,23 +63,25 @@ class RDADataset(object):
         if os.path.isfile(self.cookie):
             os.remove(self.cookie)
 
-    def download(self,dataid,prefix,fields,datetimes):
+    def download(self,urlpath,datetimes,fields=[None],**kwargs):
         """Download specified data at specified datetimes
 
         Usage
         =====
-        dataid : str
-            RDA dataset identifier, e.g. 'ds083.2' for FNL
-        prefix : str
-            Data prefix, e.g., 'ei.oper.an.pl'
-        fields : list of str
-            Field names, e.g., ['regn128sc','regn128uv']
+        urlpath : str
+            Path describing data to be downloaded, with valid strftime
+            descriptors and optional 'field' format field. E.g.:
+            'ds083.2/ei.oper.an.pl/ei.oper.an.pl.{field:s}.%Y%m%d%H'
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        fields : list of str, optional
+            Field variable names, e.g., ['regn128sc','regn128uv']
+        kwargs : optional
+            Additional fields in urlpath to be updated with str.format()
         """
-        url = 'https://rda.ucar.edu/data/{dataid:s}/{prefix:s}/{YY:d}{MM:02d}/'
-        url += '{prefix:s}.{field:s}.{YY:d}{MM:02d}{DD:02d}{HH:02d}'
+        if not urlpath.startswith('https://'):
+            urlpath = 'https://rda.ucar.edu/data/' + urlpath.lstrip('/')
         cmd = ['wget'] + self.certopts + self.opts
         cmd += [
             '--load-cookies', self.cookie,
@@ -90,13 +92,11 @@ class RDADataset(object):
         print('Downloading fields',fields,'at',len(datetimes),'times')
         for datetime in datetimes:
             for field in fields:
-                cmd[-1] = url.format(dataid=dataid,
-                                     prefix=prefix,
-                                     field=field,
-                                     YY=datetime.year,
-                                     MM=datetime.month,
-                                     DD=datetime.day,
-                                     HH=datetime.hour)
+                cmd[-1] = datetime.strftime(urlpath)
+                urldesc = kwargs
+                if field is not None:
+                    urldesc['field'] = field
+                cmd[-1] = cmd[-1].format(**urldesc)
                 p = subprocess.run(cmd)
                 p.check_returncode() 
 
@@ -104,11 +104,16 @@ class RDADataset(object):
 class ERAInterim(RDADataset):
     """ERA-Interim Reanalysis
 
-    https://rda.ucar.edu/datasets/ds627.0/#!description
+    Description: https://rda.ucar.edu/datasets/ds627.0/
     """
 
     def download(self,datetimes):
         """Download data at specified datetimes.
+
+        Files to download:
+        - https://rda.ucar.edu/datasets/ds627.0/ei.oper.an.pl/YYMM/ei.oper.an.pl.regn128sc.YYMMDDHH
+        - https://rda.ucar.edu/datasets/ds627.0/ei.oper.an.pl/YYMM/ei.oper.an.pl.regn128uv.YYMMDDHH
+        - https://rda.ucar.edu/datasets/ds627.0/ei.oper.an.sfc/YYMM/ei.oper.an.sfc.regn128sc.YYMMDDHH
 
         Usage
         =====
@@ -117,13 +122,13 @@ class ERAInterim(RDADataset):
             pd.date_range(startdate,enddate,freq='21600s')
         """
         # pressure-level data
-        super().download(dataid='ds627.0',
+        super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
                          prefix='ei.oper.an.pl',
-                         fields=['regn128sc','regn128uv'],
-                         datetimes=datetimes)
+                         datetimes=datetimes,
+                         fields=['regn128sc','regn128uv'])
         # surface data
-        super().download(dataid='ds627.0',
+        super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
                          prefix='ei.oper.an.sfc',
-                         fields=['regn128sc'],
-                         datetimes=datetimes)
+                         datetimes=datetimes,
+                         fields=['regn128sc'])
 
