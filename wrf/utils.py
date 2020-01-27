@@ -327,8 +327,11 @@ class Tower():
                     self.stationz = float(header[88:94])
                     # Note: need to look up what tslist outputs to know which
                     # vars are where...
-                    self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
-                    assert (self.ts.shape == (nt,nv))
+                    tsdata = pd.read_csv(f,delim_whitespace=True,header=None,
+                                       names=['dom','time','tsID','locx','locy','T2','q2','u10','v10','PSFC','LWd','SWd','HFX','LFX','TSK','SLTtop','RAINC','RAINNC','CLW'])
+                    for col in tsdata.columns: 
+                        if col!='dom' and col!='time' and col!='tsID' and col!='locx' and col!='locy':
+                            setattr(self, col.lower(), tsdata[col].values)
 
     def to_dataframe(self,
                      start_time='2013-11-08',time_unit='h',time_step=None,
