@@ -259,7 +259,6 @@ class Tower():
             self.varns = [
                 fpath.split('.')[-1] for fpath in self.filelist
             ]
-            print(fstr)
         else:
             self.filelist = []
             self.varns = []
@@ -329,9 +328,13 @@ class Tower():
                     # vars are where...
                     tsdata = pd.read_csv(f,delim_whitespace=True,header=None,
                                        names=['dom','time','tsID','locx','locy','T2','q2','u10','v10','PSFC','LWd','SWd','HFX','LFX','TSK','SLTtop','RAINC','RAINNC','CLW'])
-                    for col in tsdata.columns: 
-                        if col!='dom' and col!='time' and col!='tsID' and col!='locx' and col!='locy':
-                            setattr(self, col.lower(), tsdata[col].values)
+                    ts_data_varns = tsdata.columns.values
+                    ts_varns_to_delete = ['dom','time','tsID','locx','locy']
+                    for vv in ts_varns_to_delete:
+                        ts_data_varns = ts_data_varns[ts_data_varns != vv]
+                    for col in ts_data_varns: 
+                        setattr(self, col.lower(), tsdata[col].values)
+                    self.ts_varns = list(ts_data_varns)
 
     def to_dataframe(self,
                      start_time='2013-11-08',time_unit='h',time_step=None,
@@ -463,7 +466,10 @@ class Tower():
             ds["lat"] = (['station'],  [self.gridlat])
             ds["lon"] = (['station'],  [self.gridlon])
             ds['zsurface'] = (['station'],  [self.stationz])
-
+        
+        for varn in self.ts_varns:
+            tsvar = getattr(self, varn.lower())
+            ds[varn.lower()] = (['datetime','j','i'],np.expand_dims(np.expand_dims(tsvar,axis=1),axis=1) )
         return ds
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
