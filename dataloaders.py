@@ -111,13 +111,15 @@ def read_dir(dpath='.',file_filter='*',
     return df
 
 
-def read_date_dirs(dpath='.',dir_filter='*',
+def read_date_dirs(dpath='.',dir_filter='*',file_filter='*',
                    expected_date_format='%Y%m%d',
                    reader=pd.read_csv,
-                   ext='csv',
                    verbose=False,
                    **kwargs):
     """Wrapper around pandas read_csv() or data reader function. 
+
+    If expected_date_format is None, then the datetime is assumed to be
+    in seconds (e.g., a timedelta or simulation time).
 
     Additional readers:
     - measurements/metmast
@@ -138,18 +140,19 @@ def read_date_dirs(dpath='.',dir_filter='*',
         dname = os.path.split(fullpath)[-1]
         if os.path.isdir(fullpath):
             try:
-                collection_date = pd.to_datetime(dname,
-                                                 format=expected_date_format)
+                # check that subdirectories have the expected format
+                if expected_date_format is None:
+                    timedelta = float(dname)
+                else:
+                    collection_date = pd.to_datetime(
+                            dname, format=expected_date_format)
             except ValueError:
-                if verbose:
-                    print('Skipping '+dname)
+                if verbose: print('Skipping '+dname)
             else:
-                print('Processing '+fullpath)
-                for fname in sorted(os.listdir(fullpath)):
-                    fpath = os.path.join(fullpath,fname)
-                    if not fname.endswith(ext): continue
-                    if verbose:
-                        print('  reading '+fname)
+                if verbose: print('Processing '+fullpath)
+                filelist = glob.glob(os.path.join(fullpath,file_filter))
+                for fpath in sorted(filelist):
+                    if verbose: print('  reading '+fpath)
                     try:
                         df = reader(fpath,verbose=verbose,**kwargs)
                     except reader_exceptions as err:
@@ -157,9 +160,9 @@ def read_date_dirs(dpath='.',dir_filter='*',
                     else:
                         dataframes.append(df)
                     Nfiles += 1
-            print('  {} dataframes added'.format(Nfiles))
+            if verbose: print('  {} dataframes added'.format(Nfiles))
     if len(dataframes) == 0:
-        print('No dataframes were read!')
+        print('No dataframes read from',fullpath)
         df = None
     else:
         df = _concat(dataframes)
