@@ -5,8 +5,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import time
-from statsmodels.nonparametric.smoothers_lowess import lowess
-
 
 
 # constants
@@ -353,6 +351,7 @@ def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_d
         ds_means = ds.mean(dim=mean_dim)
     elif mean_opt == 'lowess':
         print('calculating lowess means')
+        from statsmodels.nonparametric.smoothers_lowess import lowess
         series_length = ds[mean_dim].data.size
         win_size = 18000
         sm_frac = win_size/series_length
