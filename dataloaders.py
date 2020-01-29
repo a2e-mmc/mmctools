@@ -140,13 +140,13 @@ def read_date_dirs(dpath='.',dir_filter='*',file_filter='*',
         dname = os.path.split(fullpath)[-1]
         if os.path.isdir(fullpath):
             try:
+                # check that subdirectories have the expected format
                 if expected_date_format is None:
                     timedelta = float(dname)
                 else:
                     collection_date = pd.to_datetime(
                             dname, format=expected_date_format)
             except ValueError:
-                # could not convert to datetime (with the provided format)
                 if verbose: print('Skipping '+dname)
             else:
                 if verbose: print('Processing '+fullpath)
