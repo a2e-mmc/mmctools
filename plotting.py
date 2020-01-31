@@ -1622,7 +1622,7 @@ def _format_time_axis(fig,ax,
     hour_interval = _determine_hourlocator_interval(ax[-1],timelimits)
     if plot_local_time is not False:
         if plot_local_time is True:
-            localtimefmt = '%I %P'
+            localtimefmt = '%I %p'
         else:
             assert isinstance(plot_local_time,str), 'Unexpected plot_local_time format'
             localtimefmt = plot_local_time
