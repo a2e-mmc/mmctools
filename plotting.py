@@ -11,35 +11,67 @@ from scipy.interpolate import interp1d
 from scipy.signal import welch
 
 # Standard field labels
-standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
-                        'wdir': r'Wind direction $[^\circ]$',
-                        'u': r'u [m/s]',
-                        'v': r'v [m/s]',
-                        'w': r'Vertical wind speed [m/s]',
-                        'theta': r'$\theta$ [K]',
-                        'thetav': r'$\theta_v$ [K]',
-                        'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
-                        'TI': r'TI $[-]$',
-                        'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
-                        }
+# - default: e.g., "Km/s"
+# - all superscript: e.g., "K m s^{-1}"
+fieldlabels_default_units = {
+    'wspd': r'Wind speed [m/s]',
+    'wdir': r'Wind direction [$^\circ$]',
+    'u': r'u [m/s]',
+    'v': r'v [m/s]',
+    'w': r'Vertical wind speed [m/s]',
+    'theta': r'$\theta$ [K]',
+    'thetav': r'$\theta_v$ [K]',
+    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
+    'TI': r'TI $[-]$',
+    'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
+}
+fieldlabels_superscript_units = {
+    'wspd': r'Wind speed [m s$^{-1}$]',
+    'wdir': r'Wind direction [$^\circ$]',
+    'u': r'u [m s$^{-1}$]',
+    'v': r'v [m s$^{-1}$]',
+    'w': r'Vertical wind speed [m s$^{-1}$]',
+    'theta': r'$\theta$ [K]',
+    'thetav': r'$\theta_v$ [K]',
+    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{K m s^{-1}}]$',
+    'TI': r'TI $[-]$',
+    'TKE': r'TKE $[\mathrm{m^2 s^{-2}}]$',
+}
 
 # Standard field labels for frequency spectra
-standard_spectrumlabels = {'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
-                           'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
-                           'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
-                           'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
-                           'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
-                           'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
-                           }
+spectrumlabels_default_units = {
+    'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
+    'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
+    'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
+    'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+    'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+    'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
+}
+spectrumlabels_superscript_units = {
+    'u': r'$E_{uu}\;[\mathrm{m^2 s^{-1}}]$',
+    'v': r'$E_{vv}\;[\mathrm{m^2 s^{-1}}]$',
+    'w': r'$E_{ww}\;[\mathrm{m^2 s^{-1}}]$',
+    'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+    'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+    'wspd': r'$E_{UU}\;[\mathrm{m^2 s^{-1}}]$',
+}
 
-# Default color cycle
+# Default settings
 default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+standard_fieldlabels = fieldlabels_default_units
+standard_spectrumlabels = spectrumlabels_default_units
 
 # Supported dimensions and associated names
 dimension_names = {
