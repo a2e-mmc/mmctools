@@ -150,8 +150,10 @@ def plot_timeheight(datasets,
         number of axes.
     subfigsize : list or tuple
         Standard size of subfigures
-    plot_local_time : bool
-        Plot dual x axes with both UTC time and local time
+    plot_local_time : bool or str
+        Plot dual x axes with both UTC time and local time. If a str is
+        provided, then plot_local_time is assumed to be True and the str
+        is used as the datetime format.
     local_time_offset : float
         Local time offset from UTC
     datasetkwargs : dict
@@ -213,7 +215,7 @@ def plot_timeheight(datasets,
 
         if isinstance(timevalues, pd.DatetimeIndex):
             # If plot local time, shift timevalues
-            if plot_local_time:
+            if plot_local_time is not False:
                 timevalues = timevalues + pd.to_timedelta(local_time_offset,'h')
 
             # Convert to days since 0001-01-01 00:00 UTC, plus one
@@ -320,7 +322,7 @@ def plot_timeheight(datasets,
     if len(cbars)==1:
         cbars=cbars[0]
 
-    if plot_local_time and  ax2 is not None:
+    if (plot_local_time is not False) and ax2 is not None:
         return fig, ax, ax2, cbars
     else:
         return fig, ax, cbars
@@ -403,8 +405,10 @@ def plot_timehistory_at_height(datasets,
         number of axes.
     subfigsize : list or tuple
         Standard size of subfigures
-    plot_local_time : bool
-        Plot dual x axes with both UTC time and local time
+    plot_local_time : bool or str
+        Plot dual x axes with both UTC time and local time. If a str is
+        provided, then plot_local_time is assumed to be True and the str
+        is used as the datetime format.
     local_time_offset : float
         Local time offset from UTC
     datasetkwargs : dict
@@ -485,7 +489,8 @@ def plot_timehistory_at_height(datasets,
             timevalues = timevalues.total_seconds()
 
         # If plot local time, shift timevalues
-        if plot_local_time and isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
+        if (plot_local_time is not False) and \
+                isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
             timevalues = timevalues + pd.to_timedelta(local_time_offset,'h')
 
         # Create list with available fields only
@@ -609,7 +614,7 @@ def plot_timehistory_at_height(datasets,
     # Align labels
     _align_labels(fig,axv,nrows,ncols)
 
-    if plot_local_time and ax2 is not None:
+    if (plot_local_time is not False) and ax2 is not None:
         return fig, ax, ax2
     else:
         return fig, ax
@@ -1615,10 +1620,15 @@ def _format_time_axis(fig,ax,
     """
     ax[-1].xaxis_date()
     hour_interval = _determine_hourlocator_interval(ax[-1],timelimits)
-    if plot_local_time:
+    if plot_local_time is not False:
+        if plot_local_time is True:
+            localtimefmt = '%I %P'
+        else:
+            assert isinstance(plot_local_time,str), 'Unexpected plot_local_time format'
+            localtimefmt = plot_local_time
         # Format first axis (local time)
         ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(0,24,hour_interval)))
-        ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%I %P'))
+        ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter(localtimefmt))
         ax[-1].xaxis.set_major_locator(mdates.DayLocator(interval=12)) #Choose large interval so dates are not plotted
         ax[-1].xaxis.set_major_formatter(mdates.DateFormatter(''))
 
