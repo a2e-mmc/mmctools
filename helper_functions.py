@@ -824,3 +824,22 @@ def reference_lines(x_range, y_start, slopes, line_type='log'):
             shift = y_start/y_range[0,ss]
             y_range[:,ss] = y_range[:,ss]*shift
     return(y_range)
+
+def estimate_ABL_height(Tw=None,sanitycheck=True):
+    """Estimate the height of the atmospheric boundary layer with a
+    variety of methods.
+
+    Parameters
+    ==========
+    Tw : Multi-indexed pandas.Series
+        Estimate the height of the convective boundary layer from the
+        instantaneous minima in vertical heat flux <T'w'>; the index
+        should be datetime (level 0) and height (level 1).
+    """
+    if Tw is not None:
+        ablh = Tw.unstack().idxmin(axis=1)
+        if sanitycheck:
+            Tw_at_ablh = Tw.loc[[(t,z) for t,z in ablh.iteritems()]]
+            assert np.all(Tw_at_ablh <= 0)
+    return ablh
+
