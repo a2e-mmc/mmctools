@@ -1217,14 +1217,14 @@ class PlottingInput(object):
         try:
             if self.timerange is not None:
                 if self.times is not None:
-                    print('Specified time range',timerange,'ignoring',times)
+                    print('Using specified time range',self.timerange,
+                          'and ignoring',self.times)
                 assert isinstance(self.timerange,(tuple,list)), \
                         'Need to specify timerange as (starttime,endtime)'
                 assert (len(self.timerange) == 2)
                 try:
                     starttime = pd.to_datetime(self.timerange[0])
                     endtime = pd.to_datetime(self.timerange[1])
-                    print('Selecting times between',starttime,endtime)
                 except ValueError:
                     print('Unable to convert timerange to timestamps')
                 else:
