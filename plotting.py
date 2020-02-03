@@ -11,35 +11,67 @@ from scipy.interpolate import interp1d
 from scipy.signal import welch
 
 # Standard field labels
-standard_fieldlabels = {'wspd': r'Wind speed [m/s]',
-                        'wdir': r'Wind direction $[^\circ]$',
-                        'u': r'u [m/s]',
-                        'v': r'v [m/s]',
-                        'w': r'Vertical wind speed [m/s]',
-                        'theta': r'$\theta$ [K]',
-                        'thetav': r'$\theta_v$ [K]',
-                        'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-                        'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
-                        'TI': r'TI $[-]$',
-                        'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
-                        }
+# - default: e.g., "Km/s"
+# - all superscript: e.g., "K m s^{-1}"
+fieldlabels_default_units = {
+    'wspd': r'Wind speed [m/s]',
+    'wdir': r'Wind direction [$^\circ$]',
+    'u': r'u [m/s]',
+    'v': r'v [m/s]',
+    'w': r'Vertical wind speed [m/s]',
+    'theta': r'$\theta$ [K]',
+    'thetav': r'$\theta_v$ [K]',
+    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
+    'TI': r'TI $[-]$',
+    'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
+}
+fieldlabels_superscript_units = {
+    'wspd': r'Wind speed [m s$^{-1}$]',
+    'wdir': r'Wind direction [$^\circ$]',
+    'u': r'u [m s$^{-1}$]',
+    'v': r'v [m s$^{-1}$]',
+    'w': r'Vertical wind speed [m s$^{-1}$]',
+    'theta': r'$\theta$ [K]',
+    'thetav': r'$\theta_v$ [K]',
+    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{K m s^{-1}}]$',
+    'TI': r'TI $[-]$',
+    'TKE': r'TKE $[\mathrm{m^2 s^{-2}}]$',
+}
 
 # Standard field labels for frequency spectra
-standard_spectrumlabels = {'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
-                           'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
-                           'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
-                           'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
-                           'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
-                           'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
-                           }
+spectrumlabels_default_units = {
+    'u': r'$E_{uu}\;[\mathrm{m^2/s}]$',
+    'v': r'$E_{vv}\;[\mathrm{m^2/s}]$',
+    'w': r'$E_{ww}\;[\mathrm{m^2/s}]$',
+    'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+    'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+    'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
+}
+spectrumlabels_superscript_units = {
+    'u': r'$E_{uu}\;[\mathrm{m^2 s^{-1}}]$',
+    'v': r'$E_{vv}\;[\mathrm{m^2 s^{-1}}]$',
+    'w': r'$E_{ww}\;[\mathrm{m^2 s^{-1}}]$',
+    'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+    'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
+    'wspd': r'$E_{UU}\;[\mathrm{m^2 s^{-1}}]$',
+}
 
-# Default color cycle
+# Default settings
 default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+standard_fieldlabels = fieldlabels_default_units
+standard_spectrumlabels = spectrumlabels_default_units
 
 # Supported dimensions and associated names
 dimension_names = {
@@ -118,8 +150,10 @@ def plot_timeheight(datasets,
         number of axes.
     subfigsize : list or tuple
         Standard size of subfigures
-    plot_local_time : bool
-        Plot dual x axes with both UTC time and local time
+    plot_local_time : bool or str
+        Plot dual x axes with both UTC time and local time. If a str is
+        provided, then plot_local_time is assumed to be True and the str
+        is used as the datetime format.
     local_time_offset : float
         Local time offset from UTC
     datasetkwargs : dict
@@ -181,7 +215,7 @@ def plot_timeheight(datasets,
 
         if isinstance(timevalues, pd.DatetimeIndex):
             # If plot local time, shift timevalues
-            if plot_local_time:
+            if plot_local_time is not False:
                 timevalues = timevalues + pd.to_timedelta(local_time_offset,'h')
 
             # Convert to days since 0001-01-01 00:00 UTC, plus one
@@ -288,7 +322,7 @@ def plot_timeheight(datasets,
     if len(cbars)==1:
         cbars=cbars[0]
 
-    if plot_local_time and  ax2 is not None:
+    if (plot_local_time is not False) and ax2 is not None:
         return fig, ax, ax2, cbars
     else:
         return fig, ax, cbars
@@ -371,8 +405,10 @@ def plot_timehistory_at_height(datasets,
         number of axes.
     subfigsize : list or tuple
         Standard size of subfigures
-    plot_local_time : bool
-        Plot dual x axes with both UTC time and local time
+    plot_local_time : bool or str
+        Plot dual x axes with both UTC time and local time. If a str is
+        provided, then plot_local_time is assumed to be True and the str
+        is used as the datetime format.
     local_time_offset : float
         Local time offset from UTC
     datasetkwargs : dict
@@ -453,7 +489,8 @@ def plot_timehistory_at_height(datasets,
             timevalues = timevalues.total_seconds()
 
         # If plot local time, shift timevalues
-        if plot_local_time and isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
+        if (plot_local_time is not False) and \
+                isinstance(timevalues, (pd.DatetimeIndex, pd.TimedeltaIndex)):
             timevalues = timevalues + pd.to_timedelta(local_time_offset,'h')
 
         # Create list with available fields only
@@ -577,7 +614,7 @@ def plot_timehistory_at_height(datasets,
     # Align labels
     _align_labels(fig,axv,nrows,ncols)
 
-    if plot_local_time and ax2 is not None:
+    if (plot_local_time is not False) and ax2 is not None:
         return fig, ax, ax2
     else:
         return fig, ax
@@ -1583,10 +1620,15 @@ def _format_time_axis(fig,ax,
     """
     ax[-1].xaxis_date()
     hour_interval = _determine_hourlocator_interval(ax[-1],timelimits)
-    if plot_local_time:
+    if plot_local_time is not False:
+        if plot_local_time is True:
+            localtimefmt = '%I %p'
+        else:
+            assert isinstance(plot_local_time,str), 'Unexpected plot_local_time format'
+            localtimefmt = plot_local_time
         # Format first axis (local time)
         ax[-1].xaxis.set_minor_locator(mdates.HourLocator(byhour=range(0,24,hour_interval)))
-        ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter('%I %p'))
+        ax[-1].xaxis.set_minor_formatter(mdates.DateFormatter(localtimefmt))
         ax[-1].xaxis.set_major_locator(mdates.DayLocator(interval=12)) #Choose large interval so dates are not plotted
         ax[-1].xaxis.set_major_formatter(mdates.DateFormatter(''))
 
