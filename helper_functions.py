@@ -825,25 +825,35 @@ def reference_lines(x_range, y_start, slopes, line_type='log'):
             y_range[:,ss] = y_range[:,ss]*shift
     return(y_range)
 
-def estimate_ABL_height(Tw=None,uw=None,sanitycheck=True,**kwargs):
-    """Estimate the height of the atmospheric boundary layer with a
-    variety of methods.
+
+def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
+    """Estimate the height of the atmospheric boundary layer (ABL) with
+    a variety of methods.
 
     Parameters
     ==========
-    All inputs should be multi-indexed pandas.Series with the index
-    levels being datetime (0) and height (1).
+    All inputs should be multi-indexed pandas Series, unless otherwise
+    specified, with the index levels being datetime (0) and height (1).
+    T : 
+        Estimate the height of the ABL from the potential temperature
+        (T) profile. The height is given as where the gradient of
+        potential temperature is smaller than some threshold. Additional
+        parameters:
+        - threshold (default=0.065 K/m)
+            Temperature gradient that describes the inversion layer.
+        - zmin (default=0 m)
+            Height above ground to start looking for the inversion.
     Tw :
         Estimate the height of the convective boundary layer from the
-        instantaneous minima in vertical heat flux <T'w'>; the index
-        should be datetime (level 0) and height (level 1).
+        instantaneous minima in vertical heat flux <T'w'>.
     uw :
         Estimate the height of the stable boundary layer as the height
         at which the tangential turbulent stress vanishes, where <u'w'>
         is the magnitude of the horizontal components. Additional
         parameters:
         - cutoff (default=0.05)
-            Height from which to linearly extrapolate to zero stress.
+            Stress value from which the zero-stress height is
+            extrapolated.
         Ref: Kosovic & Curry, JAS (2000)
     sanitycheck : boolean, optional
         Perform additional sanity checks (if any).
@@ -851,7 +861,18 @@ def estimate_ABL_height(Tw=None,uw=None,sanitycheck=True,**kwargs):
         Additional method-specific parameters.
     """
     ablh = None
-    if Tw is not None:
+    if T is not None:
+        threshold = kwargs.get('threshold',0.065) # [K/m]
+        zmin = kwargs.get('zmin',0) # [m]
+        T = T.loc[T.index.get_level_values(1) >= zmin].unstack()
+        heights = np.array(T.columns)
+        dz = np.diff(heights)
+        newheights = (heights[:-1] + heights[1:]) / 2
+        dTdz = T.diff(axis=1).drop(columns=[heights[0]])
+        dTdz.columns = newheights
+        dTdz = dTdz.divide(dz, axis=1)
+        ablh = dTdz[dTdz >= threshold].apply(lambda s: s.first_valid_index(), axis=1)
+    elif Tw is not None:
         ablh = Tw.unstack().idxmin(axis=1)
         if sanitycheck:
             Tw_at_ablh = Tw.loc[[(t,z) for t,z in ablh.iteritems()]]
