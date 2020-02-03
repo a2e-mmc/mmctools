@@ -825,21 +825,52 @@ def reference_lines(x_range, y_start, slopes, line_type='log'):
             y_range[:,ss] = y_range[:,ss]*shift
     return(y_range)
 
-def estimate_ABL_height(Tw=None,sanitycheck=True):
+def estimate_ABL_height(Tw=None,uw=None,sanitycheck=True,**kwargs):
     """Estimate the height of the atmospheric boundary layer with a
     variety of methods.
 
     Parameters
     ==========
-    Tw : Multi-indexed pandas.Series
+    All inputs should be multi-indexed pandas.Series with the index
+    levels being datetime (0) and height (1).
+    Tw :
         Estimate the height of the convective boundary layer from the
         instantaneous minima in vertical heat flux <T'w'>; the index
         should be datetime (level 0) and height (level 1).
+    uw :
+        Estimate the height of the stable boundary layer as the height
+        at which the tangential turbulent stress vanishes, where <u'w'>
+        is the magnitude of the horizontal components. Additional
+        parameters:
+        - cutoff (default=0.05)
+            Height from which to linearly extrapolate to zero stress.
+        Ref: Kosovic & Curry, JAS (2000)
+    sanitycheck : boolean, optional
+        Perform additional sanity checks (if any).
+    kwargs : optional keywords
+        Additional method-specific parameters.
     """
+    ablh = None
     if Tw is not None:
         ablh = Tw.unstack().idxmin(axis=1)
         if sanitycheck:
             Tw_at_ablh = Tw.loc[[(t,z) for t,z in ablh.iteritems()]]
             assert np.all(Tw_at_ablh <= 0)
+    elif uw is not None:
+        # assume the turbulent stress maxima occur near the surface and
+        # equal u*
+        unstacked = uw.unstack()
+        ustar = unstacked.max(axis=1)
+        uw_norm = unstacked.divide(ustar, axis=0)
+        cutoff = kwargs.get('cutoff',0.05)
+        z_near0 = uw_norm[uw_norm <= cutoff].apply(lambda s: s.first_valid_index(), axis=1)
+        uw_near0 = uw_norm.stack().loc[[(t,z) for t,z in z_near0.iteritems()]]
+        if sanitycheck:
+            assert np.all((uw_near0 >=0) & (uw_near0 <= cutoff))
+        ablh = z_near0 / (1 - uw_near0)
+        ablh = ablh.reset_index(level=1)[0]
+    else:
+        raise ValueError('No valid inputs provided')
+    ablh.name = 'ABLheight'
     return ablh
 
