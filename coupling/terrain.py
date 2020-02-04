@@ -59,14 +59,15 @@ class SRTM(object):
         self.product = product
         self.have_terrain = False
 
-    def download(self):
+    def download(self,cleanup=True):
         """Download the SRTM data in GeoTIFF format"""
         dpath = os.path.dirname(self.output)
         if not os.path.isdir(dpath):
             print('Creating path',dpath)
             os.makedirs(dpath)
         elevation.clip(self.bounds, product=self.product, output=self.output)
-        elevation.clean()
+        if cleanup:
+            elevation.clean()
 
     def to_terrain(self,dx=None,dy=None,resampling=warp.Resampling.bilinear):
         """Load geospatial raster data and reproject onto specified grid
