@@ -348,13 +348,10 @@ class Tower():
                     self.gridlon  = float(header[78:86])
                     self.stationz = float(header[88:94])
                     tsdata = pd.read_csv(f,delim_whitespace=True,header=None,names=ts_header)
-                    ts_data_varns = tsdata.columns.values
-                    ts_varns_to_delete = ['dom','time','tsID','locx','locy']
-                    for vv in ts_varns_to_delete:
-                        ts_data_varns = ts_data_varns[ts_data_varns != vv]
-                    for col in ts_data_varns: 
-                        setattr(self, col.lower(), tsdata[col].values)
-                    self.ts_varns = list(ts_data_varns)
+                    tsdata = tsdata.drop(columns=['dom','time','tsID','locx','locy'])
+                    for name,col in tsdata.iteritems(): 
+                        setattr(self, name.lower(), col.values)
+                    self.ts_varns = list(tsdata.columns)
 
     def to_dataframe(self,
                      start_time='2013-11-08',time_unit='h',time_step=None,
