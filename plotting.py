@@ -623,6 +623,7 @@ def plot_timehistory_at_height(datasets,
 def plot_profile(datasets,
                  fields=None,
                  times=None,
+                 timerange=None,
                  fig=None,ax=None,
                  fieldlimits=None,
                  heightlimits=None,
@@ -660,7 +661,11 @@ def plot_profile(datasets,
         Time(s) for which vertical profiles are plotted, specified as
         either datetime strings or numerical values (seconds, e.g.,
         simulation time). times can be None if all datasets combined
-        have no more than one time value.
+        have no more than one time value, or if timerange is specified.
+    timerange : tuple or list
+        Start and end times (inclusive) between which all times are
+        plotted. If cmap is None, then it will automatically be set to
+        viridis by default. This overrides times when specified.
     fig : figure handle
         Custom figure handle. Should be specified together with ax
     ax : axes handle, or list or numpy ndarray with axes handles
@@ -717,6 +722,7 @@ def plot_profile(datasets,
         datasets=datasets,
         fields=fields,
         times=times,
+        timerange=timerange,
         fieldlimits=fieldlimits,
         fieldlabels=fieldlabels,
         fieldorder=fieldorder,
@@ -764,6 +770,10 @@ def plot_profile(datasets,
             showlegend = True
         else:
             showlegend = False
+
+    # Set default sequential colormap if timerange was specified
+    if (timerange is not None) and (cmap is None):
+        cmap = 'viridis'
 
     # Loop over datasets, fields and times 
     for i, dfname in enumerate(args.datasets):
@@ -1235,6 +1245,33 @@ class PlottingInput(object):
             # If heights is single instance, convert to list
             elif isinstance(self.heights,(int,float)):
                 self.heights = [self.heights,]
+        except AttributeError:
+            pass
+
+        # -----------------------------------
+        # Check timerange argument (optional)
+        # -----------------------------------
+        try:
+            if self.timerange is not None:
+                if self.times is not None:
+                    print('Using specified time range',self.timerange,
+                          'and ignoring',self.times)
+                assert isinstance(self.timerange,(tuple,list)), \
+                        'Need to specify timerange as (starttime,endtime)'
+                assert (len(self.timerange) == 2)
+                try:
+                    starttime = pd.to_datetime(self.timerange[0])
+                    endtime = pd.to_datetime(self.timerange[1])
+                except ValueError:
+                    print('Unable to convert timerange to timestamps')
+                else:
+                    # get unique times from all datasets
+                    alltimes = []
+                    for df in self.datasets.values():
+                        alltimes += list(_get_dim_values(df,'time'))
+                    alltimes = pd.DatetimeIndex(np.unique(alltimes))
+                    inrange = (alltimes >= starttime) & (alltimes <= endtime)
+                    self.times = alltimes[inrange]
         except AttributeError:
             pass
 
@@ -1754,3 +1791,4 @@ def _align_labels(fig,ax,nrows,ncols):
     # Align ylabels column by column
     for c in range(ncols):
         fig.align_ylabels(ax[c::ncols])
+
