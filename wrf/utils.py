@@ -31,6 +31,29 @@ default_4D_fields = ['U','V','W','T',
                      'RV_TEND','RV_TEND_ADV','RV_TEND_PGF','RV_TEND_COR','RV_TEND_PHYS',
                      'T_TEND_ADV',]
 
+# Time-series output variables
+# https://github.com/a2e-mmc/WRF/blob/master/run/README.tslist
+ts_header = [
+    'dom',    # grid ID
+    'time',   # forecast time in hours
+    'tsID',   # time series ID
+    'locx',   # grid location x (nearest grid to the station)
+    'locy',   # grid location y (nearest grid to the station)
+    'T2',     # 2 m Temperature [K]
+    'q2',     # 2 m vapor mixing ratio [kg/kg]
+    'u10',    # 10 m U wind (earth-relative)
+    'v10',    # 10 m V wind (earth-relative)
+    'PSFC',   # surface pressure [Pa]
+    'LWd',    # downward longwave radiation flux at the ground (downward is positive) [W/m^2]
+    'SWd',    # net shortwave radiation flux at the ground (downward is positive) [W/m^2]
+    'HFX',    # surface sensible heat flux (upward is positive) [W/m^2]
+    'LFX',    # surface latent heat flux (upward is positive) [W/m^2]
+    'TSK',    # skin temperature [K]
+    'SLTtop', # top soil layer temperature [K]
+    'RAINC',  # rainfall from a cumulus scheme [mm]
+    'RAINNC', # rainfall from an explicit scheme [mm]
+    'CLW',    # total column-integrated water vapor and cloud variables
+]
 
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
@@ -259,7 +282,6 @@ class Tower():
             self.varns = [
                 fpath.split('.')[-1] for fpath in self.filelist
             ]
-            print(fstr)
         else:
             self.filelist = []
             self.varns = []
@@ -325,10 +347,11 @@ class Tower():
                     self.gridlat  = float(header[70:77])
                     self.gridlon  = float(header[78:86])
                     self.stationz = float(header[88:94])
-                    # Note: need to look up what tslist outputs to know which
-                    # vars are where...
-                    self.ts = pd.read_csv(f,delim_whitespace=True,header=None).values[:,2:]
-                    assert (self.ts.shape == (nt,nv))
+                    tsdata = pd.read_csv(f,delim_whitespace=True,header=None,names=ts_header)
+                    tsdata = tsdata.drop(columns=['dom','time','tsID','locx','locy'])
+                    for name,col in tsdata.iteritems(): 
+                        setattr(self, name.lower(), col.values)
+                    self.ts_varns = list(tsdata.columns)
 
     def to_dataframe(self,start_time,
                      time_unit='h',time_step=None,
@@ -467,7 +490,10 @@ class Tower():
             ds["lat"] = (['station'],  [self.gridlat])
             ds["lon"] = (['station'],  [self.gridlon])
             ds['zsurface'] = (['station'],  [self.stationz])
-
+        
+        for varn in self.ts_varns:
+            tsvar = getattr(self, varn.lower())
+            ds[varn.lower()] = (['datetime','j','i'],np.expand_dims(np.expand_dims(tsvar,axis=1),axis=1) )
         return ds
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
