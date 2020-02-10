@@ -1,8 +1,8 @@
 """
-Surface Layer Stability Functions
-=================================
+Surface Layer Similarity Functions
+==================================
 
-Library of stability functions (Psi) used in the log profile equations:
+Library of similarity functions (Psi) used in the log profile equations:
 
     U(z) = ustar/kappa * (log(z/z0) - Psi_m(z/L) + Psi_h(z0/L))
     theta(z) - theta(0) =
