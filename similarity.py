@@ -64,3 +64,27 @@ def Jimenez_m(z_L, a=6.1, b=2.5, alpha_m=10.0):
     psi[sta] = -a * np.log(zeta[sta] + (1 + zeta[sta]**b)**(1./b))
     return psi
 
+def Jimenez_h(z_L, c=5.3, d=1.1, alpha_h=34.0):
+    """Heat similarity function used by WRF
+
+    Ref: Jimenez, P.A., J. Dudhia, J.F. Gonzalez-Rouco, J. Navarro, J.P.
+         Montavez and E. Garcia-Bustamante, 2012: A Revised Scheme for
+         the WRF Surface Layer Formulation. Mon. Weather Rev., 140, 898-918.
+    """
+    psi = np.zeros(z_L.shape)
+    zeta = np.array(z_L)
+    # Unstable conditions (Eqn. 17)
+    uns = np.where(zeta < 0)
+    x = (1 - 16*zeta[uns])**0.25
+    paulson_func = Paulson_h(x)  # "Kansas-type" functions
+    y = (1 - alpha_h*zeta[uns])**(1./3)
+    conv_func = 3./2 * np.log(y**2 + y + 1./3) \
+            - np.sqrt(3) * np.arctan(2*y + 1/np.sqrt(3)) \
+            + np.pi/np.sqrt(3)  # convective contribution
+    psi[uns] = (paulson_func + zeta[uns]**2 * conv_func) \
+            / (1 + zeta[uns]**2)
+    # Stable conditions (Eqn. 19)
+    sta = np.where(zeta >= 0)
+    psi[sta] = -c * np.log(zeta[sta] + (1 + zeta[sta]**d)**(1./d))
+    return psi
+
