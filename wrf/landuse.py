@@ -2,6 +2,23 @@ import numpy as np
 import pandas as pd
 
 
+# names/units in LANDUSE.TBL
+abbrev = {
+    'ALBD': 'albedo',  # [%]
+    'SLMO': 'soil_moisture_availability',  # [-]
+    'SFEM': 'surface_emissivity',  # [-]
+    'SFZ0': 'roughness_length',  # [cm]
+    'THERIN': 'thermal_inertia',  # [100 cal cm^-2 K^-1 s^-1/2] == [4.184e2 J m^-2 K^-1 s^-1/2]?
+    'SCFX': 'snow_cover_effect',  # [-]
+    'SFHC': 'surface_heat_capacity',  # [J m^-3 K^-1]
+}
+
+# standard conversions
+conversions = {
+    'ALBD': 0.01,
+    'SFZ0': 0.01,
+}
+
 class LandUseTable(dict):
     """Container for land-use information from WRF"""
 
@@ -37,5 +54,10 @@ class LandUseTable(dict):
                 line[-1] = line[-1].strip().strip("'")
                 idx = int(line[0]) 
                 newdict[season].loc[idx] = line[1:]
+            # do unit conversions
+            for varn, fac in conversions.items():
+                newdict[season][varn] *= fac
+            # rename known abbreviations
+            newdict[season].rename(columns=abbrev, inplace=True)
             #print(newdict[season])
         return newdict
