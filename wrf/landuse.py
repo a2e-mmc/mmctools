@@ -60,4 +60,14 @@ class LandUseTable(dict):
             # rename known abbreviations
             newdict[season].rename(columns=abbrev, inplace=True)
             #print(newdict[season])
-        return newdict
+        if Nseason == 1:
+            # return dataframe as is
+            return newdict[season]
+        else:
+            # return dataframe with multiindex
+            for season in newdict.keys():
+                newdict[season]['season'] = season
+            df = pd.concat(newdict.values())
+            df = df.set_index('season', append=True)
+            return df.sort_index()
+
