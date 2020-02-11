@@ -40,7 +40,7 @@ def Paulson_h(x):
     return 2 * np.log((1 + x**2) / 2)
 
 
-def Jimenez_m(z_L, a=6.1, b=2.5):
+def Jimenez_m(z_L, a=6.1, b=2.5, alpha_m=10.0):
     """Momentum similarity function used by WRF
 
     Ref: Jimenez, P.A., J. Dudhia, J.F. Gonzalez-Rouco, J. Navarro, J.P.
@@ -48,12 +48,12 @@ def Jimenez_m(z_L, a=6.1, b=2.5):
          the WRF Surface Layer Formulation. Mon. Weather Rev., 140, 898-918.
     """
     psi = np.zeros(z_L.shape)
-    zeta = np.array(z_L.astype(float).values)
+    zeta = np.array(z_L)
     # Unstable conditions (Eqn. 17)
     uns = np.where(zeta < 0)
     x = (1 - 16*zeta[uns])**0.25
     paulson_func = Paulson_m(x)  # "Kansas-type" functions
-    y = (1 - 10 * zeta[uns])**(1./3)
+    y = (1 - alpha_m*zeta[uns])**(1./3)
     conv_func = 3./2 * np.log(y**2 + y + 1./3) \
             - np.sqrt(3) * np.arctan(2*y + 1/np.sqrt(3)) \
             + np.pi/np.sqrt(3)  # convective contribution
