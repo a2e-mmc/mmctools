@@ -28,6 +28,11 @@ class LandUseTable(dict):
             newdict[season] = pd.DataFrame(index=index, columns=header[1:])
             for idef in range(Ndef):
                 line = f.readline().split(',')
+                if len(line) < len(header):
+                    assert len(line) == len(header)-1, \
+                            'No workaround for reading '+str(line)+'... abort'
+                    # workaround for rows with missing comma after index
+                    line = line[0].split() + line[1:]
                 line[1:-1] = [float(val) for val in line[1:-1]]
                 line[-1] = line[-1].strip().strip("'")
                 idx = int(line[0]) 
