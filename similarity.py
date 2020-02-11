@@ -21,23 +21,23 @@ for psi_m and psi_h, and
 import numpy as np
 
 
-def Paulson_m(z_L):
+def Paulson_m(x):
     """Momentum similarity function for unstable conditions
 
     Ref: Paulson, C.A., 1970: The mathematical representation of wind
          speed and temperature in the unstable atmospheric surface layer.
          J. Appl. Meteor., 9, 857-861.
     """
-    return np.pi/2 - 2*np.arctan(z_L) + np.log((1+z_L)**2 * (1 + z_L**2) / 8)
+    return np.pi/2 - 2*np.arctan(x) + np.log((1+x)**2 * (1 + x**2) / 8)
 
-def Paulson_h(z_L):
+def Paulson_h(x):
     """Heat similarity function for unstable conditions
 
     Ref: Paulson, C.A., 1970: The mathematical representation of wind
          speed and temperature in the unstable atmospheric surface layer.
          J. Appl. Meteor., 9, 857-861.
     """
-    return 2 * np.log((1 + z_L**2) / 2)
+    return 2 * np.log((1 + x**2) / 2)
 
 
 def Jimenez_m(z_L, a=6.1, b=2.5):
