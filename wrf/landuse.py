@@ -11,7 +11,7 @@ class LandUseTable(dict):
             name = f.readline().strip()
             while not name == '':
                 print('Reading',name)
-                self.__dict__[name] = self._read_def(f)
+                self.__setitem__(name, self._read_def(f))
                 name = f.readline().strip()
                 
     def _read_def(self,f):
