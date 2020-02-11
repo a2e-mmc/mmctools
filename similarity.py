@@ -2,23 +2,24 @@
 Surface Layer Similarity Functions
 ==================================
 
-Library of similarity functions (Psi) used in the log profile equations:
+Library of similarity functions (psi) used in the log profile equations:
 
-    U(z) = ustar/kappa * (log(z/z0) - Psi_m(z/L) + Psi_h(z0/L))
+    U(z) = ustar/kappa * (log(z/z0) - psi_m(z/L) + psi_m(z0/L))
     theta(z) - theta(0) =
-            thetastar/kappa * (log(z/z0) - Psi_h(z/L) + Psi_h(z0/L))
+            thetastar/kappa * (log(z/z0) - psi_h(z/L) + psi_h(z0/L))
 
 where z is the height a.g.l.,
 
-    Psi(z/L) = ((1 - phi(x)) / x) integrated from x= 0 to z/L
+    psi(z/L) = ((1 - phi(x)) / x) integrated from x= 0 to z/L
 
-for Psi_m and Psi_h, and
+for psi_m and psi_h, and
 
     phi_m(z/L) = kappa*z/ustar * dU/dz
     phi_h(z/L) = kappa*z/thetastar * dtheta/dz
 
 """
 import numpy as np
+
 
 def Paulson_m(z_L):
     """Momentum similarity function for unstable conditions
