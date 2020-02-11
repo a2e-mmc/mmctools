@@ -1007,7 +1007,7 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
     return ds_subset
 
 
-def write_tslist_file(fname,twr_locx,twr_locy,twr_names=None,twr_abbr=None,ij_or_ll='ll'):
+def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
     """
     Write a list of lat/lon or i/j locations to a tslist file that is
     readable by WRF.
@@ -1016,7 +1016,7 @@ def write_tslist_file(fname,twr_locx,twr_locy,twr_names=None,twr_abbr=None,ij_or
     ====
     fname : string 
         The path to and filename of the file to be created
-    twr_locx, twr_locy : list or 1-D array
+    lat,lon,i,j : list or 1-D array
         Locations of the towers. 
         If using lat/lon - locx = lon, locy = lat
         If using i/j     - locx = i,   locy = j
@@ -1028,16 +1028,19 @@ def write_tslist_file(fname,twr_locx,twr_locy,twr_names=None,twr_abbr=None,ij_or
         List of abbreviations for each tower location. Names should not be
         longer than 5 characters, each. If None, default abbreviations
         will be given.
-    ij_or_ll : str 
-        'ij' specifies i/j locations will be used
-        'll' specifies lat/lon locations will be used (default).
     """
-    if ij_or_ll == 'll':
+    if (lat is not None) and (lon is not None) and (i is None) and (j is None):
         header_keys = '# 24 characters for name | pfx |  LAT  |   LON  |'
-    elif ij_or_ll == 'ij':
+        twr_locx = lon
+        twr_locy = lat
+        ij_or_ll = 'll'
+    elif (i is not None) and (j is not None) and (lat is None) and (lon is None):
         header_keys = '# 24 characters for name | pfx |   I   |    J   |'
+        twr_locx = i
+        twr_locy = j
+        ij_or_ll = 'ij'
     else:
-        print('Please select either "ij" or "ll" (for lat/lon)')
+        print('Please specify either lat&lon or i&j')
         return
     
     header_line = '#-----------------------------------------------#'
@@ -1049,16 +1052,19 @@ def write_tslist_file(fname,twr_locx,twr_locy,twr_names=None,twr_abbr=None,ij_or
         print('Error - tower_x: {}, tower_y: {}'.format(len(twr_locx),len(twr_locy)))
         return
     
+    if not isinstance(twr_names,list):
+        twr_names = list(twr_names)    
     if twr_names != None:
         if len(twr_names) != ntowers:
             print('Error - Tower names: {}, tower_x: {}, tower_y: {}'.format(len(twr_names),len(twr_locx),len(twr_locy)))
             return
-
     else:
         twr_names = []
         for twr in np.arange(0,ntowers):
             twr_names.append('Tower{0:04d}'.format(twr+1))
             
+    if not isinstance(twr_abbr,list):
+        twr_abbr = list(twr_abbr)                
     if twr_abbr != None:
         if len(twr_abbr) != ntowers:
             print('Error - Tower abbr: {}, tower_x: {}, tower_y: {}'.format(len(twr_abbr),len(twr_locx),len(twr_locy)))
