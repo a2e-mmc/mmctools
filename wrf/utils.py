@@ -1024,3 +1024,90 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
     #print(ds_subset)
     return ds_subset
 
+
+def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
+    """
+    Write a list of lat/lon or i/j locations to a tslist file that is
+    readable by WRF.
+
+    Usage
+    ====
+    fname : string 
+        The path to and filename of the file to be created
+    lat,lon,i,j : list or 1-D array
+        Locations of the towers. 
+        If using lat/lon - locx = lon, locy = lat
+        If using i/j     - locx = i,   locy = j
+    twr_names : list of strings, optional
+        List of names for each tower location. Names should not be
+        longer than 25 characters, each. If None, default names will
+        be given.
+    twr_abbr : list of strings, optional
+        List of abbreviations for each tower location. Names should not be
+        longer than 5 characters, each. If None, default abbreviations
+        will be given.
+    """
+    if (lat is not None) and (lon is not None) and (i is None) and (j is None):
+        header_keys = '# 24 characters for name | pfx |  LAT  |   LON  |'
+        twr_locx = lon
+        twr_locy = lat
+        ij_or_ll = 'll'
+    elif (i is not None) and (j is not None) and (lat is None) and (lon is None):
+        header_keys = '# 24 characters for name | pfx |   I   |    J   |'
+        twr_locx = i
+        twr_locy = j
+        ij_or_ll = 'ij'
+    else:
+        print('Please specify either lat&lon or i&j')
+        return
+    
+    header_line = '#-----------------------------------------------#'
+    header = '{}\n{}\n{}\n'.format(header_line,header_keys,header_line)
+    
+    if len(twr_locy) == len(twr_locx):
+        ntowers = len(twr_locy)  
+    else:
+        print('Error - tower_x: {}, tower_y: {}'.format(len(twr_locx),len(twr_locy)))
+        return
+    
+    if not isinstance(twr_names,list):
+        twr_names = list(twr_names)    
+    if twr_names != None:
+        if len(twr_names) != ntowers:
+            print('Error - Tower names: {}, tower_x: {}, tower_y: {}'.format(len(twr_names),len(twr_locx),len(twr_locy)))
+            return
+    else:
+        twr_names = []
+        for twr in np.arange(0,ntowers):
+            twr_names.append('Tower{0:04d}'.format(twr+1))
+            
+    if not isinstance(twr_abbr,list):
+        twr_abbr = list(twr_abbr)                
+    if twr_abbr != None:
+        if len(twr_abbr) != ntowers:
+            print('Error - Tower abbr: {}, tower_x: {}, tower_y: {}'.format(len(twr_abbr),len(twr_locx),len(twr_locy)))
+            return
+        if len(max(twr_abbr,key=len)) > 5:
+            print('Tower abbreviations are too large... setting to default names')
+            twr_abbr = None
+    if twr_abbr==None:
+        twr_abbr = []
+        for twr in np.arange(0,ntowers):
+            twr_abbr.append('T{0:04d}'.format(twr+1))
+            
+    f = open(fname,'w')
+    f.write(header)
+            
+    for tt in range(0,ntowers):
+        if ij_or_ll == 'ij':
+            twr_line = '{0:<26.25}{1: <6}{2: <8d} {3: <8d}\n'.format(
+                twr_names[tt], twr_abbr[tt], int(twr_locx[tt]), int(twr_locy[tt]))
+        else:
+            twr_line = '{0:<26.25}{1: <6}{2:.7s}  {3:<.8s}\n'.format(
+                twr_names[tt], twr_abbr[tt], '{0:8.7f}'.format(float(twr_locy[tt])), 
+                                             '{0:8.7f}'.format(float(twr_locx[tt])))
+        f.write(twr_line)
+    f.close()
+        
+        
+  
