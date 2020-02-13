@@ -47,8 +47,9 @@ def Jimenez_m(z_L, a=6.1, b=2.5, alpha_m=10.0):
          Montavez and E. Garcia-Bustamante, 2012: A Revised Scheme for
          the WRF Surface Layer Formulation. Mon. Weather Rev., 140, 898-918.
     """
-    psi = np.zeros(z_L.shape)
     zeta = np.array(z_L)
+    psi = np.zeros(zeta.shape)
+
     # Unstable conditions (Eqn. 17)
     uns = np.where(zeta < 0)
     x = (1 - 16*zeta[uns])**0.25
@@ -59,9 +60,11 @@ def Jimenez_m(z_L, a=6.1, b=2.5, alpha_m=10.0):
             + np.pi/np.sqrt(3)  # convective contribution
     psi[uns] = (paulson_func + zeta[uns]**2 * conv_func) \
             / (1 + zeta[uns]**2)
+
     # Stable conditions (Eqn. 18)
     sta = np.where(zeta >= 0)
     psi[sta] = -a * np.log(zeta[sta] + (1 + zeta[sta]**b)**(1./b))
+
     return psi
 
 def Jimenez_h(z_L, c=5.3, d=1.1, alpha_h=34.0):
@@ -71,8 +74,9 @@ def Jimenez_h(z_L, c=5.3, d=1.1, alpha_h=34.0):
          Montavez and E. Garcia-Bustamante, 2012: A Revised Scheme for
          the WRF Surface Layer Formulation. Mon. Weather Rev., 140, 898-918.
     """
-    psi = np.zeros(z_L.shape)
     zeta = np.array(z_L)
+    psi = np.zeros(zeta.shape)
+
     # Unstable conditions (Eqn. 17)
     uns = np.where(zeta < 0)
     x = (1 - 16*zeta[uns])**0.25
@@ -83,8 +87,10 @@ def Jimenez_h(z_L, c=5.3, d=1.1, alpha_h=34.0):
             + np.pi/np.sqrt(3)  # convective contribution
     psi[uns] = (paulson_func + zeta[uns]**2 * conv_func) \
             / (1 + zeta[uns]**2)
+
     # Stable conditions (Eqn. 19)
     sta = np.where(zeta >= 0)
     psi[sta] = -c * np.log(zeta[sta] + (1 + zeta[sta]**d)**(1./d))
+
     return psi
 
