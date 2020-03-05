@@ -174,6 +174,16 @@ def theta(T, p, p0=1000.):
     """
     return T * (p0/p)**0.286
 
+def theta_to_T(theta,p,p0=1000.):
+    """Calculate (virtual) temperature [K], from (virtual) potential
+    temperature, theta, [K] and pressure p [mbar] using Poisson's equation.
+
+    Standard pressure p0 at sea level is 1000 mbar or hPa. 
+
+    Typical assumptions for dry air give:
+        R/cp = (287 J/kg-K) / (1004 J/kg-K) = 0.286
+    """
+    return theta / (p0/p)**0.286    
 
 def covariance(a,b,interval='10min',resample=False):
     """Calculate covariance between two series (with datetime index) in
@@ -809,3 +819,22 @@ def reference_lines(x_range, y_start, slopes, line_type='log'):
             shift = y_start/y_range[0,ss]
             y_range[:,ss] = y_range[:,ss]*shift
     return(y_range)
+
+def lowess_mean(ds,win_size,lowess_delta):
+    '''
+    This will calculate the lowess mean with specified window size
+    and lowess delta.
+    ds : xarray dataset or data array
+    win_size : float
+    lowess_delta: float
+    '''
+    series_length = ds.data.size
+    sm_frac = win_size/series_length
+    exog = np.arange(len(ds.data))
+
+    init_ds_means = True
+
+    lowess_smth = lowess(ds.data, exog, 
+                         frac=sm_frac, 
+                         delta=lowess_delta)[:,1]
+    return(lowess_smth)
