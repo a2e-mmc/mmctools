@@ -310,7 +310,26 @@ def fit_power_law_alpha(z,U,zref=80.0,Uref=8.0):
     R2 = 1.0 - (SSres/SStot)
     return alpha, R2
 
-def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_delta=0):
+def lowess_mean(ds,win_size,lowess_delta):
+    '''
+    This will calculate the lowess mean with specified window size
+    and lowess delta.
+    ds : xarray dataset or data array
+    win_size : float
+    lowess_delta: float
+    '''
+    series_length = ds.data.size
+    sm_frac = win_size/series_length
+    exog = np.arange(len(ds.data))
+
+    init_ds_means = True
+
+    lowess_smth = lowess(ds.data, exog, 
+                         frac=sm_frac, 
+                         delta=lowess_delta)[:,1]
+    return(lowess_smth)
+
+def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_delta=0, lowess_window=None):
     """
     Augment an a2e-mmc standard, xarrays-based, data structure of 
     4-dimensional model output with space-based quantities of interest
@@ -347,11 +366,6 @@ def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_d
         ds_means = ds.mean(dim=mean_dim)
     elif mean_opt == 'lowess':
         print('calculating lowess means')
-        series_length = ds[mean_dim].data.size
-        win_size = 18000
-        sm_frac = win_size/series_length
-
-        exog = np.arange(len(ds[mean_dim].data))
 
         init_ds_means = True
         for varn in var_keys:
@@ -369,9 +383,9 @@ def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_d
                 var = ds[varn].isel(nz=kk).values
                 for jj in ds.ny.data:
                     for ii in ds.nx.data:
-                        lowess_smth[:,kk,jj,ii] = lowess(var[:,jj,ii], exog, 
-                                                         frac=sm_frac, 
-                                                         delta=lowess_delta)[:,1]
+                        lowess_smth[:,kk,jj,ii] = lowess_mean(var[:,jj,ii], 
+                                                         win_size=lowess_window,
+                                                         delta=lowess_delta)
                 print('k-loop: {} seconds'.format(time.time()-k_loop_start))
                 loop_end = time.time()
             print('total time: {} seconds'.format(loop_end - loop_start))
@@ -408,7 +422,7 @@ def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_d
     ds['TKE'] = 0.5*np.sqrt(ds['UU']+ds['ww'])
     ds.attrs['MEAN_OPT'] = mean_opt
     if mean_opt == 'lowess':
-        ds.attrs['WINDOW_SIZE'] = win_size
+        ds.attrs['WINDOW_SIZE'] = lowess_window
         ds.attrs['LOWESS_DELTA'] = lowess_delta
     return ds
 
@@ -820,21 +834,3 @@ def reference_lines(x_range, y_start, slopes, line_type='log'):
             y_range[:,ss] = y_range[:,ss]*shift
     return(y_range)
 
-def lowess_mean(ds,win_size,lowess_delta):
-    '''
-    This will calculate the lowess mean with specified window size
-    and lowess delta.
-    ds : xarray dataset or data array
-    win_size : float
-    lowess_delta: float
-    '''
-    series_length = ds.data.size
-    sm_frac = win_size/series_length
-    exog = np.arange(len(ds.data))
-
-    init_ds_means = True
-
-    lowess_smth = lowess(ds.data, exog, 
-                         frac=sm_frac, 
-                         delta=lowess_delta)[:,1]
-    return(lowess_smth)
