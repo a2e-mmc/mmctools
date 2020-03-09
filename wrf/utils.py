@@ -812,11 +812,13 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
     Combine together tslist files in time where, if there is any overlap, the later file
     will overwrite the earlier file. This makes the assumption that all of the tslist 
     files are stored in separate directories but named the same (default in WRF is to 
-    name them the same).
+    name them the same). Each restart directory must have a simulation_start string to
+    specify when the timing starts (use same time if run was an actual restart, use WRF
+    start time if you are combining several runs).
 
     fdir             = 'path/to/restart/directories/'
     restarts         = ['restart_dir_1', 'restart_dir_2', 'restart_dir_3']
-    simulation_start = '2000-01-01 00:00'
+    simulation_start = ['2000-01-01 00:00','2000-01-01 00:00','2000-01-01 00:00']
     fname            = ['t0001.d02'] (Note: this is the prefix for the tower + domain)
     return_type      = 'xarray' or 'dataframe'
     structure        = 'ordered' or 'unordered'
@@ -829,8 +831,7 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
         elif np.size(simulation_start) == np.size(restarts):
             sim_start = simulation_start[rst]
         else:
-            print('restarts and simulation_start are not equal')
-            return
+            raise ValueError('restarts and simulation_start are not equal')
         print('restart: {}'.format(restart))
         data = []
         for ff in fname:
