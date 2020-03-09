@@ -174,6 +174,8 @@ def theta(T, p, p0=1000.):
     """
     return T * (p0/p)**0.286
 
+# create alias for theta for consistency
+T_to_theta = theta
 def theta_to_T(theta,p,p0=1000.):
     """Calculate (virtual) temperature [K], from (virtual) potential
     temperature, theta, [K] and pressure p [mbar] using Poisson's equation.
