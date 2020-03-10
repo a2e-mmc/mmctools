@@ -813,48 +813,49 @@ def extract_column_from_wrfdata(fpath, coords,
     return xn
 
 
-def combine_towers(fdir, restarts, simulation_start, fname,
-                   return_type='xarray',
-                   structure='ordered',
-                   time_step=None):
+def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray', structure='ordered',
+                   time_step=None, heights=None, height_var='heights'):
     '''
-    Combine together tslist files in time where, if there is any
-    overlap, the later file will overwrite the earlier file. This makes
-    the assumption that all of the tslist files are stored in separate
-    directories but named the same (default in WRF is to name them the
-    same).
+    Combine together tslist files in time where, if there is any overlap, the later file
+    will overwrite the earlier file. This makes the assumption that all of the tslist 
+    files are stored in separate directories but named the same (default in WRF is to 
+    name them the same). Each restart directory must have a simulation_start string to
+    specify when the timing starts (use same time if run was an actual restart, use WRF
+    start time if you are combining several runs).
 
-    This will work with a pd.DataFrame, xr.Dataset, or xr.DataArray
+    fdir             = 'path/to/restart/directories/'
+    restarts         = ['restart_dir_1', 'restart_dir_2', 'restart_dir_3']
+    simulation_start = ['2000-01-01 00:00','2000-01-01 00:00','2000-01-01 00:00']
+    fname            = ['t0001.d02'] (Note: this is the prefix for the tower + domain)
+    return_type      = 'xarray' or 'dataframe'
+    structure        = 'ordered' or 'unordered'
 
-    Usage
-    =====
-    fdir : str
-        E.g., 'path/to/restart/directories/'
-    restarts : list
-        E.g., ['restart_dir_1', 'restart_dir_2', 'restart_dir_3']
-    simulation_start : str
-        E.g., '2000-01-01 00:00'
-    fname : list
-        Prefix for the tower+domain, e.g., ['t0001.d02']
-    return_type : str
-        'xarray' or 'dataframe'
-    structure : str
-        'ordered' or 'unordered'
+    This will work with a pandas df or an xarray ds/da
     '''
     for rst,restart in enumerate(restarts):
+        if np.size(simulation_start) == 1:
+            sim_start = simulation_start
+        elif np.size(simulation_start) == np.size(restarts):
+            sim_start = simulation_start[rst]
+        else:
+            raise ValueError('restarts and simulation_start are not equal')
         print('restart: {}'.format(restart))
         data = []
         for ff in fname:
             
             print('starting {}'.format(ff))
             if return_type == 'xarray':
-                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_xarray(start_time=simulation_start,
-                                                                            time_step=time_step,height_var='k',
-                                                                            structure=structure))
+                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_xarray(start_time=sim_start,
+                                                                            time_step=time_step,
+                                                                            structure=structure,
+                                                                            heights=heights,
+                                                                            height_var=height_var))
             elif return_type == 'dataframe':
-                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_dataframe(start_time=simulation_start,
-                                                                            time_step=time_step,height_var='k',
-                                                                            structure=structure))
+                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_dataframe(start_time=sim_start,
+                                                                            time_step=time_step,
+                                                                            structure=structure,
+                                                                            heights=heights,
+                                                                            height_var=height_var))
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
@@ -884,7 +885,7 @@ def combine_towers(fdir, restarts, simulation_start, fname,
     dataF['wspd'] = (dataF['u']**2.0 + dataF['v']**2.0)**0.5
     dataF['wdir'] = 180. + np.degrees(np.arctan2(dataF['u'], dataF['v']))        
 
-    dataF.attrs['SIMULATION_START_DATE'] = simulation_start
+    dataF.attrs['SIMULATION_START_DATE'] = sim_start
     dataF.attrs['CREATED_FROM'] = fdir
 
     # -------------------------------------------------------       
@@ -897,31 +898,50 @@ def combine_towers(fdir, restarts, simulation_start, fname,
 
 
 def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest, structure='ordered',
-                       time_step=None):
+                       time_step=None, heights=None, height_var='heights',select_tower=None):
     '''
     This will combine a series of tslist output over time and location based on the
     path to the case (fdir), the restart directories (restarts), a model start time 
-    (simulation_start_time), and the domain of interest for the 
-    towers (domain_of_interest).
+    (simulation_start_time), and the domain of interest for the towers
+    (domain_of_interest). You can select individual towers or a set of towers by
+    specifying a list or array in select_towers. Tower levels can be interpolated
+    to specified heights by specifying 'heights' and 'height_var' where height_var
+    is the variable that contains height values.
 
     fdir                  = 'path/to/restart/directories/'
     restarts              = ['tsout_1800_1830','tsout_1830_1900','tsout_1900_1930','tsout_1930_2000']
     simulation_start_time = '2013-11-08 14:00'
     domain_of_interest    = 'd02'
+    time_step             = 10.0 
+    heights               = [20.0, 50.0, 100.0]
+    height_var            = 'ph'
+    select_tower          = ['TS1','TS5']
     '''
     ntimes = np.shape(restarts)[0]
-    floc = '{}{}/*{}*'.format(fdir,restarts[0],domain_of_interest)
+    floc = '{}{}/*{}.??'.format(fdir,restarts[0],domain_of_interest)
     file_list = glob.glob(floc)
+
     for ff,file in enumerate(file_list):
         file = file[:-3]
         file_list[ff] = file
+    
+    for f in file_list: 
+        if 'geo_em' in f: file_list.remove(f)
+
     file_list = np.unique(file_list)
     tower_names = file_list.copy()
     for ff,file in enumerate(file_list):
         tower_names[ff] = file.split('/')[-1]
-    #tower_names = tower_names[:2]
+        
+    if select_tower != None:
+        good_towers = []
+        for twr in select_tower:
+            for twr_n in tower_names:
+                if twr in twr_n: good_towers.append(twr_n)
+        tower_names = good_towers
+    
     dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,return_type='xarray',
-                         structure=structure, time_step=time_step)
+                         structure=structure, time_step=time_step, heights=heights, height_var=height_var)
     return dsF
 
 
@@ -1024,3 +1044,90 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
     #print(ds_subset)
     return ds_subset
 
+
+def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
+    """
+    Write a list of lat/lon or i/j locations to a tslist file that is
+    readable by WRF.
+
+    Usage
+    ====
+    fname : string 
+        The path to and filename of the file to be created
+    lat,lon,i,j : list or 1-D array
+        Locations of the towers. 
+        If using lat/lon - locx = lon, locy = lat
+        If using i/j     - locx = i,   locy = j
+    twr_names : list of strings, optional
+        List of names for each tower location. Names should not be
+        longer than 25 characters, each. If None, default names will
+        be given.
+    twr_abbr : list of strings, optional
+        List of abbreviations for each tower location. Names should not be
+        longer than 5 characters, each. If None, default abbreviations
+        will be given.
+    """
+    if (lat is not None) and (lon is not None) and (i is None) and (j is None):
+        header_keys = '# 24 characters for name | pfx |  LAT  |   LON  |'
+        twr_locx = lon
+        twr_locy = lat
+        ij_or_ll = 'll'
+    elif (i is not None) and (j is not None) and (lat is None) and (lon is None):
+        header_keys = '# 24 characters for name | pfx |   I   |    J   |'
+        twr_locx = i
+        twr_locy = j
+        ij_or_ll = 'ij'
+    else:
+        print('Please specify either lat&lon or i&j')
+        return
+    
+    header_line = '#-----------------------------------------------#'
+    header = '{}\n{}\n{}\n'.format(header_line,header_keys,header_line)
+    
+    if len(twr_locy) == len(twr_locx):
+        ntowers = len(twr_locy)  
+    else:
+        print('Error - tower_x: {}, tower_y: {}'.format(len(twr_locx),len(twr_locy)))
+        return
+    
+    if not isinstance(twr_names,list):
+        twr_names = list(twr_names)    
+    if twr_names != None:
+        if len(twr_names) != ntowers:
+            print('Error - Tower names: {}, tower_x: {}, tower_y: {}'.format(len(twr_names),len(twr_locx),len(twr_locy)))
+            return
+    else:
+        twr_names = []
+        for twr in np.arange(0,ntowers):
+            twr_names.append('Tower{0:04d}'.format(twr+1))
+            
+    if not isinstance(twr_abbr,list):
+        twr_abbr = list(twr_abbr)                
+    if twr_abbr != None:
+        if len(twr_abbr) != ntowers:
+            print('Error - Tower abbr: {}, tower_x: {}, tower_y: {}'.format(len(twr_abbr),len(twr_locx),len(twr_locy)))
+            return
+        if len(max(twr_abbr,key=len)) > 5:
+            print('Tower abbreviations are too large... setting to default names')
+            twr_abbr = None
+    if twr_abbr==None:
+        twr_abbr = []
+        for twr in np.arange(0,ntowers):
+            twr_abbr.append('T{0:04d}'.format(twr+1))
+            
+    f = open(fname,'w')
+    f.write(header)
+            
+    for tt in range(0,ntowers):
+        if ij_or_ll == 'ij':
+            twr_line = '{0:<26.25}{1: <6}{2: <8d} {3: <8d}\n'.format(
+                twr_names[tt], twr_abbr[tt], int(twr_locx[tt]), int(twr_locy[tt]))
+        else:
+            twr_line = '{0:<26.25}{1: <6}{2:.7s}  {3:<.8s}\n'.format(
+                twr_names[tt], twr_abbr[tt], '{0:8.7f}'.format(float(twr_locy[tt])), 
+                                             '{0:8.7f}'.format(float(twr_locx[tt])))
+        f.write(twr_line)
+    f.close()
+        
+        
+  

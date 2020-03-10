@@ -1656,6 +1656,8 @@ def _format_time_axis(fig,ax,
     Auxiliary function to format time axis
     """
     ax[-1].xaxis_date()
+    if timelimits is not None:
+        timelimits = [pd.to_datetime(tlim) for tlim in timelimits]
     hour_interval = _determine_hourlocator_interval(ax[-1],timelimits)
     if plot_local_time is not False:
         if plot_local_time is True:
