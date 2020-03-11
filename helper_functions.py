@@ -910,20 +910,12 @@ def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
         uw_norm = unstacked.divide(ustar, axis=0)
         cutoff = kwargs.get('cutoff',0.05)
         z_near0 = uw_norm[uw_norm <= cutoff].apply(lambda s: s.first_valid_index(), axis=1)
-        # if there are nans, it should be in the first time step 
-        # during which turbulence hasn't yet been resolved (ustar==0)
-        if sanitycheck:
-            nnan = np.count_nonzero(pd.isna(z_near0))
-            assert nnan <= 1
-            if nnan == 1:
-                assert pd.isna(z_near0.iloc[0])
-        z_near0 = z_near0.fillna(method='bfill')
+        z_near0 = z_near0.fillna(method='bfill').fillna(method='ffill')
         # get near-zero value of uw for extrapolation
-        uw_norm = uw_norm.stack(dropna=False).fillna(method='bfill')
-        uw_norm_near0 = uw_norm.loc[[(t,z) for t,z in z_near0.iteritems()]] # this is bottleneck for some reason, but Tw.loc[[(t,z) for t,z in ablh.iteritems()]] above is fast...
+        uw_norm = uw_norm.stack(dropna=False)
+        uw_norm_near0 = uw_norm.loc[[(t,z) for t,z in z_near0.iteritems()]]
         if sanitycheck:
-            assert np.all(uw_norm_near0 <= cutoff)
-            assert np.all(uw_norm_near0 >=0) 
+            assert np.all(uw_norm_near0.loc[~pd.isna(uw_norm_near0)] >= 0) 
         # extrapolate
         ablh = z_near0 / (1 - uw_norm_near0)
         ablh = ablh.reset_index(level=1)[0]
