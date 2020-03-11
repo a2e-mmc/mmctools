@@ -852,7 +852,8 @@ def reference_lines(x_range, y_start, slopes, line_type='log'):
 
 def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
     """Estimate the height of the atmospheric boundary layer (ABL) with
-    a variety of methods.
+    a variety of methods. The recommended approach is Tw during convective
+    conditions and uw during stable conditions.
 
     Parameters
     ==========
@@ -909,10 +910,22 @@ def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
         uw_norm = unstacked.divide(ustar, axis=0)
         cutoff = kwargs.get('cutoff',0.05)
         z_near0 = uw_norm[uw_norm <= cutoff].apply(lambda s: s.first_valid_index(), axis=1)
-        uw_near0 = uw_norm.stack().loc[[(t,z) for t,z in z_near0.iteritems()]]
+        # if there are nans, it should be in the first time step 
+        # during which turbulence hasn't yet been resolved (ustar==0)
         if sanitycheck:
-            assert np.all((uw_near0 >=0) & (uw_near0 <= cutoff))
-        ablh = z_near0 / (1 - uw_near0)
+            nnan = np.count_nonzero(pd.isna(z_near0))
+            assert nnan <= 1
+            if nnan == 1:
+                assert pd.isna(z_near0.iloc[0])
+        z_near0 = z_near0.fillna(method='bfill')
+        # get near-zero value of uw for extrapolation
+        uw_norm = uw_norm.stack(dropna=False).fillna(method='bfill')
+        uw_norm_near0 = uw_norm.loc[[(t,z) for t,z in z_near0.iteritems()]] # this is bottleneck for some reason, but Tw.loc[[(t,z) for t,z in ablh.iteritems()]] above is fast...
+        if sanitycheck:
+            assert np.all(uw_norm_near0 <= cutoff)
+            assert np.all(uw_norm_near0 >=0) 
+        # extrapolate
+        ablh = z_near0 / (1 - uw_norm_near0)
         ablh = ablh.reset_index(level=1)[0]
     else:
         raise ValueError('No valid inputs provided')
