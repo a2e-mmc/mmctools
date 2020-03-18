@@ -924,7 +924,6 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     for ff,file in enumerate(file_list):
         file = file[:-3]
         file_list[ff] = file
-    
     for f in file_list: 
         if 'geo_em' in f: file_list.remove(f)
 
@@ -933,7 +932,9 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     for ff,file in enumerate(file_list):
         tower_names[ff] = file.split('/')[-1]
         
-    if select_tower != None:
+    if not isinstance(select_tower,(list)):
+        select_tower = list(select_tower)
+    if select_tower is not None:
         good_towers = []
         for twr in select_tower:
             for twr_n in tower_names:
