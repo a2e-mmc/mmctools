@@ -483,7 +483,7 @@ class Tower():
 
     def to_xarray(self,
                   start_time='2013-11-08',time_unit='h',time_step=None,
-                  heights=None,height_var='height',
+                  heights=None,height_var='height',agl=False,
                   exclude=['ts'],
                   structure='ordered'):
         """Convert tower time-height data into a xarray dataset.
@@ -523,11 +523,16 @@ class Tower():
             height index. If heights is None, then this must match the
             number of height levels; otherwise, this may be constant
             or variable in time.
+        agl : bool, optional
+            Heights by default are specified above sea level; if True,
+            then the "stationz" attribute is used to convert to heights
+            above ground level (AGL).  This only applies if heights are
+            specified.
         exclude : list
             List of fields to excldue from the output dataframe. By
             default, the surface time-series data ('ts') are excluded.
         """
-        df = self.to_dataframe(start_time,time_unit,time_step,heights,height_var,exclude)
+        df = self.to_dataframe(start_time,time_unit,time_step,heights,height_var,agl,exclude)
         if structure == 'ordered':
             ds = df.to_xarray().assign_coords(i=self.loci).assign_coords(j=self.locj).expand_dims(['j','i'],axis=[2,3])
             ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
@@ -866,8 +871,10 @@ def extract_column_from_wrfdata(fpath, coords,
     return xn
 
 
-def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray', structure='ordered',
-                   time_step=None, heights=None, height_var='heights'):
+def combine_towers(fdir, restarts, simulation_start, fname,
+                   return_type='xarray', structure='ordered',
+                   time_step=None, heights=None, height_var='heights',
+                   agl=False):
     '''
     Combine together tslist files in time where, if there is any overlap, the later file
     will overwrite the earlier file. This makes the assumption that all of the tslist 
@@ -902,13 +909,15 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
                                                                             time_step=time_step,
                                                                             structure=structure,
                                                                             heights=heights,
-                                                                            height_var=height_var))
+                                                                            height_var=height_var,
+                                                                            agl=agl))
             elif return_type == 'dataframe':
                 data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_dataframe(start_time=sim_start,
                                                                             time_step=time_step,
                                                                             structure=structure,
                                                                             heights=heights,
-                                                                            height_var=height_var))
+                                                                            height_var=height_var,
+                                                                            agl=agl))
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
