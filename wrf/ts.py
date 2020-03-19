@@ -79,16 +79,16 @@ def read_tslist(fpath,
         else:
             print('  grid NOT shifted, delta lat/lon ({:g}, {:g}) > {:g}'.format(
                     lat_shift, lon_shift, max_shift))
-        if convert_to_xy == 'utm':
-            import utm
-            x0,y0,zone0,_ = utm.from_latlon(*latlon_ref)
-            for prefix,row in df.iterrows():
-                x,y,_,_ = utm.from_latlon(row['lat'], row['lon'],
-                                          force_zone_number=zone0)
-                df.loc[prefix,'x'] = x - x0
-                df.loc[prefix,'y'] = y - y0
-        elif convert_to_xy is not None:
-            print('Unrecognized mapping:',convert_to_xy)
+    if convert_to_xy == 'utm':
+        import utm
+        x0,y0,zone0,_ = utm.from_latlon(*latlon_ref)
+        for prefix,row in df.iterrows():
+            x,y,_,_ = utm.from_latlon(row['lat'], row['lon'],
+                                      force_zone_number=zone0)
+            df.loc[prefix,'x'] = x - x0
+            df.loc[prefix,'y'] = y - y0
+    elif convert_to_xy is not None:
+        print('Unrecognized mapping:',convert_to_xy)
     return df
 
 
