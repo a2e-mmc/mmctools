@@ -14,15 +14,18 @@
 '''
 from __future__ import print_function
 import os, glob
+from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from datetime import datetime
-import netCDF4
 import xarray as xr
 from scipy.spatial import KDTree
 from scipy.interpolate import interp1d, LinearNDInterpolator
+import netCDF4
 import wrf as wrfpy
+
+from ..helper_functions import calc_wind
+
 
 # List of default WRF fields for extract_column_from_wrfdata
 default_3D_fields = ['U10','V10','T2','TSK','UST','PSFC','HFX','LH','MUU','MUV','MUT']
@@ -929,31 +932,27 @@ def combine_towers(fdir, restarts, simulation_start, fname,
                                    'j':'ny'})
         dx,dy = 12.0, 12.0
         xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
-        dataF = dataF.assign_coords(x=(('ny','nx'),xcoord)).assign_coords(y=(('ny','nx'),ycoord))
+        dataF = dataF.assign_coords(x=(('ny','nx'),xcoord))
+        dataF = dataF.assign_coords(y=(('ny','nx'),ycoord))
         dataF = dataF.assign_coords(z=dataF.ph).reset_index(['i','j'],drop=True).drop('ph')
         dataF.attrs['DX'] = dx
         dataF.attrs['DY'] = dy
     elif structure == 'unordered':
         dataF = dataF.rename_dims({'k':'nz'})
-    dataF = dataF.assign_coords(lat=dataF.lat).assign_coords(lon=dataF.lon)
+    dataF = dataF.assign_coords(lat=dataF.lat)
+    dataF = dataF.assign_coords(lon=dataF.lon)
     dataF = dataF.assign_coords(zsurface=dataF.zsurface)
-    dataF['wspd'] = (dataF['u']**2.0 + dataF['v']**2.0)**0.5
-    dataF['wdir'] = 180. + np.degrees(np.arctan2(dataF['u'], dataF['v']))        
 
-    dataF.attrs['SIMULATION_START_DATE'] = simulation_start[0]
+    dataF['wspd'],dataF['wdir'] = calc_wind(dataF)
+
     dataF.attrs['CREATED_FROM'] = fdir
-
-    # -------------------------------------------------------       
-    #dx,dy = 12.0, 12.0
-    #xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
-    #dataF = dataF.assign_coords(x=(('j','i'),xcoord)).assign_coords(y=(('j','i'),ycoord)).assign_coords(lat=dataF.lat).assign_coords(lon=dataF.lon)
-    #dataF = dataF.assign_coords(z=dataF.ph).drop('ph').assign_coords(k=dataF.k)
 
     return dataF
 
 
-def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest, structure='ordered',
-                       time_step=None, heights=None, height_var='heights',select_tower=None):
+def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest,
+                       structure='ordered', time_step=None,
+                       heights=None, height_var='heights', select_tower=None):
     '''
     This will combine a series of tslist output over time and location based on the
     path to the case (fdir), the restart directories (restarts), a model start time 
