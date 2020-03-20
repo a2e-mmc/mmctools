@@ -892,6 +892,14 @@ def combine_towers(fdir, restarts, simulation_start, fname,
 
     This will work with a pandas df or an xarray ds/da
     '''
+    output_params = dict(
+        start_time=sim_start,
+        time_step=time_step,
+        structure=structure,
+        heights=heights,
+        height_var=height_var,
+        agl=agl,
+    )
     for rst,restart in enumerate(restarts):
         if np.size(simulation_start) == 1:
             sim_start = simulation_start
@@ -902,22 +910,13 @@ def combine_towers(fdir, restarts, simulation_start, fname,
         print('restart: {}'.format(restart))
         data = []
         for ff in fname:
-            
+            fpath = os.path.join(fdir,restart,ff)
+            tow = Tower(fpath)
             print('starting {}'.format(ff))
             if return_type == 'xarray':
-                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_xarray(start_time=sim_start,
-                                                                            time_step=time_step,
-                                                                            structure=structure,
-                                                                            heights=heights,
-                                                                            height_var=height_var,
-                                                                            agl=agl))
+                data.append(tow.to_xarray(output_params))
             elif return_type == 'dataframe':
-                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_dataframe(start_time=sim_start,
-                                                                            time_step=time_step,
-                                                                            structure=structure,
-                                                                            heights=heights,
-                                                                            height_var=height_var,
-                                                                            agl=agl))
+                data.append(tow.to_dataframe(output_params))
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
