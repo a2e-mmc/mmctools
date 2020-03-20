@@ -893,20 +893,19 @@ def combine_towers(fdir, restarts, simulation_start, fname,
     This will work with a pandas df or an xarray ds/da
     '''
     output_params = dict(
-        start_time=sim_start,
         time_step=time_step,
         structure=structure,
         heights=heights,
         height_var=height_var,
         agl=agl,
     )
+    if not isinstance(simulation_start,(list,tuple)):
+        simulation_start = [simulation_start]
+    if restarts is None:
+        restarts = ['.']
+    assert len(simulation_start) == len(restarts), 'restarts and simulation_start are not equal'
     for rst,restart in enumerate(restarts):
-        if np.size(simulation_start) == 1:
-            sim_start = simulation_start
-        elif np.size(simulation_start) == np.size(restarts):
-            sim_start = simulation_start[rst]
-        else:
-            raise ValueError('restarts and simulation_start are not equal')
+        output_params['start_time'] = simulation_start[rst]
         print('restart: {}'.format(restart))
         data = []
         for ff in fname:
@@ -914,9 +913,9 @@ def combine_towers(fdir, restarts, simulation_start, fname,
             tow = Tower(fpath)
             print('starting {}'.format(ff))
             if return_type == 'xarray':
-                data.append(tow.to_xarray(output_params))
+                data.append(tow.to_xarray(**output_params))
             elif return_type == 'dataframe':
-                data.append(tow.to_dataframe(output_params))
+                data.append(tow.to_dataframe(**output_params))
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
@@ -946,7 +945,7 @@ def combine_towers(fdir, restarts, simulation_start, fname,
     dataF['wspd'] = (dataF['u']**2.0 + dataF['v']**2.0)**0.5
     dataF['wdir'] = 180. + np.degrees(np.arctan2(dataF['u'], dataF['v']))        
 
-    dataF.attrs['SIMULATION_START_DATE'] = sim_start
+    dataF.attrs['SIMULATION_START_DATE'] = simulation_start[0]
     dataF.attrs['CREATED_FROM'] = fdir
 
     # -------------------------------------------------------       
