@@ -876,6 +876,7 @@ def extract_column_from_wrfdata(fpath, coords,
 
 def combine_towers(fdir, restarts, simulation_start, fname,
                    structure='ordered', time_step=None,
+                   dx=12.0, dy=12.0,
                    heights=None, height_var='heights', agl=False):
     '''
     Combine together tslist files in time where, if there is any overlap, the later file
@@ -930,7 +931,6 @@ def combine_towers(fdir, restarts, simulation_start, fname,
         dataF = dataF.rename_dims({'k':'nz',
                                    'i':'nx',
                                    'j':'ny'})
-        dx,dy = 12.0, 12.0
         xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
         dataF = dataF.assign_coords(x=(('ny','nx'),xcoord))
         dataF = dataF.assign_coords(y=(('ny','nx'),ycoord))
