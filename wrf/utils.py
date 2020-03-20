@@ -537,17 +537,22 @@ class Tower():
         """
         df = self.to_dataframe(start_time,time_unit,time_step,heights,height_var,agl,exclude)
         if structure == 'ordered':
-            ds = df.to_xarray().assign_coords(i=self.loci).assign_coords(j=self.locj).expand_dims(['j','i'],axis=[2,3])
-            ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
-            ds = ds.assign_coords(height=ds.ph)
+            ds = df.to_xarray()
+            ds = ds.assign_coords(i=self.loci)
+            ds = ds.assign_coords(j=self.locj)
+            ds = ds.expand_dims(['j','i'],axis=[2,3])
+            #ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
+            #ds = ds.assign_coords(height=ds.ph)
+            ds = ds.rename_dims({'height':'k'})
             ds["lat"] = (['j','i'],  np.ones((1,1))*self.gridlat)
             ds["lon"] = (['j','i'],  np.ones((1,1))*self.gridlon)
             # Add zsurface (station height) as a data variable:
             ds['zsurface'] = (['j','i'],  np.ones((1,1))*self.stationz)
         elif structure == 'unordered':
             ds = df.to_xarray().assign_coords(station=self.abbr).expand_dims(['station'],axis=[2])
-            ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
-            ds = ds.assign_coords(height=ds.ph)
+            #ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
+            #ds = ds.assign_coords(height=ds.ph)
+            ds = ds.rename_dims({'height':'k'})
             ds["lat"] = (['station'],  [self.gridlat])
             ds["lon"] = (['station'],  [self.gridlon])
             ds['zsurface'] = (['station'],  [self.stationz])
@@ -911,15 +916,14 @@ def combine_towers(fdir, restarts, simulation_start, fname,
         print('restart: {}'.format(restart))
         data = []
         for ff in fname:
+            print('starting {}'.format(ff))
             fpath = os.path.join(fdir,restart,ff)
             tow = Tower(fpath)
-            print('starting {}'.format(ff))
             data.append(tow.to_xarray(**output_params))
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
                 data_previous = data_block
-
             else:
                 dataF = data_block.combine_first(data_previous)
                 data_previous = dataF
