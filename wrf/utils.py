@@ -872,9 +872,8 @@ def extract_column_from_wrfdata(fpath, coords,
 
 
 def combine_towers(fdir, restarts, simulation_start, fname,
-                   return_type='xarray', structure='ordered',
-                   time_step=None, heights=None, height_var='heights',
-                   agl=False):
+                   structure='ordered', time_step=None,
+                   heights=None, height_var='heights', agl=False):
     '''
     Combine together tslist files in time where, if there is any overlap, the later file
     will overwrite the earlier file. This makes the assumption that all of the tslist 
@@ -889,10 +888,7 @@ def combine_towers(fdir, restarts, simulation_start, fname,
     simulation_start = ['2000-01-01 00:00','2000-01-01 00:00','2000-01-01 00:00']
                        or '2000-01-01 00:00' for a single run
     fname            = ['t0001.d02'] (Note: this is the prefix for the tower + domain)
-    return_type      = 'xarray' or 'dataframe'
     structure        = 'ordered' or 'unordered'
-
-    This will work with a pandas df or an xarray ds/da
     '''
     output_params = dict(
         time_step=time_step,
@@ -914,10 +910,7 @@ def combine_towers(fdir, restarts, simulation_start, fname,
             fpath = os.path.join(fdir,restart,ff)
             tow = Tower(fpath)
             print('starting {}'.format(ff))
-            if return_type == 'xarray':
-                data.append(tow.to_xarray(**output_params))
-            elif return_type == 'dataframe':
-                data.append(tow.to_dataframe(**output_params))
+            data.append(tow.to_xarray(**output_params))
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
@@ -1002,8 +995,9 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
                 if twr in twr_n: good_towers.append(twr_n)
         tower_names = good_towers
     
-    dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,return_type='xarray',
-                         structure=structure, time_step=time_step, heights=heights, height_var=height_var)
+    dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,
+                         structure=structure, time_step=time_step,
+                         heights=heights, height_var=height_var)
     return dsF
 
 
