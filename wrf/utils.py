@@ -885,7 +885,9 @@ def combine_towers(fdir, restarts, simulation_start, fname,
 
     fdir             = 'path/to/restart/directories/'
     restarts         = ['restart_dir_1', 'restart_dir_2', 'restart_dir_3']
+                       or None (for single run with output in fdir)
     simulation_start = ['2000-01-01 00:00','2000-01-01 00:00','2000-01-01 00:00']
+                       or '2000-01-01 00:00' for a single run
     fname            = ['t0001.d02'] (Note: this is the prefix for the tower + domain)
     return_type      = 'xarray' or 'dataframe'
     structure        = 'ordered' or 'unordered'
