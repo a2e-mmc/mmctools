@@ -101,6 +101,8 @@ class Toof(object):
     https://github.com/NREL/SOWFA/tree/master/tools/WRFextraction.
     """
     def __init__(self,dpath,
+                 prefixes=[],
+                 domain=-1,
                  namelist='namelist.input',
                  tsdir='tsout',
                  verbose=True):
@@ -114,6 +116,8 @@ class Toof(object):
         prefixes : list
             List of tslist prefixes to use for constructing a WRF
             subdomain; virtual towers should form an ordered grid
+        domain : int, optional
+            Index (0-based) of domain to sample from
         namelist : str, optional
             Filename in `dpath` of wrf namelist input
         tsdir : str, optional
@@ -121,8 +125,10 @@ class Toof(object):
             with tsout files from various restarts
         """
         self.dpath = dpath
+        self.prefixes = prefixes
+        self.domain = domain
         self.namelist = namelist
-        self.tsdir = ts_grid_order
+        self.tsdir = tsdir
         self.verbose = verbose
         self._read_namelist()
 
@@ -132,8 +138,14 @@ class Toof(object):
         self.max_dom = nml['domains']['max_dom']
         dxlist = nml['domains']['dx']
         dylist = nml['domains']['dy']
-        self.dx = dxlist[self.max_dom-1]
-        self.dy = dylist[self.max_dom-1]
+        if self.domain >= 0:
+            assert self.domain < self.max_dom,\
+                    'Requested domain {:d}, max_dom={:d}'.format(domain,self.max_dom)
+            idx = self.domain
+        else:
+            idx = self.max_dom + self.domain
+        self.dx = dxlist[idx]
+        self.dy = dylist[idx]
         if self.verbose:
             print('Read',nmlpath)
             print('  max_dom =',self.max_dom)
