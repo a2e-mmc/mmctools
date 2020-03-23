@@ -10,6 +10,17 @@ class Domain(object):
             xmax=0.0, ymax=0.0, zmax=0.0,
             nx=0,ny=0,nz=0,
             origin_latlon=(45.638004,-120.642973)):
+        """
+        Parameters
+        ----------
+        [xyz][min|max] : float
+            Domain extents
+        nx,ny,nz : int
+            Number of cells in each direction
+        origin_latlon : list or tuple
+            Latitude and longitude of reference location corresponding
+            to the grid origin
+        """
         self.xmin = xmin
         self.ymin = ymin
         self.zmin = zmin
@@ -29,6 +40,12 @@ class Domain(object):
         self.dx = self.Lx / self.nx
         self.dy = self.Ly / self.ny
         self.dz = self.Lx / self.nx
+        self.x = np.linspace(self.xmin, self.xmax, self.nx+1)
+        self.y = np.linspace(self.ymin, self.ymax, self.ny+1)
+        self.z = np.linspace(self.zmin, self.zmax, self.nz+1)
+        self.xcc = (self.x[1:] + self.x[:-1]) / 2
+        self.ycc = (self.y[1:] + self.y[:-1]) / 2
+        self.zcc = (self.z[1:] + self.z[:-1]) / 2
 
     def __repr__(self):
         s = 'Grid extent ({:g} km x {:g} km x {:g} km):\n'.format(

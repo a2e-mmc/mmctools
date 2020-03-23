@@ -103,7 +103,8 @@ class Toof(object):
     def __init__(self,dpath,
                  prefixes,
                  starttime,
-                 domain=-1,
+                 targetdomain,
+                 wrfdomain=-1,
                  namelist='namelist.input',
                  tsdir='tsout',
                  verbose=True):
@@ -119,8 +120,11 @@ class Toof(object):
             subdomain; virtual towers should form an ordered grid
         starttime : str or timestamp
             Datetime to convert ts output (in hours) to timestamps
-        domain : int, optional
-            Index (0-based) of domain to sample from
+        targetdomain : Domain object
+            Instance of mmctools.coupling.domain.Domain class describing
+            the microscale domain
+        wrfdomain : int, optional
+            Index (0-based) of wrf domain from which to sample
         namelist : str, optional
             Filename in `dpath` of wrf namelist input
         tsdir : str, optional
@@ -129,7 +133,8 @@ class Toof(object):
         self.dpath = dpath
         self.prefixes = prefixes
         self.starttime = starttime
-        self.domain = domain
+        self.domain = targetdomain
+        self.wrfdomain = wrfdomain
         self.namelist = namelist
         self.tsdir = os.path.join(dpath,tsdir)
         self.verbose = verbose
@@ -142,12 +147,12 @@ class Toof(object):
         self.max_dom = int(nml['domains']['max_dom'])
         dxlist = nml['domains']['dx']
         dylist = nml['domains']['dy']
-        if self.domain >= 0:
-            assert self.domain < self.max_dom,\
+        if self.wrfdomain >= 0:
+            assert self.wrfdomain < self.max_dom,\
                     'Requested domain {:d}, max_dom={:d}'.format(domain,self.max_dom)
-            idx = self.domain
+            idx = self.wrfdomain
         else:
-            idx = self.max_dom + self.domain
+            idx = self.max_dom + self.wrfdomain
         self.dx = float(dxlist[idx])
         self.dy = float(dylist[idx])
         if self.verbose:
@@ -158,12 +163,18 @@ class Toof(object):
     def _read_towers(self):
         if self.verbose:
             print('Calling combine_towers...')
+            print('  interpolating to z= [',
+                    self.domain.z[0], self.domain.z[1], self.domain.z[2], '..',
+                    self.domain.z[-2], self.domain.z[-1], ']')
         self.ds = combine_towers(
             self.tsdir,
             restarts=None,
             simulation_start=self.starttime,
             fname=self.prefixes,
             structure='ordered',
+            heights=self.domain.z,
+            height_var='ph', # geopotential height
+            agl=True,
             verbose=self.verbose
         )
         if self.verbose:
