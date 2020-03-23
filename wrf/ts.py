@@ -180,6 +180,20 @@ class Toof(object):
         if self.verbose:
             print('... done reading ts outputs')
 
+    def map_to_boundary(self,i=None,j=None,k=None,allpts=False):
+        """Get boundary data over time on specified boundary. Setting
+        `allpts` to True will interpolate to all points at the target
+        domain resolution; otherwise, interpolate to data columns at the
+        domain corners'
+        """
+        print('stub')
+
+    def estimate_horizontal_gradient(self,i=1,j=1,k=1,field='p'):
+        """Estimate horizontal gradients centered at the specified tower
+        (i,j,k).
+        """
+        print('stub')
+
 
 class TowerArray(object):
     """Read and store an array of Tower objects sampled from WRF using
