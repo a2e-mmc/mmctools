@@ -138,10 +138,11 @@ class Toof(object):
         self.namelist = namelist
         self.tsdir = os.path.join(dpath,tsdir)
         self.verbose = verbose
-        self._read_namelist()
+        self._setup()
         self._read_towers()
 
-    def _read_namelist(self):
+    def _setup(self):
+        # scrape WRF namelist for additional parameters
         nmlpath = os.path.join(self.dpath,'namelist.input')
         nml = f90nml.read(nmlpath)
         self.max_dom = int(nml['domains']['max_dom'])
@@ -159,6 +160,11 @@ class Toof(object):
             print('Read',nmlpath)
             print('  max_dom =',self.max_dom)
             print('  dx,dy =',self.dx,self.dy)
+        # get lat/lon if needed
+        if not self.domain.have_latlon:
+            if self.verbose:
+                print('Calculating grid lat/lon')
+            self.domain.calc_latlon()
 
     def _read_towers(self):
         if self.verbose:

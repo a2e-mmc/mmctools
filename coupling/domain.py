@@ -31,6 +31,7 @@ class Domain(object):
         self.ny = int(ny)
         self.nz = int(nz)
         self.latlon0 = origin_latlon
+        self.have_latlon = False
         self._calc_grid_info()
 
     def _calc_grid_info(self):
@@ -55,4 +56,15 @@ class Domain(object):
         s+= '  z : ({:g}, {:g}), dz={:g}\n'.format(self.zmin,self.zmax,self.dz)
         s+= '  mesh size : {:g}M cells'.format(self.nx*self.ny*self.nz/1e6)
         return s
+
+    def calc_latlon(self):
+        """Calculate the latitude and longitude for all x,y"""
+        x0,y0,zonenumber,zoneletter = utm.from_latlon(*self.latlon0)
+        self.lat = np.empty((self.nx+1,self.ny+1))
+        self.lon = np.empty((self.nx+1,self.ny+1))
+        for i,xi in enumerate(x0 + self.x):
+            for j,yj in enumerate(y0 + self.y):
+                self.lat[i,j], self.lon[i,j] = \
+                        utm.to_latlon(xi,yj,zonenumber,zone_letter=zoneletter)
+        self.have_latlon = True
 
