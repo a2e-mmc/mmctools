@@ -883,7 +883,8 @@ def extract_column_from_wrfdata(fpath, coords,
 def combine_towers(fdir, restarts, simulation_start, fname,
                    structure='ordered', time_step=None,
                    dx=12.0, dy=12.0,
-                   heights=None, height_var='heights', agl=False):
+                   heights=None, height_var='heights', agl=False,
+                   verbose=True):
     '''
     Combine together tslist files in time where, if there is any overlap, the later file
     will overwrite the earlier file. This makes the assumption that all of the tslist 
@@ -914,10 +915,12 @@ def combine_towers(fdir, restarts, simulation_start, fname,
     assert len(simulation_start) == len(restarts), 'restarts and simulation_start are not equal'
     for rst,restart in enumerate(restarts):
         output_params['start_time'] = simulation_start[rst]
-        print('restart: {}'.format(restart))
+        if verbose:
+            print('restart: {}'.format(restart))
         data = []
         for ff in fname:
-            print('starting {}'.format(ff))
+            if verbose:
+                print('starting {}'.format(ff))
             fpath = os.path.join(fdir,restart,ff)
             tow = Tower(fpath)
             data.append(tow.to_xarray(**output_params))

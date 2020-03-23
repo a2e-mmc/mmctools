@@ -101,7 +101,8 @@ class Toof(object):
     https://github.com/NREL/SOWFA/tree/master/tools/WRFextraction.
     """
     def __init__(self,dpath,
-                 prefixes=[],
+                 prefixes,
+                 starttime,
                  domain=-1,
                  namelist='namelist.input',
                  tsdir='tsout',
@@ -116,26 +117,29 @@ class Toof(object):
         prefixes : list
             List of tslist prefixes to use for constructing a WRF
             subdomain; virtual towers should form an ordered grid
+        starttime : str or timestamp
+            Datetime to convert ts output (in hours) to timestamps
         domain : int, optional
             Index (0-based) of domain to sample from
         namelist : str, optional
             Filename in `dpath` of wrf namelist input
         tsdir : str, optional
-            Path to subdirectory containing tsout files or subdirectories
-            with tsout files from various restarts
+            Path to subdirectory containing tsout files
         """
         self.dpath = dpath
         self.prefixes = prefixes
+        self.starttime = starttime
         self.domain = domain
         self.namelist = namelist
-        self.tsdir = tsdir
+        self.tsdir = os.path.join(dpath,tsdir)
         self.verbose = verbose
         self._read_namelist()
+        self._read_towers()
 
     def _read_namelist(self):
         nmlpath = os.path.join(self.dpath,'namelist.input')
         nml = f90nml.read(nmlpath)
-        self.max_dom = nml['domains']['max_dom']
+        self.max_dom = int(nml['domains']['max_dom'])
         dxlist = nml['domains']['dx']
         dylist = nml['domains']['dy']
         if self.domain >= 0:
@@ -144,12 +148,26 @@ class Toof(object):
             idx = self.domain
         else:
             idx = self.max_dom + self.domain
-        self.dx = dxlist[idx]
-        self.dy = dylist[idx]
+        self.dx = float(dxlist[idx])
+        self.dy = float(dylist[idx])
         if self.verbose:
             print('Read',nmlpath)
             print('  max_dom =',self.max_dom)
             print('  dx,dy =',self.dx,self.dy)
+
+    def _read_towers(self):
+        if self.verbose:
+            print('Calling combine_towers...')
+        self.ds = combine_towers(
+            self.tsdir,
+            restarts=None,
+            simulation_start=self.starttime,
+            fname=self.prefixes,
+            structure='ordered',
+            verbose=self.verbose
+        )
+        if self.verbose:
+            print('... done reading ts outputs')
 
 
 class TowerArray(object):
