@@ -2,13 +2,15 @@
 Module to process WRF time-series output
 """
 import os, glob
+import time
+
 import numpy as np
 import pandas as pd
 import xarray as xr
-import time
+import f90nml
 
 from .utils import Tower
-
+from .utils import combine_towers
 
 def read_tslist(fpath,
                 snap_to_grid=None,grid_order='F',max_shift=1e-3,
@@ -92,6 +94,52 @@ def read_tslist(fpath,
     return df
 
 
+class Toof(object):
+    """Class for processing WRF outputs for coupling to microscale
+    solvers. The name toof stems from the original fortran
+    implementation of "wrftoof" (i.e., WRF to OpenFOAM) found at
+    https://github.com/NREL/SOWFA/tree/master/tools/WRFextraction.
+    """
+    def __init__(self,dpath,
+                 namelist='namelist.input',
+                 tsdir='tsout',
+                 verbose=True):
+        """Process a series of tsout files representing a grid of WRF
+        profiles from tslist sampling.
+
+        Parameters
+        ----------
+        dpath : str
+            Path to wrf case directory
+        prefixes : list
+            List of tslist prefixes to use for constructing a WRF
+            subdomain; virtual towers should form an ordered grid
+        namelist : str, optional
+            Filename in `dpath` of wrf namelist input
+        tsdir : str, optional
+            Path to subdirectory containing tsout files or subdirectories
+            with tsout files from various restarts
+        """
+        self.dpath = dpath
+        self.namelist = namelist
+        self.tsdir = ts_grid_order
+        self.verbose = verbose
+        self._read_namelist()
+
+    def _read_namelist(self):
+        nmlpath = os.path.join(self.dpath,'namelist.input')
+        nml = f90nml.read(nmlpath)
+        self.max_dom = nml['domains']['max_dom']
+        dxlist = nml['domains']['dx']
+        dylist = nml['domains']['dy']
+        self.dx = dxlist[self.max_dom-1]
+        self.dy = dylist[self.max_dom-1]
+        if self.verbose:
+            print('Read',nmlpath)
+            print('  max_dom =',self.max_dom)
+            print('  dx,dy =',self.dx,self.dy)
+
+
 class TowerArray(object):
     """Read and store an array of Tower objects sampled from WRF using
     the tslist
@@ -104,7 +152,7 @@ class TowerArray(object):
                  verbose=True,
                  **tslist_args):
         """Create a TowerArray object from a WRF simulation with tslist
-        output
+        output. DEPRECATED--use wrf.utils.combine_towers() instead
 
         Parameters
         ----------
