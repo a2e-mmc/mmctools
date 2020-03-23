@@ -79,16 +79,16 @@ def read_tslist(fpath,
         else:
             print('  grid NOT shifted, delta lat/lon ({:g}, {:g}) > {:g}'.format(
                     lat_shift, lon_shift, max_shift))
-        if convert_to_xy == 'utm':
-            import utm
-            x0,y0,zone0,_ = utm.from_latlon(*latlon_ref)
-            for prefix,row in df.iterrows():
-                x,y,_,_ = utm.from_latlon(row['lat'], row['lon'],
-                                          force_zone_number=zone0)
-                df.loc[prefix,'x'] = x - x0
-                df.loc[prefix,'y'] = y - y0
-        elif convert_to_xy is not None:
-            print('Unrecognized mapping:',convert_to_xy)
+    if convert_to_xy == 'utm':
+        import utm
+        x0,y0,zone0,_ = utm.from_latlon(*latlon_ref)
+        for prefix,row in df.iterrows():
+            x,y,_,_ = utm.from_latlon(row['lat'], row['lon'],
+                                      force_zone_number=zone0)
+            df.loc[prefix,'x'] = x - x0
+            df.loc[prefix,'y'] = y - y0
+    elif convert_to_xy is not None:
+        print('Unrecognized mapping:',convert_to_xy)
     return df
 
 
@@ -281,35 +281,10 @@ class TowerArray(object):
         # now convert to a dataframe (note that height interpolation
         # will be (optionally) performed here
         time0 = time.time()
-        df = tow.to_dataframe(start_time=self.starttime,
-                              time_step=self.timestep,
-                              heights=heights,
-                              exclude=excludelist)
-        time1 = time.time()
-        if self.verbose: print('  to_dataframe() time = {:g}s'.format(time1-time0))
-
-        if self.tslist is not None:
-            # check tower info against tslist
-            towerinfo = self.tslist.loc[prefix]
-            if not (np.isclose(tow.lat, towerinfo['lat'])
-                    and np.isclose(tow.lon, towerinfo['lon'])):
-                print('  lat/lon mismatch :',
-                      ' tslist ({:f},{:f}),'.format(towerinfo['lat'],towerinfo['lon']),
-                      ' tower ({:f},{:f}),'.format(tow.lat,tow.lon))
-            lat,lon = towerinfo['lat'], towerinfo['lon']
-        else:
-            lat,lon = tow.lat, tow.lon
-                      
-        # add additional tower data
-        df['lat'] = lat
-        df['lon'] = lon
-        if self.verbose:
-            print('  tower lat/lon:',str(towerinfo[['lat','lon']].values))
-        df.set_index(['lat','lon'], append=True, inplace=True)
-
-        # convert to xarray
-        time0 = time.time()
-        ds = df.to_xarray()
+        ds = tow.to_xarray(start_time=self.starttime,
+                           time_step=self.timestep,
+                           heights=heights,
+                           exclude=excludelist)
         time1 = time.time()
         if self.verbose: print('  to_xarray() time = {:g}s'.format(time1-time0))
 
