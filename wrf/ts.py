@@ -235,15 +235,87 @@ class Toof(object):
                   f11 * (tgtlon        - wrflon[i,j]) * (tgtlat        - wrflat[i,j])
         finterp = finterp / ((wrflon[i+1,j] - wrflon[i,j]) * (wrflat[i,j+1] - wrflat[i,j]))
         # note: y and z coordinates don't get interpolated
+        finterp = finterp.assign_coords({'lon':tgtlon,'lat':tgtlat})
         return finterp.drop_vars(['y','z'])
 
+
     def map_to_boundary(self,i=None,j=None,k=None,allpts=False):
-        """Get boundary data over time on specified boundary. Setting
-        `allpts` to True will interpolate to all points at the target
-        domain resolution; otherwise, interpolate to data columns at the
-        domain corners'
+        """Get boundary data over time on the specified boundary from
+        the target domain. Setting `allpts` to True will interpolate to
+        all points at the target domain resolution; otherwise,
+        interpolate to data columns at the domain corners.
         """
-        print('stub')
+        assert np.count_nonzero([idx is not None for idx in [i,j,k]])==1, \
+                'Specify i, j, or k'
+        if allpts:
+            print('WARNING: current implementation of allpts is likely to result in extreme memory usage and may crash')
+        # interpolate to selected lat/lon
+        selected_x, selected_y, selected_lat, selected_lon = \
+                self._select_boundary_latlon(i,j,k,allpts)
+        if self.verbose:
+            print('selected lat:',selected_lat)
+            print('selected lon:',selected_lon)
+        dslist = []
+        for x,y,lat,lon in zip(selected_x, selected_y, selected_lat, selected_lon):
+            ds = self.interp_to_latlon((lat,lon))
+            ds = ds.expand_dims({'x':[x],'y':[y]})
+            dslist.append(ds)
+        # combine all interpolated profiles
+        boundarydata = xr.combine_by_coords(dslist)
+        if ((i is not None) or (j is not None)) and allpts:
+            # if allpts, interpolate side boundary profiles to exact domain heights
+            boundarydata = boundarydata.interp(height=self.domain.z)
+        elif k is not None:
+            # if horizontal boundary, interpolate to constant z
+            if self.verbose:
+                print('interpolating to',self.domain.z[k])
+            boundarydata = boundarydata.interp(height=self.domain.z[k])
+        return boundarydata
+
+    def _select_boundary_latlon(self,i,j,k,allpts):
+        """Helper function for map_to_boundary"""
+        selected_lat = None
+        selected_lon = None
+        if i is not None:
+            assert i in [0,-1]
+            selected_x = self.domain.x[i]
+            if allpts:
+                selected_lat = self.domain.lat[i,:]
+                selected_lon = self.domain.lon[i,:]
+                selected_y = self.domain.y
+            else:
+                selected_lat = self.domain.lat[i,::self.domain.ny]
+                selected_lon = self.domain.lon[i,::self.domain.ny]
+                selected_y = self.domain.y[::self.domain.ny]
+            selected_x = np.repeat(selected_x, len(selected_y))
+        elif j is not None:
+            assert j in [0,-1]
+            selected_y = self.domain.y[j]
+            if allpts:
+                selected_lat = self.domain.lat[:,j]
+                selected_lon = self.domain.lon[:,j]
+                selected_x = self.domain.x
+            else:
+                selected_lat = self.domain.lat[::self.domain.nx,j]
+                selected_lon = self.domain.lon[::self.domain.nx,j]
+                selected_x = self.domain.x[::self.domain.nx]
+            selected_y = np.repeat(selected_y, len(selected_x))
+        elif k is not None:
+            assert k in [0,-1]
+            if allpts:
+                raise NotImplementedError("I don't think there's a use case for this...")
+            else:
+                selected_lat = self.domain.lat[::self.domain.nx,::self.domain.ny]
+                selected_lon = self.domain.lon[::self.domain.nx,::self.domain.ny]
+                selected_x = self.domain.x[::self.domain.nx]
+                selected_y = self.domain.y[::self.domain.ny]
+            selected_lat = selected_lat.ravel()
+            selected_lon = selected_lon.ravel()
+            xx,yy = np.meshgrid(selected_x, selected_y, indexing='ij')
+            selected_x = xx.ravel()
+            selected_y = yy.ravel()
+        assert (selected_lat is not None) and (selected_lon is not None)
+        return selected_x, selected_y, selected_lat, selected_lon
 
 
     def estimate_horizontal_gradient(self,i=1,j=1,k=1,field='p'):
