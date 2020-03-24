@@ -178,6 +178,7 @@ class Toof(object):
             simulation_start=self.starttime,
             fname=self.prefixes,
             structure='ordered',
+            dx=self.dx, dy=self.dy,
             heights=self.domain.z,
             height_var='ph', # geopotential height
             agl=True,
@@ -186,6 +187,55 @@ class Toof(object):
         if self.verbose:
             print('... done reading ts outputs')
 
+
+    def interp_to_latlon(self,latlon):
+        """Get data column at specified latlon
+
+        Based on original wrftoof "cavalier approach" ignoring curvature
+        and assuming grid cells are square (i.e., WRF lat/lon are
+        Cartesian.
+        """
+        tgtlat,tgtlon = latlon
+        # Not guaranteed to find correct indices:
+        #lat1 = self.ds.coords['lat'].mean(dim='nx').values
+        #lon1 = self.ds.coords['lon'].mean(dim='ny').values
+        #dlat = np.mean(np.diff(lat1))
+        #dlon = np.mean(np.diff(lon1))
+        #j = int((tgtlat - lat1[0]) / dlat) # lat changes over ny dimension
+        #i = int((tgtlon - lon1[0]) / dlon) # lon changes over nx dimension
+        #if self.verbose:
+        #    print('Interpolating',latlon,'from')
+        #    print('  approx lat {:g} and {:g}'.format(lat1[j], lat1[j+1]))
+        #    print('  approx lon {:g} and {:g}'.format(lon1[i], lon1[i+1]))
+        #assert (tgtlat >= lat1[j]) and (tgtlat < lat1[j+1])
+        #assert (tgtlon >= lon1[i]) and (tgtlon < lon1[i+1])
+        wrflat = self.ds.coords['lat'].transpose('nx','ny',transpose_coords=True).values
+        wrflon = self.ds.coords['lon'].transpose('nx','ny',transpose_coords=True).values
+        dmin = 9e9
+        i,j = None,None
+        for ii in range(self.ds.dims['nx']-1):
+            for jj in range(self.ds.dims['ny']-1):
+                # "error" in distances from 4 corners
+                d = ((tgtlat - wrflat[ii,jj])**2 + (tgtlon - wrflon[ii,jj])**2)**0.5
+                if (d < dmin) and (tgtlat >= wrflat[ii,jj]) and (tgtlon >= wrflon[ii,jj]):
+                    dmin = d
+                    i,j = ii,jj
+        #print('selected',i,j)
+        assert (tgtlat >= wrflat[i,j]) and (tgtlat < wrflat[i,j+1])
+        assert (tgtlon >= wrflon[i,j]) and (tgtlon < wrflon[i+1,j])
+        # bilinear interpolation
+        f00 = self.ds.sel(nx=i  ,ny=j)
+        f10 = self.ds.sel(nx=i+1,ny=j)
+        f01 = self.ds.sel(nx=i  ,ny=j+1)
+        f11 = self.ds.sel(nx=i+1,ny=j+1)
+        finterp = f00 * (wrflon[i+1,j] - tgtlon     ) * (wrflat[i,j+1] - tgtlat     ) + \
+                  f10 * (tgtlon        - wrflon[i,j]) * (wrflat[i,j+1] - tgtlat     ) + \
+                  f01 * (wrflon[i+1,j] - tgtlon     ) * (tgtlat        - wrflat[i,j]) + \
+                  f11 * (tgtlon        - wrflon[i,j]) * (tgtlat        - wrflat[i,j])
+        finterp = finterp / ((wrflon[i+1,j] - wrflon[i,j]) * (wrflat[i,j+1] - wrflat[i,j]))
+        # note: y and z coordinates don't get interpolated
+        return finterp.drop_vars(['y','z'])
+
     def map_to_boundary(self,i=None,j=None,k=None,allpts=False):
         """Get boundary data over time on specified boundary. Setting
         `allpts` to True will interpolate to all points at the target
@@ -193,6 +243,7 @@ class Toof(object):
         domain corners'
         """
         print('stub')
+
 
     def estimate_horizontal_gradient(self,i=1,j=1,k=1,field='p'):
         """Estimate horizontal gradients centered at the specified tower

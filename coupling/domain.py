@@ -9,7 +9,7 @@ class Domain(object):
             xmin=0.0, ymin=0.0, zmin=0.0,
             xmax=0.0, ymax=0.0, zmax=0.0,
             nx=0,ny=0,nz=0,
-            origin_latlon=(45.638004,-120.642973)):
+            origin_latlon=(None,None)):
         """
         Parameters
         ----------
