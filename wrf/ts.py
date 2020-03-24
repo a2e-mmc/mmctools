@@ -184,6 +184,7 @@ class Toof(object):
             agl=True,
             verbose=self.verbose
         )
+        self.ds = self.ds.swap_dims({'nz':'height'}) # to facilitate ds.interp()
         if self.verbose:
             print('... done reading ts outputs')
 
