@@ -398,6 +398,7 @@ class Tower():
         start_time = pd.to_datetime(start_time)
         if time_step is None:
             times = start_time + pd.to_timedelta(self.time, unit=time_unit)
+            times = times.round(freq='1s')
             times.name = 'datetime'
         else:
             timestep = pd.to_timedelta(time_step, unit='s')
