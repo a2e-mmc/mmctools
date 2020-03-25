@@ -373,7 +373,10 @@ class Tower():
                     datadict[varn] = tsdata[:,:-1].ravel()
                 else:
                     # other quantities already unstaggered
-                    assert np.all(tsdata[:,-1] == 0), 'Unexpected nonzero value for '+varn
+                    if not varn == 'ww':
+                        # don't throw a warning if w is already unstaggered by the code
+                        # last value is (w(model top) + 0.0)/2.0
+                        assert np.all(tsdata[:,-1] == 0), 'Unexpected nonzero value for '+varn
                     # drop the trailing 0 for already unstaggered quantities
                     datadict[varn] = tsdata[:,:-1].ravel()
             else:
@@ -560,16 +563,16 @@ class Tower():
                     tsdata = getattr(self,varn)
                     if varn == 'th':
                         # theta is a special case
-                        tsdata -= 300
+                        assert np.all(tsdata[:,-1] == 300)
+                    elif not varn == 'ww':
+                        # if w has already been destaggered by wrf
+                        assert np.all(tsdata[:,-1] == 0)
                     for itime in range(self.nt):
-                        assert np.all(tsdata[itime,-1] == 0)
                         interpfun = interp1d(zt_unstag[itime,:],
                                              tsdata[itime,:-1],
                                              bounds_error=False,
                                              fill_value='extrapolate')
                         newdata[itime,:] = interpfun(z)
-                    if varn == 'th':
-                        newdata += 300
                     datadict[varn] = newdata.ravel()
                 for varn in varns_stag:
                     newdata = np.empty((self.nt, len(z)))
