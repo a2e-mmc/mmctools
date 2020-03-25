@@ -353,11 +353,45 @@ class Tower():
                         setattr(self, name.lower(), col.values)
                     self.ts_varns = list(tsdata.columns)
 
+    def _create_datadict(self,varns,unstagger=False,staggered_vars=[]):
+        """Helper function for to_dataframe()"""
+        datadict = {}
+        for varn in varns:
+            tsdata = getattr(self,varn)
+            if unstagger:
+                if varn in staggered_vars:
+                    # need to destagger these quantities
+                    datadict[varn] = ((tsdata[:,1:] + tsdata[:,:-1]) / 2).ravel()
+                elif varn == 'th':
+                    # theta is a special case
+                    assert np.all(tsdata[:,-1] == 300), 'Unexpected nonzero value for theta'
+                    # drop the trailing 0 for already unstaggered quantities
+                    datadict[varn] = tsdata[:,:-1].ravel()
+                else:
+                    # other quantities already unstaggered
+                    assert np.all(tsdata[:,-1] == 0), 'Unexpected nonzero value for '+varn
+                    # drop the trailing 0 for already unstaggered quantities
+                    datadict[varn] = tsdata[:,:-1].ravel()
+            else:
+                # use data as is
+                datadict[varn] = tsdata.ravel()
+        return datadict
+
     def to_dataframe(self,start_time,
                      time_unit='h',time_step=None,
+                     unstagger=True,staggered_vars=['ww','ph'],
                      heights=None,height_var='height',agl=False,
                      exclude=['ts']):
         """Convert tower time-height data into a dataframe.
+        
+        Note: TS profiles are output at staggered locations for _all_
+        variables, regardless of whether they are staggered or not.
+        For unstaggered (i.e., cell-centered) quantities, the last value
+        will be 0. For consistency--if interpolation heights are not
+        provided--all quantities will be unstaggered by default. If
+        interpolation heights are provided, then both staggered and
+        unstaggered data will be used for interpolation, and the output
+        can be at arbitrary heights.
         
         Parameters
         ----------
@@ -373,6 +407,12 @@ class Tower():
             the data files. Used in conjunction with start_time to form
             the datetime index. May be useful if times in output files
             do not have sufficient precision.
+        unstagger: bool, optional
+            Unstagger all variables so that all quantities are output at
+            the correct height; only used if heights are not specified
+        staggered_vars: list, optional
+            Variables that should be unstaggered if interpolation heights
+            are provided (default: vertical velocity, geopotential height)
         heights : array-like or None, optional
             If None, then use integer levels for the height index,
             otherwise interpolate to the same heights at all times.
@@ -410,16 +450,20 @@ class Tower():
         # combine (and interpolate) time-height data
         # - note 1: self.[varn].shape == self.height.shape == (self.nt, self.nz)
         # - note 2: arraydata.shape == (self.nt, len(varns)*self.nz)
-        datadict = { varn: getattr(self,varn).ravel() for varn in varns }
         if heights is None:
+            if unstagger:
+                nz = self.nz - 1
+            else:
+                nz = self.nz
+            datadict = self._create_datadict(varns,unstagger,staggered_vars)
             if hasattr(self, height_var):
                 # heights (constant in time) were separately calculated
                 z = getattr(self, height_var)
-                assert (len(z.shape) == 1) and (len(z) == self.nz), \
+                assert (len(z.shape) == 1) and (len(z) == nz), \
                         'tower '+height_var+' attribute should correspond to fixed height levels'
             else:
                 # heights will be an integer index
-                z = np.arange(self.nz)
+                z = np.arange(nz)
             idx = pd.MultiIndex.from_product([times,z],names=['datetime','height'])
             df = pd.DataFrame(data=datadict,index=idx)
         else:
