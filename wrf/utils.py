@@ -577,7 +577,10 @@ class Tower():
                   exclude=['ts'],
                   structure='ordered'):
         
-        df = self.to_dataframe(start_time,time_unit,time_step,heights,height_var,exclude)
+        df = self.to_dataframe(start_time,
+                time_unit=time_unit, time_step=time_step,
+                heights=heights, height_var=height_var, agl=agl,
+                exclude=exclude)
         if structure == 'ordered':
             ds = df.to_xarray().assign_coords(i=self.loci).assign_coords(j=self.locj).expand_dims(['j','i'],axis=[2,3])
             ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
