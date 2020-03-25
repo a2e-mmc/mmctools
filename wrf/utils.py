@@ -639,7 +639,10 @@ class Tower():
             List of fields to excldue from the output dataframe. By
             default, the surface time-series data ('ts') are excluded.
         """
-        df = self.to_dataframe(start_time,time_unit,time_step,heights,height_var,agl,exclude)
+        df = self.to_dataframe(start_time,
+                time_unit=time_unit, time_step=time_step,
+                heights=heights, height_var=height_var, agl=agl,
+                exclude=exclude)
         if structure == 'ordered':
             ds = df.to_xarray()
             ds = ds.assign_coords(i=self.loci)
