@@ -392,6 +392,19 @@ class Tower():
         interpolation heights are provided, then both staggered and
         unstaggered data will be used for interpolation, and the output
         can be at arbitrary heights.
+
+        Example usage:
+        ```
+        # output with Int64Index
+        mytower = Tower('/path/to/prefix.d03.*')
+        mytower.to_dataframe(start_time='2013-11-08 12:00')
+
+        # output with approximately constant heights
+        mytower = Tower('/path/to/prefix.d03.*')
+        mytower.height = np.mean(mytower.ph, axis=0)  # average over time
+        mytower.height -= mytower.stationz  # make above ground level
+        mytower.to_dataframe(start_time='2013-11-08 12:00')
+        ```
         
         Parameters
         ----------
@@ -459,6 +472,8 @@ class Tower():
             if hasattr(self, height_var):
                 # heights (constant in time) were separately calculated
                 z = getattr(self, height_var)
+                if unstagger:
+                    z = (z[1:] + z[:-1]) / 2
                 assert (len(z.shape) == 1) and (len(z) == nz), \
                         'tower '+height_var+' attribute should correspond to fixed height levels'
             else:
