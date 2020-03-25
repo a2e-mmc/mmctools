@@ -401,15 +401,22 @@ class Tower():
 
         # output with approximately constant heights
         mytower = Tower('/path/to/prefix.d03.*')
-        mytower.height = np.mean(mytower.ph, axis=0)  # average over time
+        mytower.height = np.mean(mytower.ph, axis=0) # average over time
         mytower.height -= mytower.stationz  # make above ground level
         mytower.to_dataframe(start_time='2013-11-08 12:00')
 
-        # interpolated output from data with approximately constant heights
+        # interpolated output from data with approx constant heights
         myheights = np.arange(5,2000,10)
         mytower = Tower('/path/to/prefix.d03.*')
         mytower.height = np.mean(mytower.ph, axis=0) - mytower.stationz
-        mytower.to_dataframe(start_time='2013-11-08 12:00',myheights)
+        mytower.to_dataframe(start_time='2013-11-08 12:00',
+                             heights=myheights)
+
+        # interpolated output from data with time-varying heights,
+        #   i.e., (geopotential height, 'ph'), at heights a.g.l.
+        mytower = Tower('/path/to/prefix.d03.*')
+        mytower.to_dataframe(start_time='2013-11-08 12:00',
+                             heights=myheights, height_var='ph', agl=True)
         ```
         
         Parameters
@@ -527,23 +534,38 @@ class Tower():
                 df = pd.concat((df_stag,df_unstag), axis=1)
             else:
                 # interpolate for all times
-                assert zt.shape == (self.nt, self.nz), \
+                assert zt_stag.shape == (self.nt, self.nz), \
                         'heights should correspond to time-height indices'
-                nvarns = len(varns)
-                newarraydatalist = []
-                for varn in varns:
-                    newarraydata = np.empty((self.nt, len(z)))
-                    curfield = getattr(self,varn)
+                zt_unstag = (zt_stag[:,1:] + zt_stag[:,:-1]) / 2
+                datadict = {}
+                for varn in varns_unstag:
+                    newdata = np.empty((self.nt, len(z)))
+                    tsdata = getattr(self,varn)
+                    if varn == 'th':
+                        # theta is a special case
+                        tsdata -= 300
                     for itime in range(self.nt):
-                        interpfun = interp1d(zt[itime,:], curfield[itime,:],
+                        assert np.all(tsdata[itime,-1] == 0)
+                        interpfun = interp1d(zt_unstag[itime,:],
+                                             tsdata[itime,:-1],
                                              bounds_error=False,
                                              fill_value='extrapolate')
-                        newarraydata[itime,:] = interpfun(z)
-                    newarraydatalist.append(newarraydata)
-                newarraydata = np.concatenate(newarraydatalist, axis=1)
-                columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
-                unstacked = pd.DataFrame(data=newarraydata,index=times,columns=columns)
-                df = unstacked.stack()
+                        newdata[itime,:] = interpfun(z)
+                    if varn == 'th':
+                        newdata += 300
+                    datadict[varn] = newdata.ravel()
+                for varn in varns_stag:
+                    newdata = np.empty((self.nt, len(z)))
+                    tsdata = getattr(self,varn)
+                    for itime in range(self.nt):
+                        interpfun = interp1d(zt_stag[itime,:],
+                                             tsdata[itime,:],
+                                             bounds_error=False,
+                                             fill_value='extrapolate')
+                        newdata[itime,:] = interpfun(z)
+                    datadict[varn] = newdata.ravel()
+                idx = pd.MultiIndex.from_product([times,z], names=['datetime','height'])
+                df = pd.DataFrame(data=datadict,index=idx)
 
         # standardize names
         df.rename(columns=self.standard_names, inplace=True)
