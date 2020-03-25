@@ -404,6 +404,12 @@ class Tower():
         mytower.height = np.mean(mytower.ph, axis=0)  # average over time
         mytower.height -= mytower.stationz  # make above ground level
         mytower.to_dataframe(start_time='2013-11-08 12:00')
+
+        # interpolated output from data with approximately constant heights
+        myheights = np.arange(5,2000,10)
+        mytower = Tower('/path/to/prefix.d03.*')
+        mytower.height = np.mean(mytower.ph, axis=0) - mytower.stationz
+        mytower.to_dataframe(start_time='2013-11-08 12:00',myheights)
         ```
         
         Parameters
@@ -483,25 +489,42 @@ class Tower():
             df = pd.DataFrame(data=datadict,index=idx)
         else:
             from scipy.interpolate import interp1d
-            z = np.array(heights)
-            zt = getattr(self, height_var)
+            z = np.array(heights) # interpolation heights
+            zt_stag = getattr(self, height_var) # z(t)
             if agl:
-                zt -= self.stationz
-            if len(zt.shape) == 1:
+                zt_stag -= self.stationz
+            # both sets of vars include geopotential height, ph
+            varns_unstag = [varn for varn in varns if (not varn in staggered_vars)]
+            varns_stag = staggered_vars
+            if len(zt_stag.shape) == 1:
                 # approximately constant height (with time)
-                assert len(zt) == self.nz
-                columns = pd.MultiIndex.from_product([varns,zt],names=[None,'height'])
-                df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
+                assert len(zt_stag) == self.nz
+                zt_unstag = (zt_stag[1:] + zt_stag[:-1]) / 2
+                df_unstag = pd.DataFrame(
+                    data=self._create_datadict(varns_unstag,unstagger=True,staggered_vars=['ph']),
+                    index=pd.MultiIndex.from_product([times,zt_unstag],
+                                                     names=['datetime','height'])
+                )
+                df_stag = pd.DataFrame(
+                    data=self._create_datadict(varns_stag),
+                    index=pd.MultiIndex.from_product([times,zt_stag],
+                                                     names=['datetime','height'])
+                )
                 # now unstack the times to get a height index
-                unstacked = df.unstack(level=0)
-                interpfun = interp1d(unstacked.index, unstacked.values, axis=0,
-                                     bounds_error=False,
-                                     fill_value='extrapolate')
-                interpdata = interpfun(z)
-                unstacked = pd.DataFrame(data=interpdata,
-                                         index=z, columns=unstacked.columns)
-                unstacked.index.name = 'height'
-                df = unstacked.stack().reorder_levels(order=['datetime','height']).sort_index()
+                def interp_to_heights(df):
+                    unstacked = df.unstack(level=0)
+                    interpfun = interp1d(unstacked.index, unstacked.values, axis=0,
+                                         bounds_error=False,
+                                         fill_value='extrapolate')
+                    interpdata = interpfun(z)
+                    unstacked = pd.DataFrame(data=interpdata,
+                                             index=z, columns=unstacked.columns)
+                    unstacked.index.name = 'height'
+                    df = unstacked.stack()
+                    return df.reorder_levels(order=['datetime','height']).sort_index()
+                df_unstag = interp_to_heights(df_unstag)
+                df_stag = interp_to_heights(df_stag)
+                df = pd.concat((df_stag,df_unstag), axis=1)
             else:
                 # interpolate for all times
                 assert zt.shape == (self.nt, self.nz), \
