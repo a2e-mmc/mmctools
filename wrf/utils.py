@@ -410,9 +410,7 @@ class Tower():
         # combine (and interpolate) time-height data
         # - note 1: self.[varn].shape == self.height.shape == (self.nt, self.nz)
         # - note 2: arraydata.shape == (self.nt, len(varns)*self.nz)
-        arraydata = np.concatenate(
-            [ getattr(self,varn) for varn in varns ], axis=1
-        )
+        datadict = { varn: getattr(self,varn).ravel() for varn in varns }
         if heights is None:
             if hasattr(self, height_var):
                 # heights (constant in time) were separately calculated
@@ -422,8 +420,8 @@ class Tower():
             else:
                 # heights will be an integer index
                 z = np.arange(self.nz)
-            columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
-            df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
+            idx = pd.MultiIndex.from_product([times,z],names=['datetime','height'])
+            df = pd.DataFrame(data=datadict,index=idx)
         else:
             from scipy.interpolate import interp1d
             z = np.array(heights)
