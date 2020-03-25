@@ -357,8 +357,33 @@ class Tower():
                         setattr(self, name.lower(), col.values)
                     self.ts_varns = list(tsdata.columns)
 
+    def _create_datadict(self,varns,unstagger=False,staggered_vars=[]):
+        """Helper function for to_dataframe()"""
+        datadict = {}
+        for varn in varns:
+            tsdata = getattr(self,varn)
+            if unstagger:
+                if varn in staggered_vars:
+                    # need to destagger these quantities
+                    datadict[varn] = ((tsdata[:,1:] + tsdata[:,:-1]) / 2).ravel()
+                elif varn == 'th':
+                    # theta is a special case
+                    assert np.all(tsdata[:,-1] == 300), 'Unexpected nonzero value for theta'
+                    # drop the trailing 0 for already unstaggered quantities
+                    datadict[varn] = tsdata[:,:-1].ravel()
+                else:
+                    # other quantities already unstaggered
+                    assert np.all(tsdata[:,-1] == 0), 'Unexpected nonzero value for '+varn
+                    # drop the trailing 0 for already unstaggered quantities
+                    datadict[varn] = tsdata[:,:-1].ravel()
+            else:
+                # use data as is
+                datadict[varn] = tsdata.ravel()
+        return datadict
+
     def to_dataframe(self,start_time,
                      time_unit='h',time_step=None,
+                     unstagger=True,staggered_vars=['ww','ph'],
                      heights=None,height_var='height',agl=False,
                      exclude=['ts']):
         """Convert tower time-height data into a dataframe.
@@ -376,6 +401,41 @@ class Tower():
                              accounting for change in heights over time
                              (Float64Index)
         
+        Note: TS profiles are output at staggered locations for _all_
+        variables, regardless of whether they are staggered or not.
+        For unstaggered (i.e., cell-centered) quantities, the last value
+        will be 0. For consistency--if interpolation heights are not
+        provided--all quantities will be unstaggered by default. If
+        interpolation heights are provided, then both staggered and
+        unstaggered data will be used for interpolation, and the output
+        can be at arbitrary heights.
+
+        Example usage:
+        ```
+        # output with Int64Index
+        mytower = Tower('/path/to/prefix.d03.*')
+        mytower.to_dataframe(start_time='2013-11-08 12:00')
+
+        # output with approximately constant heights
+        mytower = Tower('/path/to/prefix.d03.*')
+        mytower.height = np.mean(mytower.ph, axis=0) # average over time
+        mytower.height -= mytower.stationz  # make above ground level
+        mytower.to_dataframe(start_time='2013-11-08 12:00')
+
+        # interpolated output from data with approx constant heights
+        myheights = np.arange(5,2000,10)
+        mytower = Tower('/path/to/prefix.d03.*')
+        mytower.height = np.mean(mytower.ph, axis=0) - mytower.stationz
+        mytower.to_dataframe(start_time='2013-11-08 12:00',
+                             heights=myheights)
+
+        # interpolated output from data with time-varying heights,
+        #   i.e., (geopotential height, 'ph'), at heights a.g.l.
+        mytower = Tower('/path/to/prefix.d03.*')
+        mytower.to_dataframe(start_time='2013-11-08 12:00',
+                             heights=myheights, height_var='ph', agl=True)
+        ```
+        
         Parameters
         ----------
         start_time: str or pd.Timestamp
@@ -390,6 +450,12 @@ class Tower():
             the data files. Used in conjunction with start_time to form
             the datetime index. May be useful if times in output files
             do not have sufficient precision.
+        unstagger: bool, optional
+            Unstagger all variables so that all quantities are output at
+            the correct height; only used if heights are not specified
+        staggered_vars: list, optional
+            Variables that should be unstaggered if interpolation heights
+            are provided (default: vertical velocity, geopotential height)
         heights : array-like or None, optional
             If None, then use integer levels for the height index,
             otherwise interpolate to the same heights at all times.
@@ -415,6 +481,7 @@ class Tower():
         start_time = pd.to_datetime(start_time)
         if time_step is None:
             times = start_time + pd.to_timedelta(self.time, unit=time_unit)
+            times = times.round(freq='1s')
             times.name = 'datetime'
         else:
             timestep = pd.to_timedelta(time_step, unit='s')
@@ -426,60 +493,96 @@ class Tower():
         # combine (and interpolate) time-height data
         # - note 1: self.[varn].shape == self.height.shape == (self.nt, self.nz)
         # - note 2: arraydata.shape == (self.nt, len(varns)*self.nz)
-        arraydata = np.concatenate(
-            [ getattr(self,varn) for varn in varns ], axis=1
-        )
         if heights is None:
+            if unstagger:
+                nz = self.nz - 1
+            else:
+                nz = self.nz
+            datadict = self._create_datadict(varns,unstagger,staggered_vars)
             if hasattr(self, height_var):
                 # heights (constant in time) were separately calculated
                 z = getattr(self, height_var)
-                assert (len(z.shape) == 1) and (len(z) == self.nz), \
+                if unstagger:
+                    z = (z[1:] + z[:-1]) / 2
+                assert (len(z.shape) == 1) and (len(z) == nz), \
                         'tower '+height_var+' attribute should correspond to fixed height levels'
             else:
                 # heights will be an integer index
-                z = np.arange(self.nz)
-            columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
-            df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
+                z = np.arange(nz)
+            idx = pd.MultiIndex.from_product([times,z],names=['datetime','height'])
+            df = pd.DataFrame(data=datadict,index=idx)
         else:
             from scipy.interpolate import interp1d
-            z = np.array(heights)
-            zt = getattr(self, height_var)
+            z = np.array(heights) # interpolation heights
+            zt_stag = getattr(self, height_var) # z(t)
             if agl:
-                zt -= self.stationz
-            if len(zt.shape) == 1:
+                zt_stag -= self.stationz
+            # both sets of vars include geopotential height, ph
+            varns_unstag = [varn for varn in varns if (not varn in staggered_vars)]
+            varns_stag = staggered_vars
+            if len(zt_stag.shape) == 1:
                 # approximately constant height (with time)
-                assert len(zt) == self.nz
-                columns = pd.MultiIndex.from_product([varns,zt],names=[None,'height'])
-                df = pd.DataFrame(data=arraydata,index=times,columns=columns).stack()
+                assert len(zt_stag) == self.nz
+                zt_unstag = (zt_stag[1:] + zt_stag[:-1]) / 2
+                df_unstag = pd.DataFrame(
+                    data=self._create_datadict(varns_unstag,unstagger=True,staggered_vars=['ph']),
+                    index=pd.MultiIndex.from_product([times,zt_unstag],
+                                                     names=['datetime','height'])
+                )
+                df_stag = pd.DataFrame(
+                    data=self._create_datadict(varns_stag),
+                    index=pd.MultiIndex.from_product([times,zt_stag],
+                                                     names=['datetime','height'])
+                )
                 # now unstack the times to get a height index
-                unstacked = df.unstack(level=0)
-                interpfun = interp1d(unstacked.index, unstacked.values, axis=0,
-                                     bounds_error=False,
-                                     fill_value='extrapolate')
-                interpdata = interpfun(z)
-                unstacked = pd.DataFrame(data=interpdata,
-                                         index=z, columns=unstacked.columns)
-                unstacked.index.name = 'height'
-                df = unstacked.stack().reorder_levels(order=['datetime','height']).sort_index()
+                def interp_to_heights(df):
+                    unstacked = df.unstack(level=0)
+                    interpfun = interp1d(unstacked.index, unstacked.values, axis=0,
+                                         bounds_error=False,
+                                         fill_value='extrapolate')
+                    interpdata = interpfun(z)
+                    unstacked = pd.DataFrame(data=interpdata,
+                                             index=z, columns=unstacked.columns)
+                    unstacked.index.name = 'height'
+                    df = unstacked.stack()
+                    return df.reorder_levels(order=['datetime','height']).sort_index()
+                df_unstag = interp_to_heights(df_unstag)
+                df_stag = interp_to_heights(df_stag)
+                df = pd.concat((df_stag,df_unstag), axis=1)
             else:
                 # interpolate for all times
-                assert zt.shape == (self.nt, self.nz), \
+                assert zt_stag.shape == (self.nt, self.nz), \
                         'heights should correspond to time-height indices'
-                nvarns = len(varns)
-                newarraydatalist = []
-                for varn in varns:
-                    newarraydata = np.empty((self.nt, len(z)))
-                    curfield = getattr(self,varn)
+                zt_unstag = (zt_stag[:,1:] + zt_stag[:,:-1]) / 2
+                datadict = {}
+                for varn in varns_unstag:
+                    newdata = np.empty((self.nt, len(z)))
+                    tsdata = getattr(self,varn)
+                    if varn == 'th':
+                        # theta is a special case
+                        tsdata -= 300
                     for itime in range(self.nt):
-                        interpfun = interp1d(zt[itime,:], curfield[itime,:],
+                        assert np.all(tsdata[itime,-1] == 0)
+                        interpfun = interp1d(zt_unstag[itime,:],
+                                             tsdata[itime,:-1],
                                              bounds_error=False,
                                              fill_value='extrapolate')
-                        newarraydata[itime,:] = interpfun(z)
-                    newarraydatalist.append(newarraydata)
-                newarraydata = np.concatenate(newarraydatalist, axis=1)
-                columns = pd.MultiIndex.from_product([varns,z],names=[None,'height'])
-                unstacked = pd.DataFrame(data=newarraydata,index=times,columns=columns)
-                df = unstacked.stack()
+                        newdata[itime,:] = interpfun(z)
+                    if varn == 'th':
+                        newdata += 300
+                    datadict[varn] = newdata.ravel()
+                for varn in varns_stag:
+                    newdata = np.empty((self.nt, len(z)))
+                    tsdata = getattr(self,varn)
+                    for itime in range(self.nt):
+                        interpfun = interp1d(zt_stag[itime,:],
+                                             tsdata[itime,:],
+                                             bounds_error=False,
+                                             fill_value='extrapolate')
+                        newdata[itime,:] = interpfun(z)
+                    datadict[varn] = newdata.ravel()
+                idx = pd.MultiIndex.from_product([times,z], names=['datetime','height'])
+                df = pd.DataFrame(data=datadict,index=idx)
 
         # standardize names
         df.rename(columns=self.standard_names, inplace=True)
