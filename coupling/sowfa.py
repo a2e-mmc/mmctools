@@ -12,6 +12,49 @@ import pandas as pd
 import os
 
 
+pointsheader = """/*--------------------------------*- C++ -*----------------------------------*\\
+| =========                 |                                                 |
+| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\\\    /   O peration     | Version:  2.4.x                                 |
+|   \\\\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\\\/     M anipulation  |                                                 |
+\\*---------------------------------------------------------------------------*/
+FoamFile
+{{
+    version     2.0;
+    format      {fmt:s};
+    class       vectorField;
+    location    "constant/boundaryData/{patchName:s}";
+    object      points;
+}}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+{N:d}
+("""
+
+dataheader = """/*--------------------------------*- C++ -*----------------------------------*\\
+| =========                 |                                                 |
+| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\\\    /   O peration     | Version:  2.4.x                                 |
+|   \\\\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\\\/     M anipulation  |                                                 |
+\\*---------------------------------------------------------------------------*/
+FoamFile
+{{
+    version     2.0;
+    format      {fmt:s};
+    class       {patchType:s}AverageField;
+    location    "constant/boundaryData/{patchName:s}/{timeName:s}";
+    object      values;
+}}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// Average
+{avgValue:s}
+
+{N:d}
+("""
+
+
 class InternalCoupling(object):
     """
     Class for writing data to SOWFA-readable input files for internal coupling
@@ -268,12 +311,13 @@ class BoundaryCoupling(object):
     def __init__(self,
                  dpath,
                  ds,
+                 name='patch',
                  dateref=None,
                  datefrom=None,
                  dateto=None):
         """
-        Initialize SOWFA input object. This should be called for inflow/outflow
-        boundary.
+        Initialize SOWFA input object. This should be called for _each_
+        inflow/outflow boundary.
 
         Usage
         =====
@@ -281,6 +325,9 @@ class BoundaryCoupling(object):
             Folder to write files to
         ds : xarray.Dataset
             Data (dimensions should be: datetime, height, x, y)
+        name : str
+            Name of patch, corresponding to the constnat/boundaryData
+            subdirectory
         dateref : str, optional
             Reference datetime, used to construct a pd.DateTimeIndex
             with SOWFA time 0 corresponding to dateref; if not
@@ -295,10 +342,11 @@ class BoundaryCoupling(object):
             with the last timestamp in df; only used if dateref is
             specified
         """
-        self.dpath = dpath
+        self.name = name
+        self.dpath = os.path.join(dpath, name)
         # Create folder dpath if needed
-        if not os.path.isdir(dpath):
-            os.mkdir(dpath)
+        if not os.path.isdir(self.dpath):
+            os.makedirs(self.dpath)
 
         # Check xarray coordinates
         self.ds = ds
@@ -333,10 +381,61 @@ class BoundaryCoupling(object):
         # should be aligned with the Cartesian axes
         assert np.count_nonzero([self.ds.dims[dim]==1 for dim in ['x','y','height']]) == 1
         if self.ds.dims['x'] == 1:
-            print('Input is an x-plane')
+            constdim = 'x'
         elif self.ds.dims['y'] == 1:
-            print('Input is an y-plane')
+            constdim = 'y'
         elif self.ds.dims['z'] == 1:
-            print('Input is an z-plane')
+            constdim = 'z'
+        self.ds = self.ds.isel({constdim:0})
+        print('Input is an {:s}-boundary at {:g}'.format(constdim,
+                                                         self.ds.coords[constdim].values))
         
+    def write(self, fields):
+        """
+        Write surface boundary conditions to SOWFA-readable input files
+        for the solver in constant/boundaryData
+    
+        Usage
+        =====
+        patchname : str
+            Name of patch subdirectory
+        fields : dict
+            Key-value pairs with keys corresponding to the OpenFOAM
+            field name, values corresponding to dataset data variables;
+            values may be a single variable (scalar) or a list/tuple of
+            variables (vector)
+        """
+        dims = list(self.ds.dims)
+        dims.remove('datetime')
+        # make sure ordering of bnd_dims is correct
+        self.bnd_dims = [dim for dim in ['x','y','height'] if dim in dims]
+        assert (len(self.bnd_dims) == 2)
+        # write out patch/points
+        self._write_points()
+        # write out patch/*/field
+        for fieldname,dvars in fields.items():
+            if isinstance(dvars, (list,tuple)):
+                # vector
+                assert all([dvar in self.ds.variables for dvar in dvars])
+                assert (len(dvars) == 3)
+                #self._write_boundary_vector(fieldname, dvars)
+            else:
+                # scalar
+                assert (dvars in self.ds.variables)
+                #self._write_boundary_scalar(fieldname, dvars)
+
+    def _write_points(self,fname='points'):
+        x,y,z = np.meshgrid(self.ds.coords['x'],
+                            self.ds.coords['y'],
+                            self.ds.coords['height'],
+                            indexing='ij')
+        x = x.ravel()
+        y = y.ravel()
+        z = z.ravel()
+        N = len(x)
+        pts = np.stack((x,y,z),axis=1)
+        header = pointsheader.format(patchName=self.name,N=N,fmt='ascii')
+        fpath = os.path.join(self.dpath, fname)
+        np.savetxt(fpath, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
+        print('Wrote',fpath)
 
