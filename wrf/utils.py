@@ -595,7 +595,8 @@ class Tower():
                   start_time='2013-11-08',time_unit='h',time_step=None,
                   heights=None,height_var='height',agl=False,
                   exclude=['ts'],
-                  structure='ordered'):
+                  structure='ordered',
+                  **kwargs):
         """Convert tower time-height data into a xarray dataset.
         
         Treatment of the time-varying height coordinates is summarized
@@ -645,7 +646,8 @@ class Tower():
         df = self.to_dataframe(start_time,
                 time_unit=time_unit, time_step=time_step,
                 heights=heights, height_var=height_var, agl=agl,
-                exclude=exclude)
+                exclude=exclude,
+                **kwargs)
         if structure == 'ordered':
             ds = df.to_xarray()
             ds = ds.assign_coords(i=self.loci)
@@ -993,7 +995,7 @@ def combine_towers(fdir, restarts, simulation_start, fname,
                    structure='ordered', time_step=None,
                    dx=12.0, dy=12.0,
                    heights=None, height_var='heights', agl=False,
-                   verbose=True):
+                   verbose=True, **kwargs):
     '''
     Combine together tslist files in time where, if there is any overlap, the later file
     will overwrite the earlier file. This makes the assumption that all of the tslist 
@@ -1010,20 +1012,12 @@ def combine_towers(fdir, restarts, simulation_start, fname,
     fname            = ['t0001.d02'] (Note: this is the prefix for the tower + domain)
     structure        = 'ordered' or 'unordered'
     '''
-    output_params = dict(
-        time_step=time_step,
-        structure=structure,
-        heights=heights,
-        height_var=height_var,
-        agl=agl,
-    )
     if not isinstance(simulation_start,(list,tuple)):
         simulation_start = [simulation_start]
     if restarts is None:
         restarts = ['.']
     assert len(simulation_start) == len(restarts), 'restarts and simulation_start are not equal'
     for rst,restart in enumerate(restarts):
-        output_params['start_time'] = simulation_start[rst]
         if verbose:
             print('restart: {}'.format(restart))
         data = []
@@ -1032,7 +1026,14 @@ def combine_towers(fdir, restarts, simulation_start, fname,
                 print('starting {}'.format(ff))
             fpath = os.path.join(fdir,restart,ff)
             tow = Tower(fpath)
-            data.append(tow.to_xarray(**output_params))
+            ds = tow.to_xarray(start_time=simulation_start[rst],
+                               time_step=time_step,
+                               structure=structure,
+                               heights=heights,
+                               height_var=height_var,
+                               agl=agl,
+                               **kwargs)
+            data.append(ds)
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
