@@ -390,7 +390,7 @@ class BoundaryCoupling(object):
         print('Input is an {:s}-boundary at {:g}'.format(constdim,
                                                          self.ds.coords[constdim].values))
         
-    def write(self, fields):
+    def write(self, fields, binary=False):
         """
         Write surface boundary conditions to SOWFA-readable input files
         for the solver in constant/boundaryData
@@ -411,20 +411,20 @@ class BoundaryCoupling(object):
         self.bnd_dims = [dim for dim in ['x','y','height'] if dim in dims]
         assert (len(self.bnd_dims) == 2)
         # write out patch/points
-        self._write_points()
+        self._write_points(binary=binary)
         # write out patch/*/field
         for fieldname,dvars in fields.items():
             if isinstance(dvars, (list,tuple)):
                 # vector
                 assert all([dvar in self.ds.variables for dvar in dvars])
                 assert (len(dvars) == 3)
-                #self._write_boundary_vector(fieldname, dvars)
+                #self._write_boundary_vector(fieldname, dvars, binary)
             else:
                 # scalar
                 assert (dvars in self.ds.variables)
-                #self._write_boundary_scalar(fieldname, dvars)
+                #self._write_boundary_scalar(fieldname, dvars, binary)
 
-    def _write_points(self,fname='points'):
+    def _write_points(self,fname='points',binary=False):
         x,y,z = np.meshgrid(self.ds.coords['x'],
                             self.ds.coords['y'],
                             self.ds.coords['height'],
@@ -433,9 +433,16 @@ class BoundaryCoupling(object):
         y = y.ravel()
         z = z.ravel()
         N = len(x)
-        pts = np.stack((x,y,z),axis=1)
-        header = pointsheader.format(patchName=self.name,N=N,fmt='ascii')
+        pts = np.stack((x,y,z),axis=1)  # shape == (N,3)
         fpath = os.path.join(self.dpath, fname)
-        np.savetxt(fpath, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
+        if binary:
+            header = pointsheader.format(patchName=self.name,N=N,fmt='binary')
+            with open(fpath, 'wb') as f:
+                f.write(bytes(header,'utf-8'))
+                f.write(pts.tobytes(order='C'))
+                f.write(b')')
+        else:
+            header = pointsheader.format(patchName=self.name,N=N,fmt='ascii')
+            np.savetxt(fpath, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
         print('Wrote',fpath)
 
