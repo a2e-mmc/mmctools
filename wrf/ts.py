@@ -124,7 +124,8 @@ class Toof(object):
             Instance of mmctools.coupling.domain.Domain class describing
             the microscale domain
         wrfdomain : int, optional
-            Index (0-based) of wrf domain from which to sample
+            Index (0-based) of wrf domain from which to sample (default:
+            -1, i.e., the innermost domain)
         namelist : str, optional
             Filename in `dpath` of wrf namelist input
         tsdir : str, optional
@@ -154,6 +155,9 @@ class Toof(object):
             idx = self.wrfdomain
         else:
             idx = self.max_dom + self.wrfdomain
+        # update prefixes
+        self.prefixes = [prefix+'.d{:02d}'.format(idx+1) for prefix in self.prefixes]
+        # get grid spacing
         self.dx = float(dxlist[idx])
         self.dy = float(dylist[idx])
         if self.verbose:
