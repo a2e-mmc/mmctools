@@ -357,7 +357,7 @@ class Tower():
                         setattr(self, name.lower(), col.values)
                     self.ts_varns = list(tsdata.columns)
 
-    def _create_datadict(self,varns,unstagger=False,staggered_vars=[]):
+    def _create_datadict(self,varns,unstagger=False,staggered_vars=['ph']):
         """Helper function for to_dataframe()"""
         datadict = {}
         for varn in varns:
@@ -386,7 +386,7 @@ class Tower():
 
     def to_dataframe(self,start_time,
                      time_unit='h',time_step=None,
-                     unstagger=True,staggered_vars=['ww','ph'],
+                     unstagger=True,
                      heights=None,height_var='height',agl=False,
                      exclude=['ts']):
         """Convert tower time-height data into a dataframe.
@@ -456,9 +456,6 @@ class Tower():
         unstagger: bool, optional
             Unstagger all variables so that all quantities are output at
             the correct height; only used if heights are not specified
-        staggered_vars: list, optional
-            Variables that should be unstaggered if interpolation heights
-            are provided (default: vertical velocity, geopotential height)
         heights : array-like or None, optional
             If None, then use integer levels for the height index,
             otherwise interpolate to the same heights at all times.
@@ -501,7 +498,7 @@ class Tower():
                 nz = self.nz - 1
             else:
                 nz = self.nz
-            datadict = self._create_datadict(varns,unstagger,staggered_vars)
+            datadict = self._create_datadict(varns,unstagger)
             if hasattr(self, height_var):
                 # heights (constant in time) were separately calculated
                 z = getattr(self, height_var)
@@ -520,9 +517,9 @@ class Tower():
             zt_stag = getattr(self, height_var) # z(t)
             if agl:
                 zt_stag -= self.stationz
-            # both sets of vars include geopotential height, ph
-            varns_unstag = [varn for varn in varns if (not varn in staggered_vars)]
-            varns_stag = staggered_vars
+            varns_unstag = varns.copy()
+            varns_unstag.remove('ph')
+            varns_stag = ['ph']
             if len(zt_stag.shape) == 1:
                 # approximately constant height (with time)
                 assert len(zt_stag) == self.nz
@@ -556,8 +553,8 @@ class Tower():
                 # interpolate for all times
                 assert zt_stag.shape == (self.nt, self.nz), \
                         'heights should correspond to time-height indices'
-                zt_unstag = (zt_stag[:,1:] + zt_stag[:,:-1]) / 2
                 datadict = {}
+                zt_unstag = (zt_stag[:,1:] + zt_stag[:,:-1]) / 2
                 for varn in varns_unstag:
                     newdata = np.empty((self.nt, len(z)))
                     tsdata = getattr(self,varn)
