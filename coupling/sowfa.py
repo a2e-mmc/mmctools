@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-Tools for MMC via internal forcing
+Tools for generating SOWFA MMC inputs
 '''
 
 __author__ = "Dries Allaerts"
@@ -259,3 +259,84 @@ class InternalCoupling(object):
                            fmt=fmt, header='(', footer=');\n', comments='')
     
         return
+
+
+class BoundaryCoupling(object):
+    """
+    Class for writing data to SOWFA-readable input files for boundary coupling
+    """
+    def __init__(self,
+                 dpath,
+                 ds,
+                 dateref=None,
+                 datefrom=None,
+                 dateto=None):
+        """
+        Initialize SOWFA input object. This should be called for inflow/outflow
+        boundary.
+
+        Usage
+        =====
+        dpath : str
+            Folder to write files to
+        ds : xarray.Dataset
+            Data (dimensions should be: datetime, height, x, y)
+        dateref : str, optional
+            Reference datetime, used to construct a pd.DateTimeIndex
+            with SOWFA time 0 corresponding to dateref; if not
+            specified, then the time index will be the simulation time
+            as a pd.TimedeltaIndex
+        datefrom : str, optional
+            Start date of the period that will be written out, if None
+            start from the first timestamp in df; only used if dateref
+            is specified
+        dateto : str, optional
+            End date of the period that will be written out, if None end
+            with the last timestamp in df; only used if dateref is
+            specified
+        """
+        self.dpath = dpath
+        # Create folder dpath if needed
+        if not os.path.isdir(dpath):
+            os.mkdir(dpath)
+
+        # Check xarray coordinates
+        self.ds = ds
+        self._check_xarray_dataset()
+        
+        # Use dataframe between datefrom and dateto
+        if datefrom is None:
+            datefrom = ds.coords['datetime'][0]
+        if dateto is None:
+            dateto = ds.coords['datetime'][-1]
+
+        # Store start date for ICs
+        self.datefrom = datefrom
+
+        # calculate time in seconds since reference date
+        if dateref is None:
+            dateref = self.ds.coords['datetime'][0]
+        else:
+            dateref = pd.to_datetime(dateref)
+        tidx = (self.ds['datetime'] - dateref).dt.seconds
+        self.ds = self.ds.assign_coords(coords={'t_index':tidx})
+
+    def _check_xarray_dataset(self,
+                              expected_dims=['datetime','height','x','y']):
+        """Do all sanity checks here"""
+        for dim in self.ds.dims:
+            # dimension coordinates
+            assert dim in expected_dims
+            coord = self.ds.coords[dim]
+            assert (coord.dims[0] == dim) and (len(coord.dims) == 1)
+        # Only handle a single boundary plane at a time; boundaries
+        # should be aligned with the Cartesian axes
+        assert np.count_nonzero([self.ds.dims[dim]==1 for dim in ['x','y','height']]) == 1
+        if self.ds.dims['x'] == 1:
+            print('Input is an x-plane')
+        elif self.ds.dims['y'] == 1:
+            print('Input is an y-plane')
+        elif self.ds.dims['z'] == 1:
+            print('Input is an z-plane')
+        
+
