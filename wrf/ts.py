@@ -168,7 +168,7 @@ class Toof(object):
 
     def _read_towers(self):
         if self.verbose:
-            print('Calling combine_towers...')
+            print('Calling combine_towers for',self.tsdir,'...')
             print('  interpolating to z= [',
                     self.domain.z[0], self.domain.z[1], self.domain.z[2], '..',
                     self.domain.z[-2], self.domain.z[-1], ']')

@@ -301,6 +301,7 @@ class Tower():
                             'found multiple files for {:s}: {:s}'.format(varn,files)
                     self.varns.append(varn)
                     self.filelist.append(files[0])
+        assert len(self.filelist) > 0, 'No TS output found in '+fstr
 
     def _getdata(self): # Get all the data
         for varn,fpath in zip(self.varns, self.filelist):
