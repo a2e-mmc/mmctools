@@ -366,8 +366,8 @@ class BoundaryCoupling(object):
             dateref = self.ds.coords['datetime'][0]
         else:
             dateref = pd.to_datetime(dateref)
-        tidx = (self.ds['datetime'] - dateref).dt.seconds
-        self.ds = self.ds.assign_coords(coords={'t_index':tidx})
+        tidx = (self.ds['datetime'] - dateref) / np.timedelta64(1,'s')
+        self.ds = self.ds.assign_coords(t_index=('datetime',tidx))
 
     def _check_xarray_dataset(self,
                               expected_dims=['datetime','height','x','y']):
@@ -408,8 +408,8 @@ class BoundaryCoupling(object):
         dims = list(self.ds.dims)
         dims.remove('datetime')
         # make sure ordering of bnd_dims is correct
-        self.bnd_dims = [dim for dim in ['x','y','height'] if dim in dims]
-        assert (len(self.bnd_dims) == 2)
+        self.bndry_dims = [dim for dim in ['x','y','height'] if dim in dims]
+        assert (len(self.bndry_dims) == 2)
         # write out patch/points
         self._write_points(binary=binary)
         # write out patch/*/field
@@ -422,16 +422,16 @@ class BoundaryCoupling(object):
             else:
                 # scalar
                 assert (dvars in self.ds.variables)
-                #self._write_boundary_scalar(fieldname, dvars, binary)
+                self._write_boundary_scalar(fieldname, dvars, binary)
 
     def _write_points(self,fname='points',binary=False):
         x,y,z = np.meshgrid(self.ds.coords['x'],
                             self.ds.coords['y'],
                             self.ds.coords['height'],
                             indexing='ij')
-        x = x.ravel()
-        y = y.ravel()
-        z = z.ravel()
+        x = x.ravel(order='C')
+        y = y.ravel(order='C')
+        z = z.ravel(order='C')
         N = len(x)
         pts = np.stack((x,y,z),axis=1)  # shape == (N,3)
         fpath = os.path.join(self.dpath, fname)
@@ -444,5 +444,35 @@ class BoundaryCoupling(object):
         else:
             header = pointsheader.format(patchName=self.name,N=N,fmt='ascii')
             np.savetxt(fpath, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
-        print('Wrote',fpath)
+        print('Wrote',N,'points to',fpath)
+
+    def _write_boundary_scalar(self,fname,var,binary=False):
+        dim_order = ['t_index'] + self.bndry_dims
+        u = self.ds[var].swap_dims({'datetime':'t_index'}).transpose(*dim_order)
+        for ui in u:
+            ti = float(ui['t_index'])
+            tstamp = ui['datetime'].values
+            tname = '{:g}'.format(ti)
+            ui = ui.values.ravel(order='C')
+            N = len(ui)
+            dpath = os.path.join(self.dpath,tname)
+            fpath = os.path.join(dpath,fname)
+            if not os.path.isdir(dpath):
+                os.makedirs(dpath)
+            if binary:
+                header = dataheader.format(
+                        patchType='scalar', patchName=self.name,
+                        timeName=tname, avgValue='0',
+                        N=N, fmt='binary')
+                with open(fpath, 'wb') as f:
+                    f.write(bytes(header,'utf-8'))
+                    f.write(ui.tobytes(order='C'))
+                    f.write(b')')
+            else:
+                header = dataheader.format(
+                        patchType='scalar', patchName=self.name,
+                        timeName=tname, avgValue='0',
+                        N=N, fmt='ascii')
+                np.savetxt(fpath, ui, fmt='%g', header=header, footer=')', comments='')
+            print('Wrote',N,'scalars to',fpath,'at',str(tstamp))
 
