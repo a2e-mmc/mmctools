@@ -365,7 +365,7 @@ class BoundaryCoupling(object):
         if dateref is None:
             dateref = self.ds.coords['datetime'][0]
         else:
-            dateref = pd.to_datetime(dateref)
+            dateref = pd.to_datetime(dateref).to_datetime64()
         tidx = (self.ds['datetime'] - dateref) / np.timedelta64(1,'s')
         self.ds = self.ds.assign_coords(t_index=('datetime',tidx))
 
