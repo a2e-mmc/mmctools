@@ -418,11 +418,11 @@ class BoundaryCoupling(object):
                 # vector
                 assert all([dvar in self.ds.variables for dvar in dvars])
                 assert (len(dvars) == 3)
-                #self._write_boundary_vector(fieldname, dvars, binary)
+                self._write_boundary_vector(fieldname, components=dvars, binary=binary)
             else:
                 # scalar
                 assert (dvars in self.ds.variables)
-                self._write_boundary_scalar(fieldname, dvars, binary)
+                self._write_boundary_scalar(fieldname, var=dvars, binary=binary)
 
     def _write_points(self,fname='points',binary=False):
         x,y,z = np.meshgrid(self.ds.coords['x'],
@@ -445,6 +445,42 @@ class BoundaryCoupling(object):
             header = pointsheader.format(patchName=self.name,N=N,fmt='ascii')
             np.savetxt(fpath, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
         print('Wrote',N,'points to',fpath)
+
+    def _write_boundary_vector(self,fname,components,binary=False):
+        dim_order = ['t_index'] + self.bndry_dims
+        uvec = [
+            self.ds[var].swap_dims({'datetime':'t_index'}).transpose(*dim_order)
+            for var in components
+        ]
+        for ui,vi,wi in zip(*uvec):
+            ti = float(ui['t_index'])
+            tstamp = ui['datetime'].values
+            tname = '{:g}'.format(ti)
+            ui = ui.values.ravel(order='C')
+            vi = vi.values.ravel(order='C')
+            wi = wi.values.ravel(order='C')
+            data = np.stack((ui,vi,wi), axis=1)  # shape == (N,3)
+            N = len(data)
+            dpath = os.path.join(self.dpath,tname)
+            fpath = os.path.join(dpath,fname)
+            if not os.path.isdir(dpath):
+                os.makedirs(dpath)
+            if binary:
+                header = dataheader.format(
+                        patchType='vector', patchName=self.name,
+                        timeName=tname, avgValue='(0 0 0)',
+                        N=N, fmt='binary')
+                with open(fpath, 'wb') as f:
+                    f.write(bytes(header,'utf-8'))
+                    f.write(data.tobytes(order='C'))
+                    f.write(b')')
+            else:
+                header = dataheader.format(
+                        patchType='vector', patchName=self.name,
+                        timeName=tname, avgValue='(0 0 0)',
+                        N=N, fmt='ascii')
+                np.savetxt(fpath, data, fmt='(%g %g %g)', header=header, footer=')', comments='')
+            print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
 
     def _write_boundary_scalar(self,fname,var,binary=False):
         dim_order = ['t_index'] + self.bndry_dims
