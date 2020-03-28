@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import os
 
+import gzip
+
 
 pointsheader = """/*--------------------------------*- C++ -*----------------------------------*\\
 | =========                 |                                                 |
@@ -390,7 +392,7 @@ class BoundaryCoupling(object):
         print('Input is an {:s}-boundary at {:g}'.format(constdim,
                                                          self.ds.coords[constdim].values))
         
-    def write(self, fields, binary=False):
+    def write(self, fields, binary=False, gzip=False):
         """
         Write surface boundary conditions to SOWFA-readable input files
         for the solver in constant/boundaryData
@@ -404,6 +406,9 @@ class BoundaryCoupling(object):
             field name, values corresponding to dataset data variables;
             values may be a single variable (scalar) or a list/tuple of
             variables (vector)
+        binary : bool, optional
+            Write out actual data (coordinates, scalars, vectors) in
+            binary for faster I/O
         """
         dims = list(self.ds.dims)
         dims.remove('datetime')
@@ -411,20 +416,22 @@ class BoundaryCoupling(object):
         self.bndry_dims = [dim for dim in ['x','y','height'] if dim in dims]
         assert (len(self.bndry_dims) == 2)
         # write out patch/points
-        self._write_points(binary=binary)
+        self._write_points(binary=binary, gzip=gzip)
         # write out patch/*/field
         for fieldname,dvars in fields.items():
             if isinstance(dvars, (list,tuple)):
                 # vector
                 assert all([dvar in self.ds.variables for dvar in dvars])
                 assert (len(dvars) == 3)
-                self._write_boundary_vector(fieldname, components=dvars, binary=binary)
+                self._write_boundary_vector(fieldname, components=dvars,
+                                            binary=binary, gzip=gzip)
             else:
                 # scalar
                 assert (dvars in self.ds.variables)
-                self._write_boundary_scalar(fieldname, var=dvars, binary=binary)
+                self._write_boundary_scalar(fieldname, var=dvars,
+                                            binary=binary, gzip=gzip)
 
-    def _write_points(self,fname='points',binary=False):
+    def _write_points(self,fname='points',binary=False,gzip=False):
         x,y,z = np.meshgrid(self.ds.coords['x'],
                             self.ds.coords['y'],
                             self.ds.coords['height'],
@@ -446,7 +453,7 @@ class BoundaryCoupling(object):
             np.savetxt(fpath, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
         print('Wrote',N,'points to',fpath)
 
-    def _write_boundary_vector(self,fname,components,binary=False):
+    def _write_boundary_vector(self,fname,components,binary=False,gzip=False):
         dim_order = ['t_index'] + self.bndry_dims
         uvec = [
             self.ds[var].swap_dims({'datetime':'t_index'}).transpose(*dim_order)
@@ -454,6 +461,9 @@ class BoundaryCoupling(object):
         ]
         for ui,vi,wi in zip(*uvec):
             ti = float(ui['t_index'])
+            if ti < 0:
+                print('Skipping t=',ti)
+                continue
             tstamp = ui['datetime'].values
             tname = '{:g}'.format(ti)
             ui = ui.values.ravel(order='C')
@@ -482,11 +492,14 @@ class BoundaryCoupling(object):
                 np.savetxt(fpath, data, fmt='(%g %g %g)', header=header, footer=')', comments='')
             print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
 
-    def _write_boundary_scalar(self,fname,var,binary=False):
+    def _write_boundary_scalar(self,fname,var,binary=False,gzip=False):
         dim_order = ['t_index'] + self.bndry_dims
         u = self.ds[var].swap_dims({'datetime':'t_index'}).transpose(*dim_order)
         for ui in u:
             ti = float(ui['t_index'])
+            if ti < 0:
+                print('Skipping t=',ti)
+                continue
             tstamp = ui['datetime'].values
             tname = '{:g}'.format(ti)
             ui = ui.values.ravel(order='C')
