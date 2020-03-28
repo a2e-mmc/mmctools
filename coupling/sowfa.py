@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import os
 
-import gzip
+import gzip as gz
 
 
 pointsheader = """/*--------------------------------*- C++ -*----------------------------------*\\
@@ -431,6 +431,14 @@ class BoundaryCoupling(object):
                 self._write_boundary_scalar(fieldname, var=dvars,
                                             binary=binary, gzip=gzip)
 
+    def _open(self,fpath,fopts,gzip=False):
+        if gzip:
+            if not fpath.endswith('.gz'):
+                fpath += '.gz'
+            return gz.open(fpath, fopts)
+        else:
+            return open(fpath, fopts)
+
     def _write_points(self,fname='points',binary=False,gzip=False):
         x,y,z = np.meshgrid(self.ds.coords['x'],
                             self.ds.coords['y'],
@@ -444,13 +452,14 @@ class BoundaryCoupling(object):
         fpath = os.path.join(self.dpath, fname)
         if binary:
             header = pointsheader.format(patchName=self.name,N=N,fmt='binary')
-            with open(fpath, 'wb') as f:
+            with self._open(fpath, 'wb', gzip=gzip) as f:
                 f.write(bytes(header,'utf-8'))
                 f.write(pts.tobytes(order='C'))
                 f.write(b')')
         else:
             header = pointsheader.format(patchName=self.name,N=N,fmt='ascii')
-            np.savetxt(fpath, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
+            with self._open(fpath, 'w', gzip=gzip) as f:
+                np.savetxt(f, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
         print('Wrote',N,'points to',fpath)
 
     def _write_boundary_vector(self,fname,components,binary=False,gzip=False):
@@ -480,7 +489,7 @@ class BoundaryCoupling(object):
                         patchType='vector', patchName=self.name,
                         timeName=tname, avgValue='(0 0 0)',
                         N=N, fmt='binary')
-                with open(fpath, 'wb') as f:
+                with self._open(fpath, 'wb', gzip=gzip) as f:
                     f.write(bytes(header,'utf-8'))
                     f.write(data.tobytes(order='C'))
                     f.write(b')')
@@ -489,7 +498,8 @@ class BoundaryCoupling(object):
                         patchType='vector', patchName=self.name,
                         timeName=tname, avgValue='(0 0 0)',
                         N=N, fmt='ascii')
-                np.savetxt(fpath, data, fmt='(%g %g %g)', header=header, footer=')', comments='')
+                with self._open(fpath ,'w', gzip=gzip) as f:
+                    np.savetxt(f, data, fmt='(%g %g %g)', header=header, footer=')', comments='')
             print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
 
     def _write_boundary_scalar(self,fname,var,binary=False,gzip=False):
@@ -513,7 +523,7 @@ class BoundaryCoupling(object):
                         patchType='scalar', patchName=self.name,
                         timeName=tname, avgValue='0',
                         N=N, fmt='binary')
-                with open(fpath, 'wb') as f:
+                with self._open(fpath, 'wb', gzip=gzip) as f:
                     f.write(bytes(header,'utf-8'))
                     f.write(ui.tobytes(order='C'))
                     f.write(b')')
@@ -522,6 +532,7 @@ class BoundaryCoupling(object):
                         patchType='scalar', patchName=self.name,
                         timeName=tname, avgValue='0',
                         N=N, fmt='ascii')
-                np.savetxt(fpath, ui, fmt='%g', header=header, footer=')', comments='')
+                with self._open(fpath, 'w', gzip=gzip) as f:
+                    np.savetxt(f, ui, fmt='%g', header=header, footer=')', comments='')
             print('Wrote',N,'scalars to',fpath,'at',str(tstamp))
 
