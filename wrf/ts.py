@@ -322,6 +322,28 @@ class Toof(object):
         return selected_x, selected_y, selected_lat, selected_lon
 
 
+    def map_to_internal_field(self,datetime):
+        """Get internal field by interpolating between profiles at 
+        domain corners
+        """
+        dslist = []
+        for i in [0,-1]:
+            for j in [0,-1]:
+                ds = self.interp_to_latlon((self.domain.lat[i,j],
+                                            self.domain.lon[i,j]))
+                ds = ds.expand_dims({'x': [self.domain.x[i]],
+                                     'y': [self.domain.y[j]]})
+                dslist.append(ds.sel(datetime=datetime))
+        # combine all interpolated profiles
+        internaldata = xr.combine_by_coords(dslist)
+        # interpolate to cell centers
+        xcc = (self.domain.x[1:] + self.domain.x[:-1]) / 2
+        ycc = (self.domain.y[1:] + self.domain.y[:-1]) / 2
+        zcc = (self.domain.z[1:] + self.domain.z[:-1]) / 2
+        internaldata = internaldata.interp(x=xcc, y=ycc, height=zcc)
+        return internaldata
+        
+
     def estimate_horizontal_gradient(self,i=1,j=1,k=1,field='p'):
         """Estimate horizontal gradients centered at the specified tower
         (i,j,k).
