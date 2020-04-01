@@ -331,6 +331,7 @@ class BoundaryCoupling(object):
             datefrom = ds.coords['datetime'][0]
         if dateto is None:
             dateto = ds.coords['datetime'][-1]
+        self.ds = self.ds.sel(datetime=slice(datefrom,dateto))
 
         # Store start date for ICs
         self.datefrom = datefrom
