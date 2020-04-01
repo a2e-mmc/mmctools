@@ -354,14 +354,11 @@ class BoundaryCoupling(object):
             assert (coord.dims[0] == dim) and (len(coord.dims) == 1)
         # Only handle a single boundary plane at a time; boundaries
         # should be aligned with the Cartesian axes
-        assert np.count_nonzero([self.ds.dims[dim]==1 for dim in ['x','y','height']]) == 1
-        if self.ds.dims['x'] == 1:
-            constdim = 'x'
-        elif self.ds.dims['y'] == 1:
-            constdim = 'y'
-        elif self.ds.dims['z'] == 1:
-            constdim = 'z'
-        self.ds = self.ds.isel({constdim:0})
+        dims = expected_dims.copy()
+        for dim in self.ds.dims:
+            dims.remove(dim)
+        assert (len(dims) == 1)
+        constdim = dims[0]
         print('Input is an {:s}-boundary at {:g}'.format(constdim,
                                                          self.ds.coords[constdim].values))
         
