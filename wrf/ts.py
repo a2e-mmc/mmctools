@@ -259,22 +259,42 @@ class Toof(object):
         if self.verbose:
             print('selected lat:',selected_lat)
             print('selected lon:',selected_lon)
+        dslist = self._get_datasets_at_locations(
+                selected_x,selected_y,selected_lat,selected_lon)
+        # combine all interpolated profiles
+        boundarydata = self._create_dataset_from_list(i,j,k,allpts,dslist)
+        return boundarydata
+
+    def _get_datasets_at_locations(self,selected_x, selected_y, selected_lat, selected_lon):
         dslist = []
         for x,y,lat,lon in zip(selected_x, selected_y, selected_lat, selected_lon):
             ds = self.interp_to_latlon((lat,lon))
             ds = ds.expand_dims({'x':[x],'y':[y]})
             dslist.append(ds)
-        # combine all interpolated profiles
-        boundarydata = xr.combine_by_coords(dslist)
+        return dslist
+
+    def _create_dataset_from_list(self,i,j,k,allpts,dslist):
+        ds = xr.combine_by_coords(dslist)
+        if (i is not None):
+            mydim = 'x'
+            idx = i
+        elif (j is not None):
+            mydim = 'y'
+            idx = j
+        elif (k is not None):
+            mydim = 'height'
+            idx = k
         if ((i is not None) or (j is not None)) and allpts:
             # if allpts, interpolate side boundary profiles to exact domain heights
-            boundarydata = boundarydata.interp(height=self.domain.z)
+            ds = ds.interp(height=self.domain.z)
         elif k is not None:
             # if horizontal boundary, interpolate to constant z
             if self.verbose:
                 print('interpolating to',self.domain.z[k])
-            boundarydata = boundarydata.interp(height=self.domain.z[k])
-        return boundarydata
+            ds = ds.interp(height=self.domain.z[k])
+        else:
+            ds = ds.sel({mydim: ds.coords[mydim][idx]})
+        return ds
 
     def _select_boundary_latlon(self,i,j,k,allpts):
         """Helper function for map_to_boundary"""
