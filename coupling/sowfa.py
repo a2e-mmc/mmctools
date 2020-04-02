@@ -329,8 +329,12 @@ class BoundaryCoupling(object):
         # Use dataframe between datefrom and dateto
         if datefrom is None:
             datefrom = ds.coords['datetime'][0]
+        else:
+            datefrom = pd.to_datetime(datefrom)
         if dateto is None:
             dateto = ds.coords['datetime'][-1]
+        else:
+            dateto = pd.to_datetime(dateto)
         self.ds = self.ds.sel(datetime=slice(datefrom,dateto))
 
         # Store start date for ICs
@@ -340,8 +344,8 @@ class BoundaryCoupling(object):
         if dateref is None:
             dateref = self.ds.coords['datetime'][0]
         else:
-            dateref = pd.to_datetime(dateref).to_datetime64()
-        tidx = (self.ds['datetime'] - dateref) / np.timedelta64(1,'s')
+            dateref = pd.to_datetime(dateref)
+        tidx = (self.ds['datetime'] - dateref.to_datetime64()) / np.timedelta64(1,'s')
         self.ds = self.ds.assign_coords(t_index=('datetime',tidx))
 
     def _check_xarray_dataset(self,
