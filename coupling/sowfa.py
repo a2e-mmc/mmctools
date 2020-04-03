@@ -403,7 +403,8 @@ class BoundaryCoupling(object):
         for fieldname,dvars in fields.items():
             if isinstance(dvars, (list,tuple)):
                 # vector
-                assert all([dvar in self.ds.variables for dvar in dvars])
+                assert all([dvar in self.ds.variables for dvar in dvars]), \
+                        'Dataset does not contain all of '+str(dvars)
                 assert (len(dvars) == 3)
                 self._write_boundary_vector(fieldname, components=dvars,
                                             binary=binary, gzip=gzip)
@@ -444,9 +445,17 @@ class BoundaryCoupling(object):
         print('Wrote',N,'points to',fpath)
 
     def _write_boundary_vector(self,fname,components,binary=False,gzip=False):
+        ds = self.ds.copy()
+        # add missing dimensions, if any
+        for dim in self.bndry_dims:
+            for var in components:
+                if dim not in ds[var].dims:
+                    ds[var] = ds[var].expand_dims({dim: ds.coords[dim]})
+        #print(ds[list(components)])
+        # reorder the data so that raveling produces the correct order
         dim_order = ['t_index'] + self.bndry_dims
         uvec = [
-            self.ds[var].swap_dims({'datetime':'t_index'}).transpose(*dim_order)
+            ds[var].swap_dims({'datetime':'t_index'}).transpose(*dim_order)
             for var in components
         ]
         for ui,vi,wi in zip(*uvec):
@@ -482,8 +491,14 @@ class BoundaryCoupling(object):
             print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
 
     def _write_boundary_scalar(self,fname,var,binary=False,gzip=False):
+        ds = self.ds.copy()
+        # add missing dimensions, if any
+        for dim in self.bndry_dims:
+            if dim not in ds[var].dims:
+                ds[var] = ds[var].expand_dims({dim: ds.coords[dim]})
+        # reorder the data so that raveling produces the correct order
         dim_order = ['t_index'] + self.bndry_dims
-        u = self.ds[var].swap_dims({'datetime':'t_index'}).transpose(*dim_order)
+        u = ds[var].swap_dims({'datetime':'t_index'}).transpose(*dim_order)
         for ui in u:
             ti = float(ui['t_index'])
             if ti < 0:
