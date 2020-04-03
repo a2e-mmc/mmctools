@@ -402,10 +402,18 @@ class Tower():
         else:
             timestep = pd.to_timedelta(time_step, unit='s')
             endtime = start_time + self.nt*timestep + pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h')
-            times = pd.date_range(start=start_time+timestep+pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h'),
-                                  end=endtime,
-                                  periods=self.nt,
-                                  name='datetime')
+            try:
+                times = pd.date_range(start=(start_time+timestep+pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h')),
+                                      end=endtime,
+                                      periods=self.nt,
+                                      name='datetime')
+            except TypeError:
+                print('Trying with index')
+                times = pd.date_range(start=(start_time+timestep+pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h'))[0],
+                                      end=endtime[0],
+                                      periods=self.nt,
+                                      name='datetime')
+            
         # combine (and interpolate) time-height data
         # - note 1: self.[varn].shape == self.height.shape == (self.nt, self.nz)
         # - note 2: arraydata.shape == (self.nt, len(varns)*self.nz)
