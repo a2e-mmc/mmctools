@@ -384,9 +384,17 @@ class BoundaryCoupling(object):
             Write out actual data (coordinates, scalars, vectors) in
             binary for faster I/O
         """
+        # check output options
+        if binary and gzip:
+            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            print('! Note: Compressed binary is inefficient.                   !')
+            print('! You probably want:                                        !')
+            print('! * uncompressed binary (most efficient for openfoam), or   !')
+            print('! * compressed ascii (readable for debug, less space usage) !')
+            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        # make sure ordering of bnd_dims is correct
         dims = list(self.ds.dims)
         dims.remove('datetime')
-        # make sure ordering of bnd_dims is correct
         self.bndry_dims = [dim for dim in ['x','y','height'] if dim in dims]
         assert (len(self.bndry_dims) == 2)
         # write out patch/points
@@ -463,14 +471,14 @@ class BoundaryCoupling(object):
                     f.write(bytes(header,'utf-8'))
                     f.write(data.tobytes(order='C'))
                     f.write(b')')
-                    f.write(b'\n(0 0 0) // average value')
+                    f.write(b'\n(0 0 0)')
             else:
                 with self._open(fpath ,'w', gzip=gzip) as f:
                     np.savetxt(f, data, fmt='(%g %g %g)', header=header, footer=')', comments='')
-                    try:
-                        f.write('\n(0 0 0) // average value')
-                    except TypeError:
+                    if gzip:
                         f.write(b'\n(0 0 0) // average value')
+                    else:
+                        f.write('\n(0 0 0) // average value')
             print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
 
     def _write_boundary_scalar(self,fname,var,binary=False,gzip=False):
@@ -495,13 +503,13 @@ class BoundaryCoupling(object):
                     f.write(bytes(header,'utf-8'))
                     f.write(ui.tobytes(order='C'))
                     f.write(b')')
-                    f.write(b'\n0 // average value')
+                    f.write(b'\n0')
             else:
                 with self._open(fpath, 'w', gzip=gzip) as f:
                     np.savetxt(f, ui, fmt='%g', header=header, footer=')', comments='')
-                    try:
+                    if gzip:
                         f.write(b'\n0 // average value')
-                    except TypeError:
+                    else:
                         f.write('\n0 // average value')
             print('Wrote',N,'scalars to',fpath,'at',str(tstamp))
 
