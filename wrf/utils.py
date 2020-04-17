@@ -669,6 +669,8 @@ class Tower():
             ds = ds.assign_coords(station=self.abbr)
             ds = ds.expand_dims(['station'],axis=[2])
             # Add station coordinates as data variables:
+            ds['i'] = (['station'],  [self.loci])
+            ds['j'] = (['station'],  [self.locj])
             ds['lat'] = (['station'],  [self.gridlat])
             ds['lon'] = (['station'],  [self.gridlon])
             ds['zsurface'] = (['station'],  [self.stationz])
