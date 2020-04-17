@@ -641,10 +641,9 @@ class Tower():
                 time_unit=time_unit, time_step=time_step,
                 heights=heights, height_var=height_var, agl=agl,
                 **kwargs)
+        ds = df.to_xarray()
         if structure == 'ordered':
-            ds = df.to_xarray()
-            ds = ds.assign_coords(i=self.loci)
-            ds = ds.assign_coords(j=self.locj)
+            ds = ds.assign_coords(i=self.loci, j=self.locj)
             ds = ds.expand_dims(['j','i'],axis=[2,3])
             #ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
             #ds = ds.assign_coords(height=ds.ph)
@@ -654,7 +653,8 @@ class Tower():
             # Add zsurface (station height) as a data variable:
             ds['zsurface'] = (['j','i'],  np.ones((1,1))*self.stationz)
         elif structure == 'unordered':
-            ds = df.to_xarray().assign_coords(station=self.abbr).expand_dims(['station'],axis=[2])
+            ds = ds.assign_coords(station=self.abbr)
+            ds = ds.expand_dims(['station'],axis=[2])
             #ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
             #ds = ds.assign_coords(height=ds.ph)
             ds = ds.rename_dims({'height':'k'})
