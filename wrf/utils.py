@@ -642,24 +642,28 @@ class Tower():
                 heights=heights, height_var=height_var, agl=agl,
                 **kwargs)
         ds = df.to_xarray()
+        # update height dimension
+        if heights is None:
+            # no interpolation, heights are indicies
+            ds = ds.rename_dims({'height':'k'})
+            ds = ds.rename_vars({'height':'k'})
+        else:
+            # interpolation performed, drop height_var
+            ds = ds.drop_vars([height_var])
+        # update coords and dims
         if structure == 'ordered':
             ds = ds.assign_coords(i=self.loci, j=self.locj)
             ds = ds.expand_dims(['j','i'],axis=[2,3])
-            #ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
-            #ds = ds.assign_coords(height=ds.ph)
-            ds = ds.rename_dims({'height':'k'})
-            ds["lat"] = (['j','i'],  np.ones((1,1))*self.gridlat)
-            ds["lon"] = (['j','i'],  np.ones((1,1))*self.gridlon)
-            # Add zsurface (station height) as a data variable:
-            ds['zsurface'] = (['j','i'],  np.ones((1,1))*self.stationz)
+            # Add station coordinates as data variables:
+            ds['lat'] = (['j','i'],  np.ones((1,1))*self.gridlat)
+            ds['lon'] = (['j','i'],  np.ones((1,1))*self.gridlon)
+            ds['zsurface'] = (['j','i'],  [[self.stationz]])
         elif structure == 'unordered':
             ds = ds.assign_coords(station=self.abbr)
             ds = ds.expand_dims(['station'],axis=[2])
-            #ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
-            #ds = ds.assign_coords(height=ds.ph)
-            ds = ds.rename_dims({'height':'k'})
-            ds["lat"] = (['station'],  [self.gridlat])
-            ds["lon"] = (['station'],  [self.gridlon])
+            # Add station coordinates as data variables:
+            ds['lat'] = (['station'],  [self.gridlat])
+            ds['lon'] = (['station'],  [self.gridlon])
             ds['zsurface'] = (['station'],  [self.stationz])
         
         for varn in self.ts_varns:
