@@ -642,6 +642,7 @@ class Tower():
                 heights=heights, height_var=height_var, agl=agl,
                 **kwargs)
         ds = df.to_xarray()
+
         # update height dimension
         if heights is None:
             # no interpolation, heights are indicies
@@ -650,6 +651,7 @@ class Tower():
         else:
             # interpolation performed, drop height_var
             ds = ds.drop_vars([height_var])
+
         # update coords and dims
         if structure == 'ordered':
             ds = ds.assign_coords(i=self.loci, j=self.locj)
@@ -666,9 +668,12 @@ class Tower():
             ds['lon'] = (['station'],  [self.gridlon])
             ds['zsurface'] = (['station'],  [self.stationz])
         
+        # add ts data (no k/height dim)
         for varn in self.ts_varns:
-            tsvar = getattr(self, varn.lower())
-            ds[varn.lower()] = (['datetime','j','i'],np.expand_dims(np.expand_dims(tsvar,axis=1),axis=1) )
+            varn = varn.lower()
+            tsvar = getattr(self, varn)
+            ds[varn] = (['datetime','j','i'], tsvar[:,np.newaxis,np.newaxis])
+
         return ds
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
