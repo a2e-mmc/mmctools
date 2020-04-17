@@ -1045,20 +1045,27 @@ def combine_towers(fdir, restarts, simulation_start, fname,
                 data_previous = dataF
         else:
             dataF = data_block
+    if heights is None:
+        height_dim = 'k'
+        height_var = 'ph'
+    else:
+        height_dim = 'height'
+        height_var = 'height'
     if structure == 'ordered':
     # -------------------------------------------------------       
     #               MMC Format specifications
-        dataF = dataF.rename_dims({'k':'nz',
+        dataF = dataF.rename_dims({height_dim:'nz',
                                    'i':'nx',
                                    'j':'ny'})
         xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
         dataF = dataF.assign_coords(x=(('ny','nx'),xcoord))
         dataF = dataF.assign_coords(y=(('ny','nx'),ycoord))
-        dataF = dataF.assign_coords(z=dataF.ph).reset_index(['i','j'],drop=True).drop('ph')
+        dataF = dataF.assign_coords(z=dataF[height_var])
+        dataF = dataF.reset_index(['i','j'],drop=True).drop(height_var)
         dataF.attrs['DX'] = dx
         dataF.attrs['DY'] = dy
     elif structure == 'unordered':
-        dataF = dataF.rename_dims({'k':'nz'})
+        dataF = dataF.rename_dims({height_dim:'nz'})
     dataF = dataF.assign_coords(lat=dataF.lat)
     dataF = dataF.assign_coords(lon=dataF.lon)
     dataF = dataF.assign_coords(zsurface=dataF.zsurface)
