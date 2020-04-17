@@ -14,15 +14,19 @@
 '''
 from __future__ import print_function
 import os, glob
+from datetime import datetime
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from datetime import datetime
-import netCDF4
 import xarray as xr
 from scipy.spatial import KDTree
 from scipy.interpolate import interp1d, LinearNDInterpolator
+import netCDF4
 import wrf as wrfpy
+
+from ..helper_functions import calc_wind
+
 
 # List of default WRF fields for extract_column_from_wrfdata
 default_3D_fields = ['U10','V10','T2','TSK','UST','PSFC','HFX','LH','MUU','MUV','MUT']
@@ -297,6 +301,7 @@ class Tower():
                             'found multiple files for {:s}: {:s}'.format(varn,files)
                     self.varns.append(varn)
                     self.filelist.append(files[0])
+        assert len(self.filelist) > 0, 'No TS output found in '+fstr
 
     def _getdata(self): # Get all the data
         for varn,fpath in zip(self.varns, self.filelist):
@@ -353,7 +358,7 @@ class Tower():
                         setattr(self, name.lower(), col.values)
                     self.ts_varns = list(tsdata.columns)
 
-    def _create_datadict(self,varns,unstagger=False,staggered_vars=[]):
+    def _create_datadict(self,varns,unstagger=False,staggered_vars=['ph']):
         """Helper function for to_dataframe()"""
         datadict = {}
         for varn in varns:
@@ -382,10 +387,23 @@ class Tower():
 
     def to_dataframe(self,start_time,
                      time_unit='h',time_step=None,
-                     unstagger=True,staggered_vars=['ww','ph'],
+                     unstagger=True,
                      heights=None,height_var='height',agl=False,
                      exclude=['ts']):
         """Convert tower time-height data into a dataframe.
+
+        Treatment of the time-varying height coordinates is summarized
+        below:
+
+        heights  height_var  resulting height index
+        -------  ----------  ------------------------------------------
+        None     n/a         levels (Int64Index)
+        None     1d array    assumed constant in time (Float64Index)
+        input    1d array    interpolate to input heights, assuming
+                             constant heights in time (Float64Index)
+        input    2d array    interpolate to input heights at all times
+                             accounting for change in heights over time
+                             (Float64Index)
         
         Note: TS profiles are output at staggered locations for _all_
         variables, regardless of whether they are staggered or not.
@@ -439,9 +457,6 @@ class Tower():
         unstagger: bool, optional
             Unstagger all variables so that all quantities are output at
             the correct height; only used if heights are not specified
-        staggered_vars: list, optional
-            Variables that should be unstaggered if interpolation heights
-            are provided (default: vertical velocity, geopotential height)
         heights : array-like or None, optional
             If None, then use integer levels for the height index,
             otherwise interpolate to the same heights at all times.
@@ -484,7 +499,7 @@ class Tower():
                 nz = self.nz - 1
             else:
                 nz = self.nz
-            datadict = self._create_datadict(varns,unstagger,staggered_vars)
+            datadict = self._create_datadict(varns,unstagger)
             if hasattr(self, height_var):
                 # heights (constant in time) were separately calculated
                 z = getattr(self, height_var)
@@ -503,9 +518,9 @@ class Tower():
             zt_stag = getattr(self, height_var) # z(t)
             if agl:
                 zt_stag -= self.stationz
-            # both sets of vars include geopotential height, ph
-            varns_unstag = [varn for varn in varns if (not varn in staggered_vars)]
-            varns_stag = staggered_vars
+            varns_unstag = varns.copy()
+            varns_unstag.remove('ph')
+            varns_stag = ['ph']
             if len(zt_stag.shape) == 1:
                 # approximately constant height (with time)
                 assert len(zt_stag) == self.nz
@@ -539,8 +554,8 @@ class Tower():
                 # interpolate for all times
                 assert zt_stag.shape == (self.nt, self.nz), \
                         'heights should correspond to time-height indices'
-                zt_unstag = (zt_stag[:,1:] + zt_stag[:,:-1]) / 2
                 datadict = {}
+                zt_unstag = (zt_stag[:,1:] + zt_stag[:,:-1]) / 2
                 for varn in varns_unstag:
                     newdata = np.empty((self.nt, len(z)))
                     tsdata = getattr(self,varn)
@@ -574,35 +589,97 @@ class Tower():
         df.rename(columns=self.standard_names, inplace=True)
         return df
 
-    def to_xarray(self,
-                  start_time='2013-11-08',time_unit='h',time_step=None,
-                  heights=None,height_var='height',
-                  exclude=['ts'],
-                  structure='ordered'):
+    def to_xarray(self,start_time,
+                  time_unit='h',time_step=None,
+                  heights=None,height_var='height',agl=False,
+                  structure='ordered',
+                  **kwargs):
+        """Convert tower time-height data into a xarray dataset.
         
+        Treatment of the time-varying height coordinates is summarized
+        below:
+
+        heights  height_var  resulting height index
+        -------  ----------  ------------------------------------------
+        None     n/a         levels (Int64Index)
+        None     1d array    assumed constant in time (Float64Index)
+        input    1d array    interpolate to input heights, assuming
+                             constant heights in time (Float64Index)
+        input    2d array    interpolate to input heights at all times
+                             accounting for change in heights over time
+                             (Float64Index)
+        
+        Parameters
+        ----------
+        start_time: str or pd.Timestamp
+            The datetime index is constructed from a pd.TimedeltaIndex
+            plus this start_time, where the timedelta index is formed by
+            the saved time array.
+        time_unit: str
+            Timedelta unit for constructing datetime index, only used if
+            time_step is None.
+        time_step: float or None
+            Time-step size, in seconds, to override the output times in
+            the data files. Used in conjunction with start_time to form
+            the datetime index. May be useful if times in output files
+            do not have sufficient precision.
+        heights : array-like or None
+            If None, then use integer levels for the height index,
+            otherwise interpolate to the same heights at all times.
+        height_var : str
+            Name of attribute with actual height values to form the
+            height index. If heights is None, then this must match the
+            number of height levels; otherwise, this may be constant
+            or variable in time.
+        agl : bool, optional
+            Heights by default are specified above sea level; if True,
+            then the "stationz" attribute is used to convert to heights
+            above ground level (AGL).  This only applies if heights are
+            specified.
+        """
         df = self.to_dataframe(start_time,
                 time_unit=time_unit, time_step=time_step,
                 heights=heights, height_var=height_var, agl=agl,
-                exclude=exclude)
+                **kwargs)
+        ds = df.to_xarray()
+
+        # update height dimension
+        if heights is None:
+            # no interpolation, heights are indicies
+            ds = ds.rename_dims({'height':'k'})
+            ds = ds.rename_vars({'height':'k'})
+        else:
+            # interpolation performed, drop height_var
+            ds = ds.drop_vars([height_var])
+
+        # update coords and dims
         if structure == 'ordered':
-            ds = df.to_xarray().assign_coords(i=self.loci).assign_coords(j=self.locj).expand_dims(['j','i'],axis=[2,3])
-            ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
-            ds = ds.assign_coords(height=ds.ph)
-            ds["lat"] = (['j','i'],  np.ones((1,1))*self.gridlat)
-            ds["lon"] = (['j','i'],  np.ones((1,1))*self.gridlon)
-            # Add zsurface (station height) as a data variable:
-            ds['zsurface'] = (['j','i'],  np.ones((1,1))*self.stationz)
+            ds = ds.assign_coords(i=self.loci, j=self.locj)
+            ds = ds.expand_dims(['j','i'],axis=[2,3])
+            # Add station coordinates as data variables:
+            ds['lat'] = (['j','i'],  [[self.gridlat]])
+            ds['lon'] = (['j','i'],  [[self.gridlon]])
+            ds['zsurface'] = (['j','i'],  [[self.stationz]])
+            # Add ts data (no k/height dim)
+            for varn in self.ts_varns:
+                varn = varn.lower()
+                tsvar = getattr(self, varn)
+                ds[varn] = (['datetime','j','i'], tsvar[:,np.newaxis,np.newaxis])
         elif structure == 'unordered':
-            ds = df.to_xarray().assign_coords(station=self.abbr).expand_dims(['station'],axis=[2])
-            ds = ds.reset_index(['height'], drop = True).rename_dims({'height':'k'})
-            ds = ds.assign_coords(height=ds.ph)
-            ds["lat"] = (['station'],  [self.gridlat])
-            ds["lon"] = (['station'],  [self.gridlon])
+            ds = ds.assign_coords(station=self.abbr)
+            ds = ds.expand_dims(['station'],axis=[2])
+            # Add station coordinates as data variables:
+            ds['i'] = (['station'],  [self.loci])
+            ds['j'] = (['station'],  [self.locj])
+            ds['lat'] = (['station'],  [self.gridlat])
+            ds['lon'] = (['station'],  [self.gridlon])
             ds['zsurface'] = (['station'],  [self.stationz])
-        
-        for varn in self.ts_varns:
-            tsvar = getattr(self, varn.lower())
-            ds[varn.lower()] = (['datetime','j','i'],np.expand_dims(np.expand_dims(tsvar,axis=1),axis=1) )
+            # Add ts data (no k/height dim)
+            for varn in self.ts_varns:
+                varn = varn.lower()
+                tsvar = getattr(self, varn)
+                ds[varn] = (['datetime','station'], tsvar[:,np.newaxis])
+
         return ds
 
 def wrf_times_to_hours(wrfdata,timename='Times'):
@@ -922,8 +999,11 @@ def extract_column_from_wrfdata(fpath, coords,
     return xn
 
 
-def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray', structure='ordered',
-                   time_step=None, heights=None, height_var='heights'):
+def combine_towers(fdir, restarts, simulation_start, fname,
+                   structure='ordered', time_step=None,
+                   dx=12.0, dy=12.0,
+                   heights=None, height_var='heights', agl=False,
+                   verbose=True, **kwargs):
     '''
     Combine together tslist files in time where, if there is any overlap, the later file
     will overwrite the earlier file. This makes the assumption that all of the tslist 
@@ -934,80 +1014,78 @@ def combine_towers(fdir, restarts, simulation_start, fname, return_type='xarray'
 
     fdir             = 'path/to/restart/directories/'
     restarts         = ['restart_dir_1', 'restart_dir_2', 'restart_dir_3']
+                       or None (for single run with output in fdir)
     simulation_start = ['2000-01-01 00:00','2000-01-01 00:00','2000-01-01 00:00']
+                       or '2000-01-01 00:00' for a single run
     fname            = ['t0001.d02'] (Note: this is the prefix for the tower + domain)
-    return_type      = 'xarray' or 'dataframe'
     structure        = 'ordered' or 'unordered'
-
-    This will work with a pandas df or an xarray ds/da
     '''
+    if not isinstance(simulation_start,(list,tuple)):
+        simulation_start = [simulation_start]
+    if restarts is None:
+        restarts = ['.']
+    assert len(simulation_start) == len(restarts), 'restarts and simulation_start are not equal'
     for rst,restart in enumerate(restarts):
-        if np.size(simulation_start) == 1:
-            sim_start = simulation_start
-        elif np.size(simulation_start) == np.size(restarts):
-            sim_start = simulation_start[rst]
-        else:
-            raise ValueError('restarts and simulation_start are not equal')
-        print('restart: {}'.format(restart))
+        if verbose:
+            print('restart: {}'.format(restart))
         data = []
         for ff in fname:
-            
-            print('starting {}'.format(ff))
-            if return_type == 'xarray':
-                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_xarray(start_time=sim_start,
-                                                                            time_step=time_step,
-                                                                            structure=structure,
-                                                                            heights=heights,
-                                                                            height_var=height_var))
-            elif return_type == 'dataframe':
-                data.append(Tower('{}{}/{}'.format(fdir,restart,ff)).to_dataframe(start_time=sim_start,
-                                                                            time_step=time_step,
-                                                                            structure=structure,
-                                                                            heights=heights,
-                                                                            height_var=height_var))
+            if verbose:
+                print('starting {}'.format(ff))
+            fpath = os.path.join(fdir,restart,ff)
+            tow = Tower(fpath)
+            ds = tow.to_xarray(start_time=simulation_start[rst],
+                               time_step=time_step,
+                               structure=structure,
+                               heights=heights,
+                               height_var=height_var,
+                               agl=agl,
+                               **kwargs)
+            data.append(ds)
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
             if rst == 0:
                 data_previous = data_block
-
             else:
                 dataF = data_block.combine_first(data_previous)
                 data_previous = dataF
         else:
             dataF = data_block
+    if heights is None:
+        height_dim = 'k'
+        height_var = 'ph'
+    else:
+        height_dim = 'height'
+        height_var = 'height'
     if structure == 'ordered':
     # -------------------------------------------------------       
     #               MMC Format specifications
-        dataF = dataF.rename_dims({'k':'nz',
+        dataF = dataF.rename_dims({height_dim:'nz',
                                    'i':'nx',
                                    'j':'ny'})
-        dx,dy = 12.0, 12.0
         xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
-        dataF = dataF.assign_coords(x=(('ny','nx'),xcoord)).assign_coords(y=(('ny','nx'),ycoord))
-        dataF = dataF.assign_coords(z=dataF.ph).reset_index(['i','j'],drop=True).drop('ph')
+        dataF = dataF.assign_coords(x=(('ny','nx'),xcoord))
+        dataF = dataF.assign_coords(y=(('ny','nx'),ycoord))
+        dataF = dataF.assign_coords(z=dataF[height_var])
+        dataF = dataF.reset_index(['i','j'],drop=True).drop(height_var)
         dataF.attrs['DX'] = dx
         dataF.attrs['DY'] = dy
     elif structure == 'unordered':
-        dataF = dataF.rename_dims({'k':'nz'})
-    dataF = dataF.assign_coords(lat=dataF.lat).assign_coords(lon=dataF.lon)
+        dataF = dataF.rename_dims({height_dim:'nz'})
+    dataF = dataF.assign_coords(lat=dataF.lat)
+    dataF = dataF.assign_coords(lon=dataF.lon)
     dataF = dataF.assign_coords(zsurface=dataF.zsurface)
-    dataF['wspd'] = (dataF['u']**2.0 + dataF['v']**2.0)**0.5
-    dataF['wdir'] = 180. + np.degrees(np.arctan2(dataF['u'], dataF['v']))        
 
-    dataF.attrs['SIMULATION_START_DATE'] = sim_start
+    dataF['wspd'],dataF['wdir'] = calc_wind(dataF)
+
     dataF.attrs['CREATED_FROM'] = fdir
-
-    # -------------------------------------------------------       
-    #dx,dy = 12.0, 12.0
-    #xcoord,ycoord = np.meshgrid(dataF.i*dx,dataF.j*dy)
-    #dataF = dataF.assign_coords(x=(('j','i'),xcoord)).assign_coords(y=(('j','i'),ycoord)).assign_coords(lat=dataF.lat).assign_coords(lon=dataF.lon)
-    #dataF = dataF.assign_coords(z=dataF.ph).drop('ph').assign_coords(k=dataF.k)
 
     return dataF
 
 
-def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest, structure='ordered',
-                       time_step=None, heights=None, height_var='heights',select_tower=None):
+def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest,
+                       structure='ordered', time_step=None,
+                       heights=None, height_var='heights', select_tower=None):
     '''
     This will combine a series of tslist output over time and location based on the
     path to the case (fdir), the restart directories (restarts), a model start time 
@@ -1049,8 +1127,9 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
                 if twr in twr_n: good_towers.append(twr_n)
         tower_names = good_towers
     
-    dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,return_type='xarray',
-                         structure=structure, time_step=time_step, heights=heights, height_var=height_var)
+    dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,
+                         structure=structure, time_step=time_step,
+                         heights=heights, height_var=height_var)
     return dsF
 
 
