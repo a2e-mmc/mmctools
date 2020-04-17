@@ -589,8 +589,8 @@ class Tower():
         df.rename(columns=self.standard_names, inplace=True)
         return df
 
-    def to_xarray(self,
-                  start_time='2013-11-08',time_unit='h',time_step=None,
+    def to_xarray(self,start_time,
+                  time_unit='h',time_step=None,
                   heights=None,height_var='height',agl=False,
                   exclude=['ts'],
                   structure='ordered',
