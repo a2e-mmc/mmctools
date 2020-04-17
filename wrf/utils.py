@@ -660,6 +660,11 @@ class Tower():
             ds['lat'] = (['j','i'],  [[self.gridlat]])
             ds['lon'] = (['j','i'],  [[self.gridlon]])
             ds['zsurface'] = (['j','i'],  [[self.stationz]])
+            # Add ts data (no k/height dim)
+            for varn in self.ts_varns:
+                varn = varn.lower()
+                tsvar = getattr(self, varn)
+                ds[varn] = (['datetime','j','i'], tsvar[:,np.newaxis,np.newaxis])
         elif structure == 'unordered':
             ds = ds.assign_coords(station=self.abbr)
             ds = ds.expand_dims(['station'],axis=[2])
@@ -667,12 +672,11 @@ class Tower():
             ds['lat'] = (['station'],  [self.gridlat])
             ds['lon'] = (['station'],  [self.gridlon])
             ds['zsurface'] = (['station'],  [self.stationz])
-        
-        # add ts data (no k/height dim)
-        for varn in self.ts_varns:
-            varn = varn.lower()
-            tsvar = getattr(self, varn)
-            ds[varn] = (['datetime','j','i'], tsvar[:,np.newaxis,np.newaxis])
+            # Add ts data (no k/height dim)
+            for varn in self.ts_varns:
+                varn = varn.lower()
+                tsvar = getattr(self, varn)
+                ds[varn] = (['datetime','station'], tsvar[:,np.newaxis])
 
         return ds
 
