@@ -592,7 +592,6 @@ class Tower():
     def to_xarray(self,start_time,
                   time_unit='h',time_step=None,
                   heights=None,height_var='height',agl=False,
-                  exclude=['ts'],
                   structure='ordered',
                   **kwargs):
         """Convert tower time-height data into a xarray dataset.
@@ -637,14 +636,10 @@ class Tower():
             then the "stationz" attribute is used to convert to heights
             above ground level (AGL).  This only applies if heights are
             specified.
-        exclude : list
-            List of fields to excldue from the output dataframe. By
-            default, the surface time-series data ('ts') are excluded.
         """
         df = self.to_dataframe(start_time,
                 time_unit=time_unit, time_step=time_step,
                 heights=heights, height_var=height_var, agl=agl,
-                exclude=exclude,
                 **kwargs)
         if structure == 'ordered':
             ds = df.to_xarray()
