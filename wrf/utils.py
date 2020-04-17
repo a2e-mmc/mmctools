@@ -657,8 +657,8 @@ class Tower():
             ds = ds.assign_coords(i=self.loci, j=self.locj)
             ds = ds.expand_dims(['j','i'],axis=[2,3])
             # Add station coordinates as data variables:
-            ds['lat'] = (['j','i'],  np.ones((1,1))*self.gridlat)
-            ds['lon'] = (['j','i'],  np.ones((1,1))*self.gridlon)
+            ds['lat'] = (['j','i'],  [[self.gridlat]])
+            ds['lon'] = (['j','i'],  [[self.gridlon]])
             ds['zsurface'] = (['j','i'],  [[self.stationz]])
         elif structure == 'unordered':
             ds = ds.assign_coords(station=self.abbr)
