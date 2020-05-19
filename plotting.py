@@ -137,8 +137,10 @@ def plot_timeheight(datasets,
         Custom field labels. If only one field is plotted, fieldlabels
         can be a string. Otherwise it should be a dictionary with
         entries <fieldname>: fieldlabel
-    labelsubplots : bool
-        Label subplots as (a), (b), (c), ...
+    labelsubplots : bool, list or tuple
+        Label subplots as (a), (b), (c), ... If a list or tuple is given
+        their values should be the horizontal and vertical position 
+        relative to each subaxis.
     showcolorbars : bool
         Show colorbar per subplot
     fieldorder : 'C' or 'F'
@@ -314,9 +316,13 @@ def plot_timeheight(datasets,
         _align_labels(fig,[cb.ax for cb in cbars],nrows,ncols)
     
     # Number sub figures as a, b, c, ...
-    if labelsubplots:
+    if labelsubplots is not False:
+        try:
+            hoffset, voffset = labelsubplots
+        except (TypeError, ValueError):
+            hoffset, voffset = -0.14, 1.0
         for i,axi in enumerate(axv):
-            axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+            axi.text(hoffset,voffset,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Return cbar instead of array if ntotal==1
     if len(cbars)==1:
@@ -394,8 +400,10 @@ def plot_timehistory_at_height(datasets,
         If True, stack datasets together, otherwise stack by heights. If
         None, stack_by_datasets will be set based on the number of heights
         and datasets. 
-    labelsubplots : bool
-        Label subplots as (a), (b), (c), ...
+    labelsubplots : bool, list or tuple
+        Label subplots as (a), (b), (c), ... If a list or tuple is given
+        their values should be the horizontal and vertical position 
+        relative to each subaxis.
     showlegend : bool (or None)
         Label different plots and show legend. If None, showlegend is set
         to True if legend will have more than one entry, otherwise it is
@@ -603,9 +611,13 @@ def plot_timehistory_at_height(datasets,
             axi.set_xlabel('time [s]')
 
     # Number sub figures as a, b, c, ...
-    if labelsubplots:
+    if labelsubplots is not False:
+        try:
+            hoffset, voffset = labelsubplots
+        except (TypeError, ValueError):
+            hoffset, voffset = -0.14, 1.0
         for i,axi in enumerate(axv):
-            axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+            axi.text(hoffset,voffset,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Add legend
     if showlegend:
@@ -689,8 +701,10 @@ def plot_profile(datasets,
         If True, stack datasets together, otherwise stack by times. If
         None, stack_by_datasets will be set based on the number of times
         and datasets. 
-    labelsubplots : bool
-        Label subplots as (a), (b), (c), ...
+    labelsubplots : bool, list or tuple
+        Label subplots as (a), (b), (c), ... If a list or tuple is given
+        their values should be the horizontal and vertical position 
+        relative to each subaxis.
     showlegend : bool (or None)
         Label different plots and show legend. If None, showlegend is set
         to True if legend will have more than one entry, otherwise it is
@@ -892,9 +906,13 @@ def plot_profile(datasets,
     _align_labels(fig,axv,nrows,ncols)
     
     # Number sub figures as a, b, c, ...
-    if labelsubplots:
+    if labelsubplots is not False:
+        try:
+            hoffset, voffset = labelsubplots
+        except (TypeError, ValueError):
+            hoffset, voffset = -0.14, -0.18
         for i,axi in enumerate(axv):
-            axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+            axi.text(hoffset,voffset,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
     
     # Add legend
     if showlegend:
@@ -961,8 +979,10 @@ def plot_spectrum(datasets,
         Custom field labels. If only one field is plotted, fieldlabels
         can be a string. Otherwise it should be a dictionary with
         entries <fieldname>: fieldlabel
-    labelsubplots : bool
-        Label subplots as (a), (b), (c), ...
+    labelsubplots : bool, list or tuple
+        Label subplots as (a), (b), (c), ... If a list or tuple is given
+        their values should be the horizontal and vertical position 
+        relative to each subaxis.
     showlegend : bool (or None)
         Label different plots and show legend. If None, showlegend is set
         to True if legend will have more than one entry, otherwise it is
@@ -1097,9 +1117,13 @@ def plot_spectrum(datasets,
         axv[0].set_xlim(freqlimits)
 
     # Number sub figures as a, b, c, ...
-    if labelsubplots:
+    if labelsubplots is not False:
+        try:
+            hoffset, voffset = labelsubplots
+        except (TypeError, ValueError):
+            hoffset, voffset = -0.14, -0.18
         for i,axi in enumerate(axv):
-            axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+            axi.text(hoffset,voffset,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Add legend
     if showlegend:
