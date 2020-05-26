@@ -60,12 +60,12 @@ spectrumlabels_default_units = {
     'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
 }
 spectrumlabels_superscript_units = {
-    'u': r'$E_{uu}\;[\mathrm{m^2 s^{-1}}]$',
-    'v': r'$E_{vv}\;[\mathrm{m^2 s^{-1}}]$',
-    'w': r'$E_{ww}\;[\mathrm{m^2 s^{-1}}]$',
-    'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
-    'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
-    'wspd': r'$E_{UU}\;[\mathrm{m^2 s^{-1}}]$',
+    'u': r'$E_{uu}\;[\mathrm{m^2\;s^{-1}}]$',
+    'v': r'$E_{vv}\;[\mathrm{m^2\;s^{-1}}]$',
+    'w': r'$E_{ww}\;[\mathrm{m^2\;s^{-1}}]$',
+    'theta': r'$E_{\theta\theta}\;[\mathrm{K^2\;s}]$',
+    'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2\;s}]$',
+    'wspd': r'$E_{UU}\;[\mathrm{m^2\;s^{-1}}]$',
 }
 
 # Default settings
@@ -1100,7 +1100,7 @@ def plot_spectrum(datasets,
 
     # Set frequency label
     for c in range(ncols):
-        axv[ncols*(nrows-1)+c].set_xlabel('f [Hz]')
+        axv[ncols*(nrows-1)+c].set_xlabel('$f$ [Hz]')
 
     # Specify field label if specified 
     for r in range(nrows):
