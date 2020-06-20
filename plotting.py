@@ -1832,7 +1832,8 @@ class TaylorDiagram(object):
     """
 
     def __init__(self, refstd,
-                 fig=None, rect=111, label='_', srange=(0, 1.5), extend=False):
+                 fig=None, rect=111, label='_', srange=(0, 1.5), extend=False,
+                 labelsize=16):
         """
         Set up Taylor diagram axes, i.e. single quadrant polar
         plot, using `mpl_toolkits.axisartist.floating_axes`.
@@ -1889,14 +1890,20 @@ class TaylorDiagram(object):
         ax.axis["top"].major_ticklabels.set_axis_direction("top")
         ax.axis["top"].label.set_axis_direction("top")
         ax.axis["top"].label.set_text("Correlation")
+        ax.axis["top"].label.set_fontsize(labelsize)
+        ax.axis["top"].major_ticklabels.set_fontsize(labelsize)
 
         ax.axis["left"].set_axis_direction("bottom")  # "X axis"
         ax.axis["left"].label.set_text("Standard deviation")
+        ax.axis["left"].label.set_fontsize(labelsize)
+        ax.axis["left"].major_ticklabels.set_fontsize(labelsize)
 
         ax.axis["right"].set_axis_direction("top")    # "Y-axis"
         ax.axis["right"].toggle(ticklabels=True)
         ax.axis["right"].major_ticklabels.set_axis_direction(
             "bottom" if extend else "left")
+        ax.axis["right"].label.set_fontsize(labelsize)
+        ax.axis["right"].major_ticklabels.set_fontsize(labelsize)
 
         if self.smin:
             ax.axis["bottom"].toggle(ticklabels=False, label=False)
