@@ -1992,3 +1992,8 @@ class TaylorDiagram(object):
         """
         self._ax.axis["left"].label.set_text(label)
 
+    def set_alabel(self, label):
+        """
+        Set the label for the azimuthal axis
+        """
+        self._ax.axis["top"].label.set_text(label)
