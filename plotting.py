@@ -1986,3 +1986,9 @@ class TaylorDiagram(object):
 
         return contours
 
+    def set_xlabel(self, label):
+        """
+        Set the label for the standard deviation axis
+        """
+        self._ax.axis["left"].label.set_text(label)
+
