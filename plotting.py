@@ -1833,6 +1833,7 @@ class TaylorDiagram(object):
 
     def __init__(self, refstd,
                  fig=None, rect=111, label='_', srange=(0, 1.5), extend=False,
+                 stdevticks=None,
                  labelsize=None):
         """
         Set up Taylor diagram axes, i.e. single quadrant polar
@@ -1852,13 +1853,16 @@ class TaylorDiagram(object):
             Stdev axis limits, in units of *refstd*
         extend: bool, optional
             Extend diagram to negative correlations
+        stdevticks: int or list-like, optional
+            Specify stdev axis grid locator based on MaxNLocator (with
+            integer input) or FixedLocator (with list-like input)
         labelsize: int or str, optional
             Font size (e.g., 16 or 'x-large') for all axes labels
         """
 
         from matplotlib.projections import PolarAxes
-        import mpl_toolkits.axisartist.floating_axes as FA
-        import mpl_toolkits.axisartist.grid_finder as GF
+        from mpl_toolkits.axisartist import floating_axes
+        from mpl_toolkits.axisartist import grid_finder
 
         self.refstd = refstd            # Reference standard deviation
 
@@ -1874,39 +1878,55 @@ class TaylorDiagram(object):
             # Diagram limited to positive correlations
             self.tmax = np.pi/2
         tlocs = np.arccos(rlocs)        # Conversion to polar angles
-        gl1 = GF.FixedLocator(tlocs)    # Positions
-        tf1 = GF.DictFormatter(dict(zip(tlocs, map(str, rlocs))))
+        gl1 = grid_finder.FixedLocator(tlocs)    # Positions
+        tf1 = grid_finder.DictFormatter(dict(zip(tlocs, map(str, rlocs))))
+
+        # Stdev labels
+        if isinstance(stdevticks, int):
+            gl2 = grid_finder.MaxNLocator(stdevticks)
+        elif hasattr(stdevticks, '__iter__'):
+            gl2 = grid_finder.FixedLocator(stdevticks)
+        else:
+            gl2 = None
 
         # Standard deviation axis extent (in units of reference stddev)
         self.smin = srange[0] * self.refstd
         self.smax = srange[1] * self.refstd
 
-        ghelper = FA.GridHelperCurveLinear(
+        ghelper = floating_axes.GridHelperCurveLinear(
             tr,
             extremes=(0, self.tmax, self.smin, self.smax),
-            grid_locator1=gl1, tick_formatter1=tf1)
+            grid_locator1=gl1,
+            grid_locator2=gl2,
+            tick_formatter1=tf1,
+            #tick_formatter2=tf2
+            )
 
         if fig is None:
             fig = plt.figure()
 
-        ax = FA.FloatingSubplot(fig, rect, grid_helper=ghelper)
+        ax = floating_axes.FloatingSubplot(fig, rect, grid_helper=ghelper)
         fig.add_subplot(ax)
 
         # Adjust axes
-        ax.axis["top"].set_axis_direction("bottom")   # "Angle axis"
+        # - angle axis
+        ax.axis["top"].set_axis_direction("bottom")
         ax.axis["top"].toggle(ticklabels=True, label=True)
         ax.axis["top"].major_ticklabels.set_axis_direction("top")
         ax.axis["top"].label.set_axis_direction("top")
         ax.axis["top"].label.set_text("Correlation")
 
-        ax.axis["left"].set_axis_direction("bottom")  # "X axis"
+        # - "x" axis
+        ax.axis["left"].set_axis_direction("bottom")
         ax.axis["left"].label.set_text("Standard deviation")
 
+        # - "y" axis
         ax.axis["right"].set_axis_direction("top")    # "Y-axis"
         ax.axis["right"].toggle(ticklabels=True)
         ax.axis["right"].major_ticklabels.set_axis_direction(
                 "bottom" if extend else "left")
 
+        # Set label sizes
         if labelsize is not None:
             ax.axis["top"].label.set_fontsize(labelsize)
             ax.axis["left"].label.set_fontsize(labelsize)
@@ -1916,6 +1936,7 @@ class TaylorDiagram(object):
             ax.axis["right"].major_ticklabels.set_fontsize(labelsize)
 
         if self.smin:
+            # get rid of cluster of labels at origin
             ax.axis["bottom"].toggle(ticklabels=False, label=False)
         else:
             ax.axis["bottom"].set_visible(False)          # Unused
