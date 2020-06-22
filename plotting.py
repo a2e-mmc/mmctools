@@ -1995,6 +1995,9 @@ class TaylorDiagram(object):
         Add sample (*stddev*, *corrcoeff*) to the Taylor
         diagram. *args* and *kwargs* are directly propagated to the
         `Figure.plot` command.
+
+        `norm` may be specified to override the default normalization
+        value if TaylorDiagram was initialized with normalize=True
         """
         if (corrcoef < 0) and (self.tmax == np.pi/2):
             print('Note: ({:g},{:g}) not shown for R2 < 0, set extend=True'.format(stddev,corrcoef))
@@ -2003,6 +2006,8 @@ class TaylorDiagram(object):
         if self.normalize:
             if norm is None:
                 norm = self.refstd
+            elif norm is False:
+                norm = 1
             stddev /= norm
 
         l, = self.ax.plot(np.arccos(corrcoef), stddev,
