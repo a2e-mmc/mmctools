@@ -1833,6 +1833,7 @@ class TaylorDiagram(object):
 
     def __init__(self, refstd,
                  fig=None, rect=111, label='_', srange=(0, 1.5), extend=False,
+                 corrticks=[0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1],
                  stdevticks=None,
                  labelsize=None):
         """
@@ -1853,6 +1854,8 @@ class TaylorDiagram(object):
             Stdev axis limits, in units of *refstd*
         extend: bool, optional
             Extend diagram to negative correlations
+        corrticks: list-like, optional
+            Specify ticks positions on azimuthal correlation axis
         stdevticks: int or list-like, optional
             Specify stdev axis grid locator based on MaxNLocator (with
             integer input) or FixedLocator (with list-like input)
@@ -1869,7 +1872,7 @@ class TaylorDiagram(object):
         tr = PolarAxes.PolarTransform()
 
         # Correlation labels
-        rlocs = np.array([0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1])
+        rlocs = np.array(corrticks)
         if extend:
             # Diagram extended to negative correlations
             self.tmax = np.pi
