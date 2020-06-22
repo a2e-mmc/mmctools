@@ -1834,6 +1834,7 @@ class TaylorDiagram(object):
     def __init__(self, refstd,
                  fig=None, rect=111, label='_', srange=(0, 1.5), extend=False,
                  corrticks=[0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1],
+                 minorcorrticks=None,
                  stdevticks=None,
                  labelsize=None):
         """
@@ -1856,6 +1857,8 @@ class TaylorDiagram(object):
             Extend diagram to negative correlations
         corrticks: list-like, optional
             Specify ticks positions on azimuthal correlation axis
+        minorcorrticks: list-like, optional
+            Specify minor tick positions on azimuthal correlation axis
         stdevticks: int or list-like, optional
             Specify stdev axis grid locator based on MaxNLocator (with
             integer input) or FixedLocator (with list-like input)
@@ -1872,7 +1875,10 @@ class TaylorDiagram(object):
         tr = PolarAxes.PolarTransform()
 
         # Correlation labels
-        rlocs = np.array(corrticks)
+        if minorcorrticks is None:
+            rlocs = np.array(corrticks)
+        else:
+            rlocs = np.array(sorted(list(corrticks) + list(minorcorrticks)))
         if extend:
             # Diagram extended to negative correlations
             self.tmax = np.pi
@@ -1880,9 +1886,14 @@ class TaylorDiagram(object):
         else:
             # Diagram limited to positive correlations
             self.tmax = np.pi/2
+        if minorcorrticks is None:
+            rlocstrs = [str(rloc) for rloc in rlocs]
+        else:
+            rlocstrs = [str(rloc) if abs(rloc) in corrticks else ''
+                        for rloc in rlocs]
         tlocs = np.arccos(rlocs)        # Conversion to polar angles
         gl1 = grid_finder.FixedLocator(tlocs)    # Positions
-        tf1 = grid_finder.DictFormatter(dict(zip(tlocs, map(str, rlocs))))
+        tf1 = grid_finder.DictFormatter(dict(zip(tlocs, rlocstrs)))
 
         # Stdev labels
         if isinstance(stdevticks, int):
