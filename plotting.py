@@ -1833,6 +1833,9 @@ class TaylorDiagram(object):
 
     def __init__(self, refstd,
                  fig=None, rect=111, label='_', srange=(0, 1.5), extend=False,
+                 normalize=False,
+                 corrticks=[0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1],
+                 minorcorrticks=None,
                  stdevticks=None,
                  labelsize=None):
         """
@@ -1853,6 +1856,12 @@ class TaylorDiagram(object):
             Stdev axis limits, in units of *refstd*
         extend: bool, optional
             Extend diagram to negative correlations
+        normalize: bool, optional
+            Normalize stdev axis by `refstd`
+        corrticks: list-like, optional
+            Specify ticks positions on azimuthal correlation axis
+        minorcorrticks: list-like, optional
+            Specify minor tick positions on azimuthal correlation axis
         stdevticks: int or list-like, optional
             Specify stdev axis grid locator based on MaxNLocator (with
             integer input) or FixedLocator (with list-like input)
@@ -1865,11 +1874,15 @@ class TaylorDiagram(object):
         from mpl_toolkits.axisartist import grid_finder
 
         self.refstd = refstd            # Reference standard deviation
+        self.normalize = normalize
 
         tr = PolarAxes.PolarTransform()
 
         # Correlation labels
-        rlocs = np.array([0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1])
+        if minorcorrticks is None:
+            rlocs = np.array(corrticks)
+        else:
+            rlocs = np.array(sorted(list(corrticks) + list(minorcorrticks)))
         if extend:
             # Diagram extended to negative correlations
             self.tmax = np.pi
@@ -1877,9 +1890,14 @@ class TaylorDiagram(object):
         else:
             # Diagram limited to positive correlations
             self.tmax = np.pi/2
+        if minorcorrticks is None:
+            rlocstrs = [str(rloc) for rloc in rlocs]
+        else:
+            rlocstrs = [str(rloc) if abs(rloc) in corrticks else ''
+                        for rloc in rlocs]
         tlocs = np.arccos(rlocs)        # Conversion to polar angles
         gl1 = grid_finder.FixedLocator(tlocs)    # Positions
-        tf1 = grid_finder.DictFormatter(dict(zip(tlocs, map(str, rlocs))))
+        tf1 = grid_finder.DictFormatter(dict(zip(tlocs, rlocstrs)))
 
         # Stdev labels
         if isinstance(stdevticks, int):
@@ -1890,8 +1908,10 @@ class TaylorDiagram(object):
             gl2 = None
 
         # Standard deviation axis extent (in units of reference stddev)
-        self.smin = srange[0] * self.refstd
-        self.smax = srange[1] * self.refstd
+        self.smin, self.smax = srange
+        if not normalize:
+            self.smin *= self.refstd
+            self.smax *= self.refstd
 
         ghelper = floating_axes.GridHelperCurveLinear(
             tr,
@@ -1918,7 +1938,10 @@ class TaylorDiagram(object):
 
         # - "x" axis
         ax.axis["left"].set_axis_direction("bottom")
-        ax.axis["left"].label.set_text("Standard deviation")
+        if normalize:
+            ax.axis["left"].label.set_text("Normalized standard deviation")
+        else:
+            ax.axis["left"].label.set_text("Standard deviation")
 
         # - "y" axis
         ax.axis["right"].set_axis_direction("top")    # "Y-axis"
@@ -1945,21 +1968,47 @@ class TaylorDiagram(object):
         self.ax = ax.get_aux_axes(tr)   # Polar coordinates
 
         # Add reference point and stddev contour
-        l, = self.ax.plot([0], self.refstd, 'k*',
-                          ls='', ms=10, label=label)
         t = np.linspace(0, self.tmax)
-        r = np.zeros_like(t) + self.refstd
+        r = np.ones_like(t)
+        if self.normalize:
+            l, = self.ax.plot([0], [1], 'k*', ls='', ms=10, label=label)
+        else:
+            l, = self.ax.plot([0], self.refstd, 'k*', ls='', ms=10, label=label)
+            r *= refstd
         self.ax.plot(t, r, 'k--', label='_')
 
         # Collect sample points for latter use (e.g. legend)
         self.samplePoints = [l]
 
-    def add_sample(self, stddev, corrcoef, *args, **kwargs):
+    def set_ref(self, refstd):
+        """
+        Update the reference standard deviation value
+
+        Useful for cases in which datasets with different reference
+        values (e.g., originating from different reference heights)
+        are to be overlaid on the same diagram.
+        """
+        self.refstd = refstd
+
+    def add_sample(self, stddev, corrcoef, norm=None, *args, **kwargs):
         """
         Add sample (*stddev*, *corrcoeff*) to the Taylor
         diagram. *args* and *kwargs* are directly propagated to the
         `Figure.plot` command.
+
+        `norm` may be specified to override the default normalization
+        value if TaylorDiagram was initialized with normalize=True
         """
+        if (corrcoef < 0) and (self.tmax == np.pi/2):
+            print('Note: ({:g},{:g}) not shown for R2 < 0, set extend=True'.format(stddev,corrcoef))
+            return None
+
+        if self.normalize:
+            if norm is None:
+                norm = self.refstd
+            elif norm is False:
+                norm = 1
+            stddev /= norm
 
         l, = self.ax.plot(np.arccos(corrcoef), stddev,
                           *args, **kwargs)  # (theta, radius)
@@ -1972,7 +2021,7 @@ class TaylorDiagram(object):
 
         self._ax.grid(*args, **kwargs)
 
-    def add_contours(self, levels=5, **kwargs):
+    def add_contours(self, levels=5, scale=1.0, **kwargs):
         """
         Add constant centered RMS difference contours, defined by *levels*.
         """
@@ -1980,20 +2029,37 @@ class TaylorDiagram(object):
         rs, ts = np.meshgrid(np.linspace(self.smin, self.smax),
                              np.linspace(0, self.tmax))
         # Compute centered RMS difference
-        rms = np.sqrt(self.refstd**2 + rs**2 - 2*self.refstd*rs*np.cos(ts))
+        if self.normalize:
+            # - normalized refstd == 1
+            # - rs values were previously normalized in __init__
+            # - premultiply with (scale==refstd) to get correct rms diff
+            rms = scale * np.sqrt(1 + rs**2 - 2*rs*np.cos(ts))
+        else:
+            rms = np.sqrt(self.refstd**2 + rs**2 - 2*self.refstd*rs*np.cos(ts))
 
         contours = self.ax.contour(ts, rs, rms, levels, **kwargs)
 
         return contours
 
-    def set_xlabel(self, label):
+    def set_xlabel(self, label, fontsize=None):
         """
         Set the label for the standard deviation axis
         """
         self._ax.axis["left"].label.set_text(label)
+        if fontsize is not None:
+            self._ax.axis["left"].label.set_fontsize(fontsize)
 
-    def set_alabel(self, label):
+    def set_alabel(self, label, fontsize=None):
         """
         Set the label for the azimuthal axis
         """
         self._ax.axis["top"].label.set_text(label)
+        if fontsize is not None:
+            self._ax.axis["top"].label.set_fontsize(fontsize)
+
+    def set_title(self, label, **kwargs):
+        """
+        Set the title for the axes
+        """
+        self._ax.set_title(label, **kwargs)
+
