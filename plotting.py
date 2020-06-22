@@ -1833,6 +1833,7 @@ class TaylorDiagram(object):
 
     def __init__(self, refstd,
                  fig=None, rect=111, label='_', srange=(0, 1.5), extend=False,
+                 normalize=False,
                  corrticks=[0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1],
                  minorcorrticks=None,
                  stdevticks=None,
@@ -1855,6 +1856,8 @@ class TaylorDiagram(object):
             Stdev axis limits, in units of *refstd*
         extend: bool, optional
             Extend diagram to negative correlations
+        normalize: bool, optional
+            Normalize stdev axis by `refstd`
         corrticks: list-like, optional
             Specify ticks positions on azimuthal correlation axis
         minorcorrticks: list-like, optional
@@ -1871,6 +1874,7 @@ class TaylorDiagram(object):
         from mpl_toolkits.axisartist import grid_finder
 
         self.refstd = refstd            # Reference standard deviation
+        self.normalize = normalize
 
         tr = PolarAxes.PolarTransform()
 
@@ -1904,8 +1908,10 @@ class TaylorDiagram(object):
             gl2 = None
 
         # Standard deviation axis extent (in units of reference stddev)
-        self.smin = srange[0] * self.refstd
-        self.smax = srange[1] * self.refstd
+        self.smin, self.smax = srange
+        if not normalize:
+            self.smin *= self.refstd
+            self.smax *= self.refstd
 
         ghelper = floating_axes.GridHelperCurveLinear(
             tr,
@@ -1932,7 +1938,10 @@ class TaylorDiagram(object):
 
         # - "x" axis
         ax.axis["left"].set_axis_direction("bottom")
-        ax.axis["left"].label.set_text("Standard deviation")
+        if normalize:
+            ax.axis["left"].label.set_text("Normalized standard deviation")
+        else:
+            ax.axis["left"].label.set_text("Standard deviation")
 
         # - "y" axis
         ax.axis["right"].set_axis_direction("top")    # "Y-axis"
@@ -1959,10 +1968,13 @@ class TaylorDiagram(object):
         self.ax = ax.get_aux_axes(tr)   # Polar coordinates
 
         # Add reference point and stddev contour
-        l, = self.ax.plot([0], self.refstd, 'k*',
-                          ls='', ms=10, label=label)
         t = np.linspace(0, self.tmax)
-        r = np.zeros_like(t) + self.refstd
+        r = np.ones_like(t)
+        if self.normalize:
+            l, = self.ax.plot([0], [1], 'k*', ls='', ms=10, label=label)
+        else:
+            l, = self.ax.plot([0], self.refstd, 'k*', ls='', ms=10, label=label)
+            r *= refstd
         self.ax.plot(t, r, 'k--', label='_')
 
         # Collect sample points for latter use (e.g. legend)
@@ -1978,6 +1990,9 @@ class TaylorDiagram(object):
             print('Note: ({:g},{:g}) not shown for R2 < 0, set extend=True'.format(stddev,corrcoef))
             return None
 
+        if self.normalize:
+            stddev /= self.refstd
+
         l, = self.ax.plot(np.arccos(corrcoef), stddev,
                           *args, **kwargs)  # (theta, radius)
         self.samplePoints.append(l)
@@ -1989,7 +2004,7 @@ class TaylorDiagram(object):
 
         self._ax.grid(*args, **kwargs)
 
-    def add_contours(self, levels=5, **kwargs):
+    def add_contours(self, levels=5, scale=1.0, **kwargs):
         """
         Add constant centered RMS difference contours, defined by *levels*.
         """
@@ -1997,7 +2012,13 @@ class TaylorDiagram(object):
         rs, ts = np.meshgrid(np.linspace(self.smin, self.smax),
                              np.linspace(0, self.tmax))
         # Compute centered RMS difference
-        rms = np.sqrt(self.refstd**2 + rs**2 - 2*self.refstd*rs*np.cos(ts))
+        if self.normalize:
+            # - normalized refstd == 1
+            # - rs values were previously normalized in __init__
+            # - premultiply with (scale==refstd) to get correct rms diff
+            rms = scale * np.sqrt(1 + rs**2 - 2*rs*np.cos(ts))
+        else:
+            rms = np.sqrt(self.refstd**2 + rs**2 - 2*self.refstd*rs*np.cos(ts))
 
         contours = self.ax.contour(ts, rs, rms, levels, **kwargs)
 
