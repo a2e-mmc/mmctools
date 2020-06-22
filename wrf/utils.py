@@ -559,12 +559,12 @@ class Tower():
                 for varn in varns_unstag:
                     newdata = np.empty((self.nt, len(z)))
                     tsdata = getattr(self,varn)
-                    if varn == 'th':
-                        # theta is a special case
-                        assert np.all(tsdata[:,-1] == 300)
-                    elif not varn == 'ww':
-                        # if w has already been destaggered by wrf
-                        assert np.all(tsdata[:,-1] == 0)
+                    #if varn == 'th':
+                    #    # theta is a special case
+                    #    assert np.all(tsdata[:,-1] == 300)
+                    #elif not varn == 'ww':
+                    #    # if w has already been destaggered by wrf
+                    #    assert np.all(tsdata[:,-1] == 0)
                     for itime in range(self.nt):
                         interpfun = interp1d(zt_unstag[itime,:],
                                              tsdata[itime,:-1],
