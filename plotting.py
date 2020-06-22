@@ -2003,21 +2003,25 @@ class TaylorDiagram(object):
 
         return contours
 
-    def set_xlabel(self, label):
+    def set_xlabel(self, label, fontsize=None):
         """
         Set the label for the standard deviation axis
         """
         self._ax.axis["left"].label.set_text(label)
+        if fontsize is not None:
+            self._ax.axis["left"].label.set_fontsize(fontsize)
 
-    def set_alabel(self, label):
+    def set_alabel(self, label, fontsize=None):
         """
         Set the label for the azimuthal axis
         """
         self._ax.axis["top"].label.set_text(label)
+        if fontsize is not None:
+            self._ax.axis["top"].label.set_fontsize(fontsize)
 
-    def set_title(self, label):
+    def set_title(self, label, **kwargs):
         """
         Set the title for the axes
         """
-        self._ax.set_title(label)
+        self._ax.set_title(label, **kwargs)
 
