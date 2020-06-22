@@ -1960,6 +1960,9 @@ class TaylorDiagram(object):
         diagram. *args* and *kwargs* are directly propagated to the
         `Figure.plot` command.
         """
+        if (corrcoef < 0) and (self.tmax == np.pi/2):
+            print('Note: ({:g},{:g}) not shown for R2 < 0, set extend=True'.format(stddev,corrcoef))
+            return None
 
         l, = self.ax.plot(np.arccos(corrcoef), stddev,
                           *args, **kwargs)  # (theta, radius)
