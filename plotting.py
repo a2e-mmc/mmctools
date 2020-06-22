@@ -2014,3 +2014,10 @@ class TaylorDiagram(object):
         Set the label for the azimuthal axis
         """
         self._ax.axis["top"].label.set_text(label)
+
+    def set_title(self, label):
+        """
+        Set the title for the axes
+        """
+        self._ax.set_title(label)
+
