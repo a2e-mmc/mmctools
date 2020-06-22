@@ -88,9 +88,11 @@ class InternalCoupling(object):
             self.df.reset_index(inplace=True)
             self.df['t_index'] = (self.df['datetime'] - dateref) / tdelta
             self.df.set_index('datetime',inplace=True)
-        else:
+        elif isinstance(df.index, pd.TimedeltaIndex):
             # self.df['t'] exists and is a TimedeltaIndex
             self.df['t_index'] = self.df.index.total_seconds()
+        else:
+            self.df['t_index'] = self.df.index
 
     def write_BCs(self,
                   fname,

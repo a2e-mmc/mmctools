@@ -60,12 +60,12 @@ spectrumlabels_default_units = {
     'wspd': r'$E_{UU}\;[\mathrm{m^2/s}]$',
 }
 spectrumlabels_superscript_units = {
-    'u': r'$E_{uu}\;[\mathrm{m^2 s^{-1}}]$',
-    'v': r'$E_{vv}\;[\mathrm{m^2 s^{-1}}]$',
-    'w': r'$E_{ww}\;[\mathrm{m^2 s^{-1}}]$',
-    'theta': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
-    'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2 s}]$',
-    'wspd': r'$E_{UU}\;[\mathrm{m^2 s^{-1}}]$',
+    'u': r'$E_{uu}\;[\mathrm{m^2\;s^{-1}}]$',
+    'v': r'$E_{vv}\;[\mathrm{m^2\;s^{-1}}]$',
+    'w': r'$E_{ww}\;[\mathrm{m^2\;s^{-1}}]$',
+    'theta': r'$E_{\theta\theta}\;[\mathrm{K^2\;s}]$',
+    'thetav': r'$E_{\theta\theta}\;[\mathrm{K^2\;s}]$',
+    'wspd': r'$E_{UU}\;[\mathrm{m^2\;s^{-1}}]$',
 }
 
 # Default settings
@@ -75,7 +75,7 @@ standard_spectrumlabels = spectrumlabels_default_units
 
 # Supported dimensions and associated names
 dimension_names = {
-    'time':      ['time','Time','datetime'],
+    'time':      ['datetime','time','Time'],
     'height':    ['height','heights','z'],
     'frequency': ['frequency','f',]
 }
@@ -137,8 +137,10 @@ def plot_timeheight(datasets,
         Custom field labels. If only one field is plotted, fieldlabels
         can be a string. Otherwise it should be a dictionary with
         entries <fieldname>: fieldlabel
-    labelsubplots : bool
-        Label subplots as (a), (b), (c), ...
+    labelsubplots : bool, list or tuple
+        Label subplots as (a), (b), (c), ... If a list or tuple is given
+        their values should be the horizontal and vertical position 
+        relative to each subaxis.
     showcolorbars : bool
         Show colorbar per subplot
     fieldorder : 'C' or 'F'
@@ -314,9 +316,13 @@ def plot_timeheight(datasets,
         _align_labels(fig,[cb.ax for cb in cbars],nrows,ncols)
     
     # Number sub figures as a, b, c, ...
-    if labelsubplots:
+    if labelsubplots is not False:
+        try:
+            hoffset, voffset = labelsubplots
+        except (TypeError, ValueError):
+            hoffset, voffset = -0.14, 1.0
         for i,axi in enumerate(axv):
-            axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+            axi.text(hoffset,voffset,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Return cbar instead of array if ntotal==1
     if len(cbars)==1:
@@ -394,8 +400,10 @@ def plot_timehistory_at_height(datasets,
         If True, stack datasets together, otherwise stack by heights. If
         None, stack_by_datasets will be set based on the number of heights
         and datasets. 
-    labelsubplots : bool
-        Label subplots as (a), (b), (c), ...
+    labelsubplots : bool, list or tuple
+        Label subplots as (a), (b), (c), ... If a list or tuple is given
+        their values should be the horizontal and vertical position 
+        relative to each subaxis.
     showlegend : bool (or None)
         Label different plots and show legend. If None, showlegend is set
         to True if legend will have more than one entry, otherwise it is
@@ -603,9 +611,13 @@ def plot_timehistory_at_height(datasets,
             axi.set_xlabel('time [s]')
 
     # Number sub figures as a, b, c, ...
-    if labelsubplots:
+    if labelsubplots is not False:
+        try:
+            hoffset, voffset = labelsubplots
+        except (TypeError, ValueError):
+            hoffset, voffset = -0.14, 1.0
         for i,axi in enumerate(axv):
-            axi.text(-0.14,1.0,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+            axi.text(hoffset,voffset,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Add legend
     if showlegend:
@@ -689,8 +701,10 @@ def plot_profile(datasets,
         If True, stack datasets together, otherwise stack by times. If
         None, stack_by_datasets will be set based on the number of times
         and datasets. 
-    labelsubplots : bool
-        Label subplots as (a), (b), (c), ...
+    labelsubplots : bool, list or tuple
+        Label subplots as (a), (b), (c), ... If a list or tuple is given
+        their values should be the horizontal and vertical position 
+        relative to each subaxis.
     showlegend : bool (or None)
         Label different plots and show legend. If None, showlegend is set
         to True if legend will have more than one entry, otherwise it is
@@ -892,9 +906,13 @@ def plot_profile(datasets,
     _align_labels(fig,axv,nrows,ncols)
     
     # Number sub figures as a, b, c, ...
-    if labelsubplots:
+    if labelsubplots is not False:
+        try:
+            hoffset, voffset = labelsubplots
+        except (TypeError, ValueError):
+            hoffset, voffset = -0.14, -0.18
         for i,axi in enumerate(axv):
-            axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+            axi.text(hoffset,voffset,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
     
     # Add legend
     if showlegend:
@@ -961,8 +979,10 @@ def plot_spectrum(datasets,
         Custom field labels. If only one field is plotted, fieldlabels
         can be a string. Otherwise it should be a dictionary with
         entries <fieldname>: fieldlabel
-    labelsubplots : bool
-        Label subplots as (a), (b), (c), ...
+    labelsubplots : bool, list or tuple
+        Label subplots as (a), (b), (c), ... If a list or tuple is given
+        their values should be the horizontal and vertical position 
+        relative to each subaxis.
     showlegend : bool (or None)
         Label different plots and show legend. If None, showlegend is set
         to True if legend will have more than one entry, otherwise it is
@@ -1080,7 +1100,7 @@ def plot_spectrum(datasets,
 
     # Set frequency label
     for c in range(ncols):
-        axv[ncols*(nrows-1)+c].set_xlabel('f [Hz]')
+        axv[ncols*(nrows-1)+c].set_xlabel('$f$ [Hz]')
 
     # Specify field label if specified 
     for r in range(nrows):
@@ -1097,9 +1117,13 @@ def plot_spectrum(datasets,
         axv[0].set_xlim(freqlimits)
 
     # Number sub figures as a, b, c, ...
-    if labelsubplots:
+    if labelsubplots is not False:
+        try:
+            hoffset, voffset = labelsubplots
+        except (TypeError, ValueError):
+            hoffset, voffset = -0.14, -0.18
         for i,axi in enumerate(axv):
-            axi.text(-0.14,-0.18,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
+            axi.text(hoffset,voffset,'('+chr(i+97)+')',transform=axi.transAxes,size=16)
 
     # Add legend
     if showlegend:
@@ -1794,3 +1818,182 @@ def _align_labels(fig,ax,nrows,ncols):
     for c in range(ncols):
         fig.align_ylabels(ax[c::ncols])
 
+
+class TaylorDiagram(object):
+    """
+    Taylor diagram.
+
+    Plot model standard deviation and correlation to reference (data)
+    sample in a single-quadrant polar plot, with r=stddev and
+    theta=arccos(correlation).
+
+    Based on code from Yannick Copin <yannick.copin@laposte.net>
+    Downloaded from https://gist.github.com/ycopin/3342888 on 2020-06-19
+    """
+
+    def __init__(self, refstd,
+                 fig=None, rect=111, label='_', srange=(0, 1.5), extend=False,
+                 stdevticks=None,
+                 labelsize=None):
+        """
+        Set up Taylor diagram axes, i.e. single quadrant polar
+        plot, using `mpl_toolkits.axisartist.floating_axes`.
+
+        Usage
+        =====
+        refstd: np.ndarray
+            Reference standard deviation to be compared to
+        fig: plt.Figure, optional
+            Input figure or None to create a new figure
+        rect: 3-digit integer
+            Subplot position, described by: nrows, ncols, index
+        label: str, optional
+            Legend label for reference point
+        srange: tuple, optional
+            Stdev axis limits, in units of *refstd*
+        extend: bool, optional
+            Extend diagram to negative correlations
+        stdevticks: int or list-like, optional
+            Specify stdev axis grid locator based on MaxNLocator (with
+            integer input) or FixedLocator (with list-like input)
+        labelsize: int or str, optional
+            Font size (e.g., 16 or 'x-large') for all axes labels
+        """
+
+        from matplotlib.projections import PolarAxes
+        from mpl_toolkits.axisartist import floating_axes
+        from mpl_toolkits.axisartist import grid_finder
+
+        self.refstd = refstd            # Reference standard deviation
+
+        tr = PolarAxes.PolarTransform()
+
+        # Correlation labels
+        rlocs = np.array([0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1])
+        if extend:
+            # Diagram extended to negative correlations
+            self.tmax = np.pi
+            rlocs = np.concatenate((-rlocs[:0:-1], rlocs))
+        else:
+            # Diagram limited to positive correlations
+            self.tmax = np.pi/2
+        tlocs = np.arccos(rlocs)        # Conversion to polar angles
+        gl1 = grid_finder.FixedLocator(tlocs)    # Positions
+        tf1 = grid_finder.DictFormatter(dict(zip(tlocs, map(str, rlocs))))
+
+        # Stdev labels
+        if isinstance(stdevticks, int):
+            gl2 = grid_finder.MaxNLocator(stdevticks)
+        elif hasattr(stdevticks, '__iter__'):
+            gl2 = grid_finder.FixedLocator(stdevticks)
+        else:
+            gl2 = None
+
+        # Standard deviation axis extent (in units of reference stddev)
+        self.smin = srange[0] * self.refstd
+        self.smax = srange[1] * self.refstd
+
+        ghelper = floating_axes.GridHelperCurveLinear(
+            tr,
+            extremes=(0, self.tmax, self.smin, self.smax),
+            grid_locator1=gl1,
+            grid_locator2=gl2,
+            tick_formatter1=tf1,
+            #tick_formatter2=tf2
+            )
+
+        if fig is None:
+            fig = plt.figure()
+
+        ax = floating_axes.FloatingSubplot(fig, rect, grid_helper=ghelper)
+        fig.add_subplot(ax)
+
+        # Adjust axes
+        # - angle axis
+        ax.axis["top"].set_axis_direction("bottom")
+        ax.axis["top"].toggle(ticklabels=True, label=True)
+        ax.axis["top"].major_ticklabels.set_axis_direction("top")
+        ax.axis["top"].label.set_axis_direction("top")
+        ax.axis["top"].label.set_text("Correlation")
+
+        # - "x" axis
+        ax.axis["left"].set_axis_direction("bottom")
+        ax.axis["left"].label.set_text("Standard deviation")
+
+        # - "y" axis
+        ax.axis["right"].set_axis_direction("top")    # "Y-axis"
+        ax.axis["right"].toggle(ticklabels=True)
+        ax.axis["right"].major_ticklabels.set_axis_direction(
+                "bottom" if extend else "left")
+
+        # Set label sizes
+        if labelsize is not None:
+            ax.axis["top"].label.set_fontsize(labelsize)
+            ax.axis["left"].label.set_fontsize(labelsize)
+            ax.axis["right"].label.set_fontsize(labelsize)
+            ax.axis["top"].major_ticklabels.set_fontsize(labelsize)
+            ax.axis["left"].major_ticklabels.set_fontsize(labelsize)
+            ax.axis["right"].major_ticklabels.set_fontsize(labelsize)
+
+        if self.smin:
+            # get rid of cluster of labels at origin
+            ax.axis["bottom"].toggle(ticklabels=False, label=False)
+        else:
+            ax.axis["bottom"].set_visible(False)          # Unused
+
+        self._ax = ax                   # Graphical axes
+        self.ax = ax.get_aux_axes(tr)   # Polar coordinates
+
+        # Add reference point and stddev contour
+        l, = self.ax.plot([0], self.refstd, 'k*',
+                          ls='', ms=10, label=label)
+        t = np.linspace(0, self.tmax)
+        r = np.zeros_like(t) + self.refstd
+        self.ax.plot(t, r, 'k--', label='_')
+
+        # Collect sample points for latter use (e.g. legend)
+        self.samplePoints = [l]
+
+    def add_sample(self, stddev, corrcoef, *args, **kwargs):
+        """
+        Add sample (*stddev*, *corrcoeff*) to the Taylor
+        diagram. *args* and *kwargs* are directly propagated to the
+        `Figure.plot` command.
+        """
+
+        l, = self.ax.plot(np.arccos(corrcoef), stddev,
+                          *args, **kwargs)  # (theta, radius)
+        self.samplePoints.append(l)
+
+        return l
+
+    def add_grid(self, *args, **kwargs):
+        """Add a grid."""
+
+        self._ax.grid(*args, **kwargs)
+
+    def add_contours(self, levels=5, **kwargs):
+        """
+        Add constant centered RMS difference contours, defined by *levels*.
+        """
+
+        rs, ts = np.meshgrid(np.linspace(self.smin, self.smax),
+                             np.linspace(0, self.tmax))
+        # Compute centered RMS difference
+        rms = np.sqrt(self.refstd**2 + rs**2 - 2*self.refstd*rs*np.cos(ts))
+
+        contours = self.ax.contour(ts, rs, rms, levels, **kwargs)
+
+        return contours
+
+    def set_xlabel(self, label):
+        """
+        Set the label for the standard deviation axis
+        """
+        self._ax.axis["left"].label.set_text(label)
+
+    def set_alabel(self, label):
+        """
+        Set the label for the azimuthal axis
+        """
+        self._ax.axis["top"].label.set_text(label)
