@@ -1980,7 +1980,17 @@ class TaylorDiagram(object):
         # Collect sample points for latter use (e.g. legend)
         self.samplePoints = [l]
 
-    def add_sample(self, stddev, corrcoef, *args, **kwargs):
+    def set_ref(self, refstd):
+        """
+        Update the reference standard deviation value
+
+        Useful for cases in which datasets with different reference
+        values (e.g., originating from different reference heights)
+        are to be overlaid on the same diagram.
+        """
+        self.refstd = refstd
+
+    def add_sample(self, stddev, corrcoef, norm=None, *args, **kwargs):
         """
         Add sample (*stddev*, *corrcoeff*) to the Taylor
         diagram. *args* and *kwargs* are directly propagated to the
@@ -1991,7 +2001,9 @@ class TaylorDiagram(object):
             return None
 
         if self.normalize:
-            stddev /= self.refstd
+            if norm is None:
+                norm = self.refstd
+            stddev /= norm
 
         l, = self.ax.plot(np.arccos(corrcoef), stddev,
                           *args, **kwargs)  # (theta, radius)
