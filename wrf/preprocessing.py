@@ -67,7 +67,7 @@ class RDADataset(object):
         if os.path.isfile(self.cookie):
             os.remove(self.cookie)
 
-    def download(self,urlpath,datetimes,fields=[None],**kwargs):
+    def download(self,urlpath,datetimes,path=None,fields=[None],**kwargs):
         """Download specified data at specified datetimes
 
         Usage
@@ -79,6 +79,8 @@ class RDADataset(object):
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        path : str, optional
+            Path to directory in which to save grib files
         fields : list of str, optional
             Field variable names, e.g., ['regn128sc','regn128uv']
         kwargs : optional
@@ -87,6 +89,8 @@ class RDADataset(object):
         if not urlpath.startswith('https://'):
             urlpath = 'https://rda.ucar.edu/data/' + urlpath.lstrip('/')
         cmd = ['wget'] + self.certopts + self.opts
+        if path is not None:
+            cmd += ['-P', path]
         cmd += [
             '--load-cookies', self.cookie,
             'URL_placeholder'
@@ -110,7 +114,7 @@ class FNL(RDADataset):
 
     Description: https://rda.ucar.edu/datasets/ds083.2/
     """
-    def download(self,datetimes):
+    def download(self,datetimes,path=None):
         """Download data at specified datetimes.
 
         Files to download:
@@ -121,8 +125,15 @@ class FNL(RDADataset):
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        path : str, optional
+            Path to directory in which to save grib files
         """
+        if path is None:
+            path = '.'
+        else:
+            os.makedirs(path,exist_ok=True)
         super().download(urlpath='ds083.2/grib2/%Y/%Y.%m/fnl_%Y%m%d_%H_%M.grib2',
+                         path=path,
                          datetimes=datetimes)
 
 
@@ -134,7 +145,7 @@ class ERAInterim(RDADataset):
     Description: https://rda.ucar.edu/datasets/ds627.0/
     """
 
-    def download(self,datetimes):
+    def download(self,datetimes,path=None):
         """Download data at specified datetimes.
 
         Files to download:
@@ -147,14 +158,22 @@ class ERAInterim(RDADataset):
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        path : str, optional
+            Path to directory in which to save grib files
         """
+        if path is None:
+            path = '.'
+        else:
+            os.makedirs(path,exist_ok=True)
         # pressure-level data
         super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
+                         path=path,
                          prefix='ei.oper.an.pl',
                          datetimes=datetimes,
                          fields=['regn128sc','regn128uv'])
         # surface data
         super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
+                         path=path,
                          prefix='ei.oper.an.sfc',
                          datetimes=datetimes,
                          fields=['regn128sc'])
