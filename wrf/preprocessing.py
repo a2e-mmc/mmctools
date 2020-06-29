@@ -203,12 +203,14 @@ class CDSDataset(object):
         """
         if prefix is None:
             prefix = os.path.join('.',product)
+        if area is None:
+            area = [60, -169, 0, -47]
         req = {
             'product_type': 'reanalysis',
             'format': 'grib',
             'variable': variables,
             'pressure_level': pressure_levels,
-            'area': [60, -169, 0, -47], # North, West, South, East.
+            'area': area, # North, West, South, East.
         }
         if pressure_levels is not None:
             req['pressure_level'] = pressure_levels
@@ -240,7 +242,7 @@ class ERA5(CDSDataset):
     Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=74764925
     """
 
-    def download(self,datetimes):
+    def download(self,datetimes,area=None):
         """Download data at specified datetimes.
 
         Descriptions:
@@ -252,6 +254,11 @@ class ERA5(CDSDataset):
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        area : list, optional
+            North/west/south/east lat/long limits. Default retrieval
+            region includes all of US and Central America, most of
+            Alaska and Canada (up to 60deg latitude), and parts of
+            South America that lie north of the equator.
         """
         super().download(
             datetimes,
@@ -271,7 +278,8 @@ class ERA5(CDSDataset):
                 '175','200','225','250','300','350','400','450','500','550',
                 '600','650','700','750','775','800','825','850','875','900',
                 '925','950','975','1000'
-            ]
+            ],
+            area=area
         )
         super().download(
             datetimes,
@@ -296,6 +304,7 @@ class ERA5(CDSDataset):
                 'temperature_of_snow_layer','total_column_snow_water',
                 'volumetric_soil_water_layer_1','volumetric_soil_water_layer_2',
                 'volumetric_soil_water_layer_3','volumetric_soil_water_layer_4'
-            ]
+            ],
+            area=area
         )
 
