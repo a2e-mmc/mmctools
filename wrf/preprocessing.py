@@ -187,6 +187,10 @@ class CDSDataset(object):
             pd.date_range(startdate,enddate,freq='21600s')
         product : name
             Name of data product, e.g. "reanalysis-era5-pressure-levels'
+        prefix : str, optional
+            Filename prefix, which may include an output path, e.g.,
+            "/path/to/subset_name" to retrieve a series of files named
+            "subset_name_YYYY_MM_DD_HH.grib"
         variables : list
             List of variable names
         pressure_levels : list, optional
