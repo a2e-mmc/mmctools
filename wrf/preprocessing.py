@@ -242,7 +242,7 @@ class ERA5(CDSDataset):
     Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=74764925
     """
 
-    def download(self,datetimes,area=None):
+    def download(self,datetimes,path=None,area=None):
         """Download data at specified datetimes.
 
         Descriptions:
@@ -254,16 +254,22 @@ class ERA5(CDSDataset):
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        path : str, optional
+            Path to directory in which to save grib files
         area : list, optional
             North/west/south/east lat/long limits. Default retrieval
             region includes all of US and Central America, most of
             Alaska and Canada (up to 60deg latitude), and parts of
             South America that lie north of the equator.
         """
+        if path is None:
+            path = '.'
+        else:
+            os.makedirs(path,exist_ok=True)
         super().download(
             datetimes,
             'reanalysis-era5-pressure-levels',
-            prefix='era5_pressure',
+            prefix=os.path.join(path,'era5_pressure'),
             variables=[
                 'divergence','fraction_of_cloud_cover','geopotential',
                 'ozone_mass_mixing_ratio','potential_vorticity',
@@ -284,7 +290,7 @@ class ERA5(CDSDataset):
         super().download(
             datetimes,
             'reanalysis-era5-single-levels',
-            prefix='era5_surface',
+            prefix=os.path.join(path,'era5_surface'),
             variables=[
                 '10m_u_component_of_wind','10m_v_component_of_wind',
                 '2m_dewpoint_temperature','2m_temperature',
