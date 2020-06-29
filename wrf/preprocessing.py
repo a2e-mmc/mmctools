@@ -67,7 +67,7 @@ class RDADataset(object):
         if os.path.isfile(self.cookie):
             os.remove(self.cookie)
 
-    def download(self,urlpath,datetimes,fields=[None],**kwargs):
+    def download(self,urlpath,datetimes,path=None,fields=[None],**kwargs):
         """Download specified data at specified datetimes
 
         Usage
@@ -79,6 +79,8 @@ class RDADataset(object):
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        path : str, optional
+            Path to directory in which to save grib files
         fields : list of str, optional
             Field variable names, e.g., ['regn128sc','regn128uv']
         kwargs : optional
@@ -87,6 +89,8 @@ class RDADataset(object):
         if not urlpath.startswith('https://'):
             urlpath = 'https://rda.ucar.edu/data/' + urlpath.lstrip('/')
         cmd = ['wget'] + self.certopts + self.opts
+        if path is not None:
+            cmd += ['-P', path]
         cmd += [
             '--load-cookies', self.cookie,
             'URL_placeholder'
@@ -110,7 +114,7 @@ class FNL(RDADataset):
 
     Description: https://rda.ucar.edu/datasets/ds083.2/
     """
-    def download(self,datetimes):
+    def download(self,datetimes,path=None):
         """Download data at specified datetimes.
 
         Files to download:
@@ -121,8 +125,15 @@ class FNL(RDADataset):
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        path : str, optional
+            Path to directory in which to save grib files
         """
+        if path is None:
+            path = '.'
+        else:
+            os.makedirs(path,exist_ok=True)
         super().download(urlpath='ds083.2/grib2/%Y/%Y.%m/fnl_%Y%m%d_%H_%M.grib2',
+                         path=path,
                          datetimes=datetimes)
 
 
@@ -134,7 +145,7 @@ class ERAInterim(RDADataset):
     Description: https://rda.ucar.edu/datasets/ds627.0/
     """
 
-    def download(self,datetimes):
+    def download(self,datetimes,path=None):
         """Download data at specified datetimes.
 
         Files to download:
@@ -147,14 +158,22 @@ class ERAInterim(RDADataset):
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        path : str, optional
+            Path to directory in which to save grib files
         """
+        if path is None:
+            path = '.'
+        else:
+            os.makedirs(path,exist_ok=True)
         # pressure-level data
         super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
+                         path=path,
                          prefix='ei.oper.an.pl',
                          datetimes=datetimes,
                          fields=['regn128sc','regn128uv'])
         # surface data
         super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
+                         path=path,
                          prefix='ei.oper.an.sfc',
                          datetimes=datetimes,
                          fields=['regn128sc'])
@@ -187,6 +206,10 @@ class CDSDataset(object):
             pd.date_range(startdate,enddate,freq='21600s')
         product : name
             Name of data product, e.g. "reanalysis-era5-pressure-levels'
+        prefix : str, optional
+            Filename prefix, which may include an output path, e.g.,
+            "/path/to/subset_name" to retrieve a series of files named
+            "subset_name_YYYY_MM_DD_HH.grib"
         variables : list
             List of variable names
         pressure_levels : list, optional
@@ -199,12 +222,14 @@ class CDSDataset(object):
         """
         if prefix is None:
             prefix = os.path.join('.',product)
+        if area is None:
+            area = [60, -169, 0, -47]
         req = {
             'product_type': 'reanalysis',
             'format': 'grib',
             'variable': variables,
             'pressure_level': pressure_levels,
-            'area': [60, -169, 0, -47], # North, West, South, East.
+            'area': area, # North, West, South, East.
         }
         if pressure_levels is not None:
             req['pressure_level'] = pressure_levels
@@ -236,7 +261,7 @@ class ERA5(CDSDataset):
     Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=74764925
     """
 
-    def download(self,datetimes):
+    def download(self,datetimes,path=None,area=None):
         """Download data at specified datetimes.
 
         Descriptions:
@@ -248,11 +273,22 @@ class ERA5(CDSDataset):
         datetimes : timestamp or list of timestamps
             Datetime, e.g., output from
             pd.date_range(startdate,enddate,freq='21600s')
+        path : str, optional
+            Path to directory in which to save grib files
+        area : list, optional
+            North/west/south/east lat/long limits. Default retrieval
+            region includes all of US and Central America, most of
+            Alaska and Canada (up to 60deg latitude), and parts of
+            South America that lie north of the equator.
         """
+        if path is None:
+            path = '.'
+        else:
+            os.makedirs(path,exist_ok=True)
         super().download(
             datetimes,
             'reanalysis-era5-pressure-levels',
-            prefix='era5_pressure',
+            prefix=os.path.join(path,'era5_pressure'),
             variables=[
                 'divergence','fraction_of_cloud_cover','geopotential',
                 'ozone_mass_mixing_ratio','potential_vorticity',
@@ -267,12 +303,13 @@ class ERA5(CDSDataset):
                 '175','200','225','250','300','350','400','450','500','550',
                 '600','650','700','750','775','800','825','850','875','900',
                 '925','950','975','1000'
-            ]
+            ],
+            area=area
         )
         super().download(
             datetimes,
             'reanalysis-era5-single-levels',
-            prefix='era5_surface',
+            prefix=os.path.join(path,'era5_surface'),
             variables=[
                 '10m_u_component_of_wind','10m_v_component_of_wind',
                 '2m_dewpoint_temperature','2m_temperature',
@@ -292,6 +329,7 @@ class ERA5(CDSDataset):
                 'temperature_of_snow_layer','total_column_snow_water',
                 'volumetric_soil_water_layer_1','volumetric_soil_water_layer_2',
                 'volumetric_soil_water_layer_3','volumetric_soil_water_layer_4'
-            ]
+            ],
+            area=area
         )
 
