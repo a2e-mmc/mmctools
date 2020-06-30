@@ -47,7 +47,8 @@ class Terrain(object):
         self.output = fpath
         self.have_terrain = False
 
-    def to_terrain(self,dx,dy=None,resampling=warp.Resampling.bilinear):
+    def to_terrain(self,dx,dy=None,resampling=warp.Resampling.bilinear,
+                   datum='WGS84',ellps='WGS84'):
         """Load geospatial raster data and reproject onto specified grid
 
         Usage
@@ -57,6 +58,11 @@ class Terrain(object):
             spacing is assumed.
         resampling : warp.Resampling value, optional
             See `list(warp.Resampling)`.
+        datum : str, optional
+            Reference coordinate system, used to describe PROJ4 string;
+            default is WGS84, used by GPS and Google Earth.
+        ellps : str, optional
+            Ellipsoid defining the shape of the earth; default is WGS84.
         """
         if dy is None:
             dy = dx
@@ -81,7 +87,8 @@ class Terrain(object):
         self.zone_number = zonenum
         self.zone_letter = zonelet
         proj = '+proj=utm +zone={:d}'.format(zonenum) \
-             + '+datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0'
+             + '+datum={:s} +units=m +no_defs'.format(datum) \
+             + '+ellps={:s} +towgs84=0,0,0'.format(ellps)
         dst_crs = CRS.from_proj4(proj)
         self.utm_crs = dst_crs
         print('EPSG code:',dst_crs.to_epsg())
@@ -260,5 +267,6 @@ class SRTM(Terrain):
             print('Output grid at ds=',dx)
         if dy is None:
             dy = dx
-        return super().to_terrain(dx, dy=dy, resampling=resampling)
+        return super().to_terrain(dx, dy=dy, resampling=resampling,
+                                  datum='WGS84')
 
