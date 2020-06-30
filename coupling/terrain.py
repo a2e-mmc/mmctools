@@ -25,7 +25,8 @@ from rasterio.crs import CRS
 
 class Terrain(object):
     def __init__(self,latlon_bounds,fpath='output.tif',margin=0.05):
-        """Create container for SRTM data in the specified region
+        """Create container for manipulating GeoTIFF data in the
+        specified region
 
         Usage
         =====
