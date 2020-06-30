@@ -23,16 +23,9 @@ from rasterio import transform, warp
 from rasterio.crs import CRS
 
 
-class SRTM(object):
-    """Class for working with Shuttle Radar Topography Mission data"""
-    data_products = {
-        'SRTM1': 30.0,
-        'SRTM3': 90.0,
-    }
-
-    def __init__(self,latlon_bounds,fpath='output.tif',product='SRTM3',
-                 margin=0.05):
-        """Create container for SRTM data in the specified reegion
+class Terrain(object):
+    def __init__(self,latlon_bounds,fpath='output.tif',margin=0.05):
+        """Create container for SRTM data in the specified region
 
         Usage
         =====
@@ -41,9 +34,6 @@ class SRTM(object):
             north bounds.
         fpath : str, optional
             Where to save downloaded GeoTIFF (*.tif) data.
-        product : str, optional
-            Data product name, SRTM1 or SRTM3 (corresponding to 30- and
-            90-m DEM).
         margin : float, optional
             Decimal degree margin added to the bounds (default is 3").
         """
@@ -54,22 +44,9 @@ class SRTM(object):
             self.bounds[2] += margin
             self.bounds[3] += margin
         self.output = fpath
-        assert (product in self.data_products.keys()), \
-                'product should be one of '+str(list(self.data_products.keys()))
-        self.product = product
         self.have_terrain = False
 
-    def download(self,cleanup=True):
-        """Download the SRTM data in GeoTIFF format"""
-        dpath = os.path.dirname(self.output)
-        if not os.path.isdir(dpath):
-            print('Creating path',dpath)
-            os.makedirs(dpath)
-        elevation.clip(self.bounds, product=self.product, output=self.output)
-        if cleanup:
-            elevation.clean()
-
-    def to_terrain(self,dx=None,dy=None,resampling=warp.Resampling.bilinear):
+    def to_terrain(self,dx,dy=None,resampling=warp.Resampling.bilinear):
         """Load geospatial raster data and reproject onto specified grid
 
         Usage
@@ -80,9 +57,6 @@ class SRTM(object):
         resampling : warp.Resampling value, optional
             See `list(warp.Resampling)`.
         """
-        if dx is None:
-            dx = self.data_products[self.product]
-            print('Output grid at ds=',dx)
         if dy is None:
             dy = dx
 
@@ -228,4 +202,62 @@ class SRTM(object):
         z = self.zfun(x,y,grid=False)
 
         return y-refloc[1], z
+
+
+class SRTM(Terrain):
+    """Class for working with Shuttle Radar Topography Mission (SRTM) data"""
+    data_products = {
+        'SRTM1': 30.0,
+        'SRTM3': 90.0,
+    }
+
+    def __init__(self,latlon_bounds,fpath='output.tif',product='SRTM3',
+                 margin=0.05):
+        """Create container for SRTM data in the specified region
+
+        Usage
+        =====
+        latlon_bounds : list or tuple
+            Latitude/longitude corresponding to west, south, east, and
+            north bounds.
+        fpath : str, optional
+            Where to save downloaded GeoTIFF (*.tif) data.
+        product : str, optional
+            Data product name, SRTM1 or SRTM3 (corresponding to 30- and
+            90-m DEM).
+        margin : float, optional
+            Decimal degree margin added to the bounds (default is 3").
+        """
+        super().__init__(latlon_bounds,fpath=fpath,margin=margin)
+        assert (product in self.data_products.keys()), \
+                'product should be one of '+str(list(self.data_products.keys()))
+        self.product = product
+
+    def download(self,cleanup=True):
+        """Download the SRTM data in GeoTIFF format"""
+        dpath = os.path.dirname(self.output)
+        if not os.path.isdir(dpath):
+            print('Creating path',dpath)
+            os.makedirs(dpath)
+        elevation.clip(self.bounds, product=self.product, output=self.output)
+        if cleanup:
+            elevation.clean()
+
+    def to_terrain(self,dx=None,dy=None,resampling=warp.Resampling.bilinear):
+        """Load geospatial raster data and reproject onto specified grid
+
+        Usage
+        =====
+        dx,dy : float
+            Grid spacings [m]. If dy is not specified, then uniform
+            spacing is assumed.
+        resampling : warp.Resampling value, optional
+            See `list(warp.Resampling)`.
+        """
+        if dx is None:
+            dx = self.data_products[self.product]
+            print('Output grid at ds=',dx)
+        if dy is None:
+            dy = dx
+        return super().to_terrain(dx, dy=dy, resampling=resampling)
 
