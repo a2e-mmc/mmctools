@@ -59,10 +59,12 @@ class Terrain(object):
         resampling : warp.Resampling value, optional
             See `list(warp.Resampling)`.
         datum : str, optional
-            Reference coordinate system, used to describe PROJ4 string;
-            default is WGS84, used by GPS and Google Earth.
+            Origin of destination coordinate system, used to describe
+            PROJ.4 string; default is WGS84.
         ellps : str, optional
-            Ellipsoid defining the shape of the earth; default is WGS84.
+            Ellipsoid defining the shape of the earth in the destination
+            coordinate system, used to describe PROJ.4 string; default
+            is WGS84.
         """
         if dy is None:
             dy = dx
@@ -86,12 +88,12 @@ class Terrain(object):
         x0,y0,zonenum,zonelet = utm.from_latlon(lat0,lon0)
         self.zone_number = zonenum
         self.zone_letter = zonelet
-        proj = '+proj=utm +zone={:d}'.format(zonenum) \
-             + '+datum={:s} +units=m +no_defs'.format(datum) \
+        proj = '+proj=utm +zone={:d} '.format(zonenum) \
+             + '+datum={:s} +units=m +no_defs '.format(datum) \
              + '+ellps={:s} +towgs84=0,0,0'.format(ellps)
         dst_crs = CRS.from_proj4(proj)
+        print('Project from',src_crs,'to',dst_crs)
         self.utm_crs = dst_crs
-        print('EPSG code:',dst_crs.to_epsg())
         # - get origin (the _upper_ left corner) from bounds
         orix,oriy,_,_ = utm.from_latlon(north,west,force_zone_number=zonenum)
         origin = (orix, oriy)
@@ -227,7 +229,7 @@ class SRTM(Terrain):
         =====
         latlon_bounds : list or tuple
             Latitude/longitude corresponding to west, south, east, and
-            north bounds.
+            north bounds, used to define transformation.
         fpath : str, optional
             Where to save downloaded GeoTIFF (*.tif) data.
         product : str, optional
