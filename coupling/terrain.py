@@ -16,7 +16,6 @@ import os
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
-import utm
 import elevation
 import rasterio
 from rasterio import transform, warp
@@ -79,26 +78,22 @@ class Terrain(object):
         # calculate destination coordinate reference system, transform
         # - get coordinate system from zone number associated with mean lat/lon
         west, south, east, north = self.bounds
-        lat0 = (north+south) / 2
-        lon0 = (west+east) / 2
-        x0,y0,zonenum,zonelet = utm.from_latlon(lat0,lon0)
-        self.zone_number = zonenum
-        self.zone_letter = zonelet
-        proj = '+proj=utm +zone={:d} '.format(zonenum) \
+        self.zone_number = int((west + 180) / 6) + 1
+        proj = '+proj=utm +zone={:d} '.format(self.zone_number) \
              + '+datum={:s} +units=m +no_defs '.format(datum) \
              + '+ellps={:s} +towgs84=0,0,0'.format(ellps)
         dst_crs = CRS.from_proj4(proj)
         print('Projecting from',src_crs,'to',dst_crs)
         self.utm_crs = dst_crs
         # - get origin (the _upper_ left corner) from bounds
-        orix,oriy,_,_ = utm.from_latlon(north,west,force_zone_number=zonenum)
+        orix,oriy = self.to_xy(north,west)
         origin = (orix, oriy)
         self.origin = origin
         dst_transform = transform.from_origin(*origin, dx, dy)
         # - get extents from lower right corner
-        LL_x,LL_y,_,_ = utm.from_latlon(south,east,force_zone_number=zonenum)
-        Lx = LL_x - orix
-        Ly = oriy - LL_y
+        SE_x,SE_y = self.to_xy(south,east)
+        Lx = SE_x - orix
+        Ly = oriy - SE_y
         Nx = int(Lx / dx)
         Ny = int(Ly / dy)
 
@@ -181,7 +176,7 @@ class Terrain(object):
         if xy:
             refloc = xy
         elif latlon: 
-            x,y,_,_ = utm.from_latlon(*latlon)
+            x,y = self.to_xy(*latlon)
             refloc = (x,y)
         ang = 270 - wdir
         print('Slice through',refloc,'at',ang,'deg')
@@ -217,7 +212,7 @@ class Terrain(object):
         if xy:
             refloc = xy
         elif latlon: 
-            x,y,_,_ = utm.from_latlon(*latlon)
+            x,y = self.to_xy(*latlon)
             refloc = (x,y)
         ang = 180 - wdir
         print('Slice through',refloc,'at',ang,'deg')
