@@ -272,3 +272,30 @@ class SRTM(Terrain):
         return super().to_terrain(dx, dy=dy, resampling=resampling,
                                   datum='WGS84')
 
+
+class USGS(Terrain):
+    """Class for working with the US Geological Survey's 3D Elevation
+    Program (3DEP). Note that there is no API so the tif data must be
+    manually downloaded from the USGS.
+    """
+
+    def __init__(self,latlon_bounds,fpath='output.tif'):
+        """Create container for 3DEP data in the specified region
+
+        Usage
+        =====
+        latlon_bounds : list or tuple
+            Latitude/longitude corresponding to west, south, east, and
+            north bounds, used to define transformation.
+        fpath : str, optional
+            Location of downloaded GeoTIFF (*.tif) data.
+        """
+        super().__init__(latlon_bounds,fpath=fpath)
+
+    def download(self):
+        """This is just a stub"""
+        print('Data must be manually downloaded!')
+        print('Go to https://viewer.nationalmap.gov/basic/,')
+        print('select "Data > Elevation Products (3DEP)"')
+        print('and then click "Find Products"')
+
