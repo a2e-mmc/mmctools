@@ -42,6 +42,9 @@ class Terrain(object):
         self._get_utm_crs() # from bounds
         self.tiffdata = fpath
         self.have_terrain = False
+        if not hasattr(self,'have_metadata'):
+            # set attribute if it hasn't been set already
+            self.have_metadata = False
 
     def _get_utm_crs(self,datum='WGS84',ellps='WGS84'):
         """Get coordinate system from zone number associated with the
@@ -63,6 +66,11 @@ class Terrain(object):
              + '+datum={:s} +units=m +no_defs '.format(datum) \
              + '+ellps={:s} +towgs84=0,0,0'.format(ellps)
         self.utm_crs = CRS.from_proj4(proj)
+
+    def _get_bounds_from_metadata(self):
+        """This is a stub"""
+        assert self.have_metadata
+        raise NotImplementedError()
 
     def to_terrain(self,dx,dy=None,resampling=warp.Resampling.bilinear):
         """Load geospatial raster data and reproject onto specified grid
@@ -318,10 +326,10 @@ class USGS(Terrain):
             north bounds, used to define the source transformation. If
             not specified, then it will be read from a metadata file
             with the same name.
-        fpath : str, optional
+        fpath : str
             Location of downloaded GeoTIFF (*.tif) data.
         """
-        self._read_metadata(fpath)
+        self.metadata = self._read_metadata(fpath)
         if latlon_bounds is None:
             latlon_bounds = self._get_bounds_from_metadata()
             print('Bounds:',latlon_bounds)
@@ -331,13 +339,14 @@ class USGS(Terrain):
         from xml.etree import ElementTree
         xmlfile = os.path.splitext(fpath)[0] + '.xml'
         try:
-            self.metadata = ElementTree.parse(xmlfile).getroot()
+            metadata = ElementTree.parse(xmlfile).getroot()
         except IOError:
             self.have_metadata = False
         else:
-            assert self.metadata.tag == 'metadata'
-            print('Source CRS datum:',self.metadata.find('./spref/horizsys/geodetic/horizdn').text)
+            assert metadata.tag == 'metadata'
+            print('Source CRS datum:',metadata.find('./spref/horizsys/geodetic/horizdn').text)
             self.have_metadata = True
+        return metadata
 
     def _get_bounds_from_metadata(self):
         assert self.have_metadata
