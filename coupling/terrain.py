@@ -39,11 +39,32 @@ class Terrain(object):
             Where to save downloaded GeoTIFF (*.tif) data.
         """
         self.bounds = list(latlon_bounds)
+        self._get_utm_crs() # from bounds
         self.output = fpath
         self.have_terrain = False
 
-    def to_terrain(self,dx,dy=None,resampling=warp.Resampling.bilinear,
-                   datum='WGS84',ellps='WGS84'):
+    def _get_utm_crs(self,datum='WGS84',ellps='WGS84'):
+        """Get coordinate system from zone number associated with the
+        longitude of the northwest corner
+
+        Parameters
+        ==========
+        datum : str, optional
+            Origin of destination coordinate system, used to describe
+            PROJ.4 string; default is WGS84.
+        ellps : str, optional
+            Ellipsoid defining the shape of the earth in the destination
+            coordinate system, used to describe PROJ.4 string; default
+            is WGS84.
+        """
+        #west, south, east, north = self.bounds
+        self.zone_number = int((self.bounds[0] + 180) / 6) + 1
+        proj = '+proj=utm +zone={:d} '.format(self.zone_number) \
+             + '+datum={:s} +units=m +no_defs '.format(datum) \
+             + '+ellps={:s} +towgs84=0,0,0'.format(ellps)
+        self.utm_crs = CRS.from_proj4(proj)
+
+    def to_terrain(self,dx,dy=None,resampling=warp.Resampling.bilinear):
         """Load geospatial raster data and reproject onto specified grid
 
         Usage
@@ -53,13 +74,6 @@ class Terrain(object):
             spacing is assumed.
         resampling : warp.Resampling value, optional
             See `list(warp.Resampling)`.
-        datum : str, optional
-            Origin of destination coordinate system, used to describe
-            PROJ.4 string; default is WGS84.
-        ellps : str, optional
-            Ellipsoid defining the shape of the earth in the destination
-            coordinate system, used to describe PROJ.4 string; default
-            is WGS84.
         """
         if dy is None:
             dy = dx
@@ -69,22 +83,16 @@ class Terrain(object):
             raise FileNotFoundError('Need to download()')
         dem_raster = rasterio.open(self.output)
 
-        # calculate source coordinate reference system, transform
+        # get source coordinate reference system, transform
+        west, south, east, north = self.bounds
         src_height, src_width = dem_raster.shape
-        src_crs = dem_raster.crs  # coordinate reference system
+        src_crs = dem_raster.crs
         src_transform = transform.from_bounds(*self.bounds, src_width, src_height)
         src = dem_raster.read(1)
 
         # calculate destination coordinate reference system, transform
-        # - get coordinate system from zone number associated with mean lat/lon
-        west, south, east, north = self.bounds
-        self.zone_number = int((west + 180) / 6) + 1
-        proj = '+proj=utm +zone={:d} '.format(self.zone_number) \
-             + '+datum={:s} +units=m +no_defs '.format(datum) \
-             + '+ellps={:s} +towgs84=0,0,0'.format(ellps)
-        dst_crs = CRS.from_proj4(proj)
+        dst_crs = self.utm_crs
         print('Projecting from',src_crs,'to',dst_crs)
-        self.utm_crs = dst_crs
         # - get origin (the _upper_ left corner) from bounds
         orix,oriy = self.to_xy(north,west)
         origin = (orix, oriy)
@@ -291,8 +299,7 @@ class SRTM(Terrain):
             print('Output grid at ds=',dx)
         if dy is None:
             dy = dx
-        return super().to_terrain(dx, dy=dy, resampling=resampling,
-                                  datum='WGS84')
+        return super().to_terrain(dx, dy=dy, resampling=resampling)
 
 
 class USGS(Terrain):
