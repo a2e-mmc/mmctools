@@ -26,7 +26,7 @@ class Terrain(object):
 
     latlon_crs = CRS.from_dict(init='epsg:4326')
 
-    def __init__(self,latlon_bounds,fpath='output.tif'):
+    def __init__(self,latlon_bounds,fpath='terrain.tif'):
         """Create container for manipulating GeoTIFF data in the
         specified region
 
@@ -243,7 +243,7 @@ class SRTM(Terrain):
         'SRTM3': 90.0,
     }
 
-    def __init__(self,latlon_bounds,fpath='output.tif',product='SRTM3',
+    def __init__(self,latlon_bounds,fpath='terrain.tif',product='SRTM3',
                  margin=0.05):
         """Create container for SRTM data in the specified region
 
@@ -308,18 +308,45 @@ class USGS(Terrain):
     manually downloaded from the USGS.
     """
 
-    def __init__(self,latlon_bounds,fpath='output.tif'):
+    def __init__(self,latlon_bounds=None,fpath='terrain.tif'):
         """Create container for 3DEP data in the specified region
 
         Usage
         =====
-        latlon_bounds : list or tuple
+        latlon_bounds : list or tuple, optional
             Latitude/longitude corresponding to west, south, east, and
-            north bounds, used to define the source transformation.
+            north bounds, used to define the source transformation. If
+            not specified, then it will be read from a metadata file
+            with the same name.
         fpath : str, optional
             Location of downloaded GeoTIFF (*.tif) data.
         """
+        self._read_metadata(fpath)
+        if latlon_bounds is None:
+            latlon_bounds = self._get_bounds_from_metadata()
+            print('Bounds:',latlon_bounds)
         super().__init__(latlon_bounds,fpath=fpath)
+
+    def _read_metadata(self,fpath):
+        from xml.etree import ElementTree
+        xmlfile = os.path.splitext(fpath)[0] + '.xml'
+        try:
+            self.metadata = ElementTree.parse(xmlfile).getroot()
+        except IOError:
+            self.have_metadata = False
+        else:
+            assert self.metadata.tag == 'metadata'
+            print('Source CRS datum:',self.metadata.find('./spref/horizsys/geodetic/horizdn').text)
+            self.have_metadata = True
+
+    def _get_bounds_from_metadata(self):
+        assert self.have_metadata
+        bounding = self.metadata.find('./idinfo/spdom/bounding')
+        bounds = [
+            float(bounding.find(bcdir+'bc').text)
+            for bcdir in ['west','south','east','north']
+        ]
+        return bounds
 
     def download(self):
         """This is just a stub"""
