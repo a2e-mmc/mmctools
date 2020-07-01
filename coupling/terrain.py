@@ -24,6 +24,9 @@ from rasterio.crs import CRS
 
 
 class Terrain(object):
+
+    latlon_crs = CRS.from_dict(init='epsg:4326')
+
     def __init__(self,latlon_bounds,fpath='output.tif'):
         """Create container for manipulating GeoTIFF data in the
         specified region
@@ -122,7 +125,7 @@ class Terrain(object):
             x = [x]
             y = [y]
         xlon, xlat = warp.transform(self.utm_crs,
-                                    CRS.from_dict(init='epsg:4326'),
+                                    self.latlon_crs,
                                     x, y)
         try:
             shape = x.shape
@@ -133,6 +136,29 @@ class Terrain(object):
             xlat = np.reshape(xlat, shape)
             xlon = np.reshape(xlon, shape)
         return xlat,xlon
+
+    def to_xy(self,lat,lon,xref=None,yref=None):
+        """Transform lat/lon to UTM space"""
+        if not hasattr(lat, '__iter__'):
+            assert ~hasattr(lat, '__iter__')
+            lat = [lat]
+            lon = [lon]
+        x,y = warp.transform(self.latlon_crs,
+                             self.utm_crs,
+                             lon, lat)
+        try:
+            shape = lon.shape
+        except AttributeError:
+            x = x[0]
+            y = y[0]
+        else:
+            x = np.reshape(x, shape)
+            y = np.reshape(y, shape)
+        if xref is not None:
+            x -= xref
+        if yref is not None:
+            y -= yref
+        return x,y
 
     def xtransect(self,xy=None,latlon=None,wdir=270.0,xrange=(None,None)):
         """Get terrain transect along x for a slice aligned with the
