@@ -40,7 +40,7 @@ class Terrain(object):
         """
         self.bounds = list(latlon_bounds)
         self._get_utm_crs() # from bounds
-        self.output = fpath
+        self.tiffdata = fpath
         self.have_terrain = False
 
     def _get_utm_crs(self,datum='WGS84',ellps='WGS84'):
@@ -79,9 +79,9 @@ class Terrain(object):
             dy = dx
 
         # load raster
-        if not os.path.isfile(self.output):
+        if not os.path.isfile(self.tiffdata):
             raise FileNotFoundError('Need to download()')
-        dem_raster = rasterio.open(self.output)
+        dem_raster = rasterio.open(self.tiffdata)
 
         # get source coordinate reference system, transform
         west, south, east, north = self.bounds
@@ -275,11 +275,11 @@ class SRTM(Terrain):
 
     def download(self,cleanup=True):
         """Download the SRTM data in GeoTIFF format"""
-        dpath = os.path.dirname(self.output)
+        dpath = os.path.dirname(self.tiffdata)
         if not os.path.isdir(dpath):
             print('Creating path',dpath)
             os.makedirs(dpath)
-        elevation.clip(self.bounds, product=self.product, output=self.output)
+        elevation.clip(self.bounds, product=self.product, output=self.tiffdata)
         if cleanup:
             elevation.clean()
 
