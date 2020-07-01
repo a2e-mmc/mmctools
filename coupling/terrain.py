@@ -12,7 +12,7 @@ For processing downloaded GeoTIFF data:
 - install with `conda install -c conda-forge rasterio` or `pip install rasterio`
 - note: like the elevation package, this also depends on gdal
 """
-import os
+import os,glob
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
@@ -342,6 +342,7 @@ class USGS(Terrain):
             metadata = ElementTree.parse(xmlfile).getroot()
         except IOError:
             self.have_metadata = False
+            metadata = None
         else:
             assert metadata.tag == 'metadata'
             print('Source CRS datum:',metadata.find('./spref/horizsys/geodetic/horizdn').text)
@@ -363,4 +364,56 @@ class USGS(Terrain):
         print('Go to https://viewer.nationalmap.gov/basic/,')
         print('select "Data > Elevation Products (3DEP)"')
         print('and then click "Find Products"')
+
+
+def combine_raster_data(filelist,dtype=Terrain,latlon_bounds=None,
+                        output='output.tif'):
+    """Combine multiple raster datasets into a single GeoTIFF file
+
+    Usage
+    =====
+    filelist : list or glob str
+        List of downloaded GeoTIFF (*.tif) data.
+    dtype : Terrain or derived class, optional
+        Used to provide helper functions if needed.
+    latlon_bounds : list of (list or tuple), optional
+        Each list or tuple of latitude/longitude corresponds to west,
+        south, east, and north bounds, and are used to define the bounds
+        of the combined raster. If not specified, then try to read these
+        bounds from metadata.
+    output : str
+        Location of combined GeoTIFF (*.tif) data.
+    """
+    if not isinstance(filelist, list):
+        filelist = glob.glob(filelist)
+        print('Files:',filelist)
+    assert len(filelist) > 1, 'Did not find enough files to combine'
+    if latlon_bounds is None:
+        latlon_bounds = len(filelist) * [None]
+    else:
+        assert len(latlon_bounds)==len(filelist), 'Not enough specified bounds'
+
+    terraindata = [
+        dtype(bounds,fpath) for bounds,fpath in zip(latlon_bounds,filelist)
+    ]
+
+    # merge rasters
+    from rasterio.merge import merge
+    merged, out_transform = merge([
+        rasterio.open(data.tiffdata) for data in terraindata
+    ])
+
+    # write out merged dataset
+    profile = rasterio.open(filelist[0]).profile
+    print('Raster profile:',profile)
+    with rasterio.open(output,'w',**profile) as dst:
+        dst.write(merged)
+
+    # get global bounds
+    bounds = np.empty((len(filelist),4))
+    for i,data in enumerate(terraindata):
+        bounds[i,:] = data.bounds
+    bounds_min = bounds.min(axis=0)
+    bounds_max = bounds.max(axis=0)
+    return [bounds_min[0],bounds_min[1],bounds_max[2],bounds_max[3]]
 
