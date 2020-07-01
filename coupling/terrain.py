@@ -24,7 +24,7 @@ from rasterio.crs import CRS
 
 
 class Terrain(object):
-    def __init__(self,latlon_bounds,fpath='output.tif',margin=0.05):
+    def __init__(self,latlon_bounds,fpath='output.tif'):
         """Create container for manipulating GeoTIFF data in the
         specified region
 
@@ -32,18 +32,11 @@ class Terrain(object):
         =====
         latlon_bounds : list or tuple
             Latitude/longitude corresponding to west, south, east, and
-            north bounds.
+            north bounds, used to define the source transformation.
         fpath : str, optional
             Where to save downloaded GeoTIFF (*.tif) data.
-        margin : float, optional
-            Decimal degree margin added to the bounds (default is 3").
         """
         self.bounds = list(latlon_bounds)
-        if margin is not None:
-            self.bounds[0] -= margin
-            self.bounds[1] -= margin
-            self.bounds[2] += margin
-            self.bounds[3] += margin
         self.output = fpath
         self.have_terrain = False
 
@@ -92,7 +85,7 @@ class Terrain(object):
              + '+datum={:s} +units=m +no_defs '.format(datum) \
              + '+ellps={:s} +towgs84=0,0,0'.format(ellps)
         dst_crs = CRS.from_proj4(proj)
-        print('Project from',src_crs,'to',dst_crs)
+        print('Projecting from',src_crs,'to',dst_crs)
         self.utm_crs = dst_crs
         # - get origin (the _upper_ left corner) from bounds
         orix,oriy,_,_ = utm.from_latlon(north,west,force_zone_number=zonenum)
@@ -229,19 +222,27 @@ class SRTM(Terrain):
         =====
         latlon_bounds : list or tuple
             Latitude/longitude corresponding to west, south, east, and
-            north bounds, used to define transformation.
+            north bounds, used to define the source transformation.
         fpath : str, optional
             Where to save downloaded GeoTIFF (*.tif) data.
         product : str, optional
             Data product name, SRTM1 or SRTM3 (corresponding to 30- and
             90-m DEM).
         margin : float, optional
-            Decimal degree margin added to the bounds (default is 3").
+            Decimal degree margin added to the bounds (default is 3")
+            when clipping the downloaded elevation data.
         """
-        super().__init__(latlon_bounds,fpath=fpath,margin=margin)
+        latlon_bounds = list(latlon_bounds)
+        if margin is not None:
+            latlon_bounds[0] -= margin
+            latlon_bounds[1] -= margin
+            latlon_bounds[2] += margin
+            latlon_bounds[3] += margin
+        super().__init__(latlon_bounds,fpath=fpath)
         assert (product in self.data_products.keys()), \
                 'product should be one of '+str(list(self.data_products.keys()))
         self.product = product
+        self.margin = margin
 
     def download(self,cleanup=True):
         """Download the SRTM data in GeoTIFF format"""
@@ -286,7 +287,7 @@ class USGS(Terrain):
         =====
         latlon_bounds : list or tuple
             Latitude/longitude corresponding to west, south, east, and
-            north bounds, used to define transformation.
+            north bounds, used to define the source transformation.
         fpath : str, optional
             Location of downloaded GeoTIFF (*.tif) data.
         """
