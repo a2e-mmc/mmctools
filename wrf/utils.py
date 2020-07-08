@@ -1029,7 +1029,6 @@ def combine_towers(fdir, restarts, simulation_start, fname,
         if verbose:
             print('restart: {}'.format(restart))
         data = []
-        print("FNAME: ",fname)
         for ff in fname:
             if verbose:
                 print('starting {}'.format(ff))
@@ -1042,29 +1041,20 @@ def combine_towers(fdir, restarts, simulation_start, fname,
                                height_var=height_var,
                                agl=agl,
                                **kwargs)
-            #print(ds)
             data.append(ds)
-            print("testing",ff,data)
         data_block = xr.combine_by_coords(data)
         if np.shape(restarts)[0] > 1:
-            
             if rst == 0:
-                print("RST == 0", rst )
                 data_previous = data_block
             else:
                 dataF = data_block.combine_first(data_previous)
                 data_previous = dataF
         else:
             dataF = data_block
-        print(np.shape(restarts)[0])
-        #if rst>0:
-        #    print(ds)
     if heights is None:
-        print("branch a, height is none")
         height_dim = 'k'
         height_var = 'ph'
     else:
-        print("branch b, height is NOT none")
         height_dim = 'height'
         height_var = 'height'
     if structure == 'ordered':
@@ -1081,9 +1071,6 @@ def combine_towers(fdir, restarts, simulation_start, fname,
         dataF.attrs['DX'] = dx
         dataF.attrs['DY'] = dy
     elif structure == 'unordered':
-        print("height_dim: ",height_dim)
-        print( dataF.dims )
-        print(dataF)
         dataF = dataF.rename_dims({height_dim:'nz'})
     dataF = dataF.assign_coords(lat=dataF.lat)
     dataF = dataF.assign_coords(lon=dataF.lon)
@@ -1139,14 +1126,14 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
             for twr_n in tower_names:
                 if twr in twr_n: good_towers.append(twr_n)
         tower_names = good_towers
-    print( "testout_seriesReader stuff", fdir, tower_names )
     dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,
                          structure=structure, time_step=time_step,
                          heights=heights, height_var=height_var)
     return dsF
 
 
-def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None, hlim_ind = None):
+def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
+                        hlim_ind=None):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
     series of 3-dimensional WRF output files
@@ -1172,8 +1159,6 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None, hlim_in
         where the specified_heights argument is not well suited
         (i.e., want a range of non-interpolated heights), and you only care about
         data that are below a certain vertical index.
-        
-      
     """
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
@@ -1260,8 +1245,6 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None, hlim_in
     except:
         # if hlim_ind = None, default code execution
         return ds_subset
-
-    
 
 
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
