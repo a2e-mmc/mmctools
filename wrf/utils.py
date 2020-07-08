@@ -1126,14 +1126,14 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
             for twr_n in tower_names:
                 if twr in twr_n: good_towers.append(twr_n)
         tower_names = good_towers
-    
     dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,
                          structure=structure, time_step=time_step,
                          heights=heights, height_var=height_var)
     return dsF
 
 
-def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
+def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
+                        hlim_ind=None):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
     series of 3-dimensional WRF output files
@@ -1152,6 +1152,13 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
         If not None, then a list of static heights to which all data
         variables should be	interpolated. Note that this significantly
         increases the data read time.
+    hlim_ind : int, index
+        If not none, then the DataArray ds_subset is further subset by vertical dimension,
+        keeping vertical layers 0:hlim_ind.
+        This is meant to be used to speed up execution of the code or prevent a memory error
+        where the specified_heights argument is not well suited
+        (i.e., want a range of non-interpolated heights), and you only care about
+        data that are below a certain vertical index.
     """
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
@@ -1230,7 +1237,14 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None):
     #print(ds_subset)
     ds_subset = ds_subset.rename_dims(dims_dict)
     #print(ds_subset)
-    return ds_subset
+    
+    # Change by WHL to eliminate vertical info far from the surface to prevent memory crash                                       
+    try:
+        ds_subset2 = ds_subset.isel( nz = slice(0, hlim_ind) )
+        return ds_subset2
+    except:
+        # if hlim_ind = None, default code execution
+        return ds_subset
 
 
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
