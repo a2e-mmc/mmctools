@@ -595,7 +595,7 @@ def plot_timehistory_at_height(datasets,
    
     # Set axis grid
     for axi in axv:
-        axi.xaxis.grid(True,which='minor')
+        axi.xaxis.grid(True,which='both')
         axi.yaxis.grid(True)
     
     # Format time axis
