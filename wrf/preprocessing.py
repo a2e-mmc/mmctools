@@ -195,7 +195,9 @@ class CDSDataset(object):
         import cdsapi
         self.client = cdsapi.Client()
 
-    def download(self,datetimes,product,prefix=None,variables=[],
+    def download(self,datetimes,product,prefix=None,
+                 variables=[],
+                 area=[],
                  pressure_levels=None):
         """Download data at specified datetimes.
 
@@ -212,6 +214,8 @@ class CDSDataset(object):
             "subset_name_YYYY_MM_DD_HH.grib"
         variables : list
             List of variable names
+        area : list
+            North/west/south/east lat/long limits
         pressure_levels : list, optional
             List of pressure levels
         """
@@ -223,7 +227,7 @@ class CDSDataset(object):
             'format': 'grib',
             'variable': variables,
             'pressure_level': pressure_levels,
-            'area': self.area, # North, West, South, East.
+            'area': area, # North, West, South, East.
         }
         if pressure_levels is not None:
             req['pressure_level'] = pressure_levels
@@ -255,11 +259,7 @@ class ERA5(CDSDataset):
     Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=74764925
     """
 
-    def download(self,datetimes,path=None,
-                 N_bound=None,
-                 S_bound=None,
-                 W_bound=None,
-                 E_bound=None):
+    def download(self,datetimes,path=None,bounds={}):
         """Download data at specified datetimes.
 
         Descriptions:
@@ -273,9 +273,9 @@ class ERA5(CDSDataset):
             pd.date_range(startdate,enddate,freq='21600s')
         path : str, optional
             Path to directory in which to save grib files
-        X_bound : floats, optional
-            North/west/south/east lat/long limits. N=North, S=South,
-            W=West, E=East boundaries. Default retrieval region 
+        bounds : dict, optional
+            Dictionary with keys N=North, S=South, W=West, and E=East
+            for optional lat/long limits. Default retrieval region 
             includes all of US and Central America, most of Alaska 
             and Canada (up to 60deg latitude), and parts of South 
             America that lie north of the equator.
@@ -285,12 +285,12 @@ class ERA5(CDSDataset):
         else:
             os.makedirs(path,exist_ok=True)
             
-        if N_bound is None: N_bound = 60
-        if S_bound is None: S_bound = 0
-        if W_bound is None: W_bound = -169
-        if E_bound is None: E_bound = -47
+        N_bound = bounds.get('N', 60)
+        S_bound = bounds.get('S', 0)
+        W_bound = bounds.get('W', -169)
+        E_bound = bounds.get('E', -47)
             
-        self.area = [N_bound, W_bound, S_bound, E_bound]
+        area = [N_bound, W_bound, S_bound, E_bound]
             
         super().download(
             datetimes,
@@ -310,7 +310,8 @@ class ERA5(CDSDataset):
                 '175','200','225','250','300','350','400','450','500','550',
                 '600','650','700','750','775','800','825','850','875','900',
                 '925','950','975','1000'
-            ]
+            ],
+            area=area
         )
         super().download(
             datetimes,
@@ -335,6 +336,7 @@ class ERA5(CDSDataset):
                 'temperature_of_snow_layer','total_column_snow_water',
                 'volumetric_soil_water_layer_1','volumetric_soil_water_layer_2',
                 'volumetric_soil_water_layer_3','volumetric_soil_water_layer_4'
-            ]
+            ],
+            area=area
         )
 
