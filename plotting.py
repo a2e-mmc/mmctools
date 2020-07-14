@@ -846,10 +846,13 @@ def plot_profile(datasets,
                         if isinstance(time, (int,float,np.number)):
                             tstr = '{:g} s'.format(time)
                         else:
-                            if plot_local_time is not False:
+                            if plot_local_time is False:
+                                tstr = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                            elif plot_local_time is True:
                                 tstr = pd.to_datetime(time).strftime('%Y-%m-%d %H:%M')
                             else:
-                                tstr = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                                assert isinstance(plot_local_time,str), 'Unexpected plot_local_time format'
+                                tstr = pd.to_datetime(time).strftime(plot_local_time)
                         axv[axi].set_title(tstr, fontsize=16)
 
                     # Set color
@@ -866,10 +869,13 @@ def plot_profile(datasets,
                         if isinstance(time, (int,float,np.number)):
                             plotting_properties['label'] = '{:g} s'.format(time)
                         else:
-                            if plot_local_time is not False:
+                            if plot_local_time is False:
+                                plotting_properties['label'] = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                            elif plot_local_time is True:
                                 plotting_properties['label'] = pd.to_datetime(time).strftime('%Y-%m-%d %H:%M')
                             else:
-                                plotting_properties['label'] = pd.to_datetime(time).strftime('%Y-%m-%d %H%M UTC')
+                                assert isinstance(plot_local_time,str), 'Unexpected plot_local_time format'
+                                plotting_properties['label'] = pd.to_datetime(time).strftime(plot_local_time)
 
                     # Set title if multiple datasets are compared
                     if ndatasets>1:
