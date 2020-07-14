@@ -195,7 +195,9 @@ class CDSDataset(object):
         import cdsapi
         self.client = cdsapi.Client()
 
-    def download(self,datetimes,product,prefix=None,variables=[],
+    def download(self,datetimes,product,prefix=None,
+                 variables=[],
+                 area=[],
                  pressure_levels=None):
         """Download data at specified datetimes.
 
@@ -212,6 +214,8 @@ class CDSDataset(object):
             "subset_name_YYYY_MM_DD_HH.grib"
         variables : list
             List of variable names
+        area : list
+            North/west/south/east lat/long limits
         pressure_levels : list, optional
             List of pressure levels
         """
@@ -223,7 +227,7 @@ class CDSDataset(object):
             'format': 'grib',
             'variable': variables,
             'pressure_level': pressure_levels,
-            'area': self.area, # North, West, South, East.
+            'area': area, # North, West, South, East.
         }
         if pressure_levels is not None:
             req['pressure_level'] = pressure_levels
@@ -286,7 +290,7 @@ class ERA5(CDSDataset):
         W_bound = bounds.get('W', -169)
         E_bound = bounds.get('E', -47)
             
-        self.area = [N_bound, W_bound, S_bound, E_bound]
+        area = [N_bound, W_bound, S_bound, E_bound]
             
         super().download(
             datetimes,
@@ -306,7 +310,8 @@ class ERA5(CDSDataset):
                 '175','200','225','250','300','350','400','450','500','550',
                 '600','650','700','750','775','800','825','850','875','900',
                 '925','950','975','1000'
-            ]
+            ],
+            area=area
         )
         super().download(
             datetimes,
@@ -331,6 +336,7 @@ class ERA5(CDSDataset):
                 'temperature_of_snow_layer','total_column_snow_water',
                 'volumetric_soil_water_layer_1','volumetric_soil_water_layer_2',
                 'volumetric_soil_water_layer_3','volumetric_soil_water_layer_4'
-            ]
+            ],
+            area=area
         )
 
