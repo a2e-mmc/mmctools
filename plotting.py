@@ -878,7 +878,10 @@ def plot_profile(datasets,
                     plotting_properties = {**plotting_properties,**kwargs}
 
                 # Plot data
-                axv[axi].plot(fieldvalues,heightvalues,**plotting_properties)
+                try:
+                    axv[axi].plot(fieldvalues,heightvalues,**plotting_properties)
+                except ValueError as e:
+                    print(e,'--', time, 'not found in index?')
 
                 # Set field label if known
                 try:
