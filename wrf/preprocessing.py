@@ -195,8 +195,10 @@ class CDSDataset(object):
         import cdsapi
         self.client = cdsapi.Client()
 
-    def download(self,datetimes,product,prefix=None,variables=[],
-                 pressure_levels=None,area=None):
+    def download(self,datetimes,product,prefix=None,
+                 variables=[],
+                 area=[],
+                 pressure_levels=None):
         """Download data at specified datetimes.
 
         Usage
@@ -212,18 +214,14 @@ class CDSDataset(object):
             "subset_name_YYYY_MM_DD_HH.grib"
         variables : list
             List of variable names
+        area : list
+            North/west/south/east lat/long limits
         pressure_levels : list, optional
             List of pressure levels
-        area : list, optional
-            North/west/south/east lat/long limits. Default retrieval
-            region includes all of US and Central America, most of
-            Alaska and Canada (up to 60deg latitude), and parts of
-            South America that lie north of the equator.
         """
         if prefix is None:
             prefix = os.path.join('.',product)
-        if area is None:
-            area = [60, -169, 0, -47]
+        
         req = {
             'product_type': 'reanalysis',
             'format': 'grib',
@@ -261,7 +259,7 @@ class ERA5(CDSDataset):
     Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=74764925
     """
 
-    def download(self,datetimes,path=None,area=None):
+    def download(self,datetimes,path=None,bounds={}):
         """Download data at specified datetimes.
 
         Descriptions:
@@ -275,16 +273,25 @@ class ERA5(CDSDataset):
             pd.date_range(startdate,enddate,freq='21600s')
         path : str, optional
             Path to directory in which to save grib files
-        area : list, optional
-            North/west/south/east lat/long limits. Default retrieval
-            region includes all of US and Central America, most of
-            Alaska and Canada (up to 60deg latitude), and parts of
-            South America that lie north of the equator.
+        bounds : dict, optional
+            Dictionary with keys N=North, S=South, W=West, and E=East
+            for optional lat/long limits. Default retrieval region 
+            includes all of US and Central America, most of Alaska 
+            and Canada (up to 60deg latitude), and parts of South 
+            America that lie north of the equator.
         """
         if path is None:
             path = '.'
         else:
             os.makedirs(path,exist_ok=True)
+            
+        N_bound = bounds.get('N', 60)
+        S_bound = bounds.get('S', 0)
+        W_bound = bounds.get('W', -169)
+        E_bound = bounds.get('E', -47)
+            
+        area = [N_bound, W_bound, S_bound, E_bound]
+            
         super().download(
             datetimes,
             'reanalysis-era5-pressure-levels',
