@@ -255,11 +255,7 @@ class ERA5(CDSDataset):
     Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=74764925
     """
 
-    def download(self,datetimes,path=None,
-                 N_bound=None,
-                 S_bound=None,
-                 W_bound=None,
-                 E_bound=None):
+    def download(self,datetimes,path=None,bounds={}):
         """Download data at specified datetimes.
 
         Descriptions:
@@ -273,9 +269,9 @@ class ERA5(CDSDataset):
             pd.date_range(startdate,enddate,freq='21600s')
         path : str, optional
             Path to directory in which to save grib files
-        X_bound : floats, optional
-            North/west/south/east lat/long limits. N=North, S=South,
-            W=West, E=East boundaries. Default retrieval region 
+        bounds : dict, optional
+            Dictionary with keys N=North, S=South, W=West, and E=East
+            for optional lat/long limits. Default retrieval region 
             includes all of US and Central America, most of Alaska 
             and Canada (up to 60deg latitude), and parts of South 
             America that lie north of the equator.
@@ -285,10 +281,10 @@ class ERA5(CDSDataset):
         else:
             os.makedirs(path,exist_ok=True)
             
-        if N_bound is None: N_bound = 60
-        if S_bound is None: S_bound = 0
-        if W_bound is None: W_bound = -169
-        if E_bound is None: E_bound = -47
+        N_bound = bounds.get('N', 60)
+        S_bound = bounds.get('S', 0)
+        W_bound = bounds.get('W', -169)
+        E_bound = bounds.get('E', -47)
             
         self.area = [N_bound, W_bound, S_bound, E_bound]
             
