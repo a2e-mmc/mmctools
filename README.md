@@ -80,7 +80,7 @@ df = read_dir(dpath, file_filter='*_w*', reader=profiler)
 
 ## Installation
 
-To install, run `pip install -e mmctools` after cloning the repository.
+To install, run `pip install -e mmctools` after cloning the repository (or `pip install -e .` from inside a2e-mmc/mmctools).
 
 
 ## Code Development Principles
