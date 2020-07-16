@@ -68,6 +68,12 @@ class InternalCoupling(object):
         if not os.path.isdir(dpath):
             os.mkdir(dpath)
 
+        # Handle input with multiindex
+        if isinstance(df.index, pd.MultiIndex):
+            assert df.index.names[0] == 'datetime', 'first multiindex level is not "datetime"'
+            assert df.index.names[1] == 'height', 'second multiindex level is not "height"'
+            df = df.reset_index(level=1)
+
         # Use dataframe between datefrom and dateto
         if datefrom is None:
             datefrom = df.index[0]
