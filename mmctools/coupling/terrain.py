@@ -12,64 +12,67 @@ For processing downloaded GeoTIFF data:
 - install with `conda install -c conda-forge rasterio` or `pip install rasterio`
 - note: like the elevation package, this also depends on gdal
 """
-import os
+import os,glob
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
-import utm
 import elevation
 import rasterio
 from rasterio import transform, warp
 from rasterio.crs import CRS
 
 
-class SRTM(object):
-    """Class for working with Shuttle Radar Topography Mission data"""
-    data_products = {
-        'SRTM1': 30.0,
-        'SRTM3': 90.0,
-    }
+class Terrain(object):
 
-    def __init__(self,latlon_bounds,fpath='output.tif',product='SRTM3',
-                 margin=0.05):
-        """Create container for SRTM data in the specified reegion
+    latlon_crs = CRS.from_dict(init='epsg:4326')
+
+    def __init__(self,latlon_bounds,fpath='terrain.tif'):
+        """Create container for manipulating GeoTIFF data in the
+        specified region
 
         Usage
         =====
         latlon_bounds : list or tuple
             Latitude/longitude corresponding to west, south, east, and
-            north bounds.
+            north bounds, used to define the source transformation.
         fpath : str, optional
             Where to save downloaded GeoTIFF (*.tif) data.
-        product : str, optional
-            Data product name, SRTM1 or SRTM3 (corresponding to 30- and
-            90-m DEM).
-        margin : float, optional
-            Decimal degree margin added to the bounds (default is 3").
         """
         self.bounds = list(latlon_bounds)
-        if margin is not None:
-            self.bounds[0] -= margin
-            self.bounds[1] -= margin
-            self.bounds[2] += margin
-            self.bounds[3] += margin
-        self.output = fpath
-        assert (product in self.data_products.keys()), \
-                'product should be one of '+str(list(self.data_products.keys()))
-        self.product = product
+        self._get_utm_crs() # from bounds
+        self.tiffdata = fpath
         self.have_terrain = False
+        if not hasattr(self,'have_metadata'):
+            # set attribute if it hasn't been set already
+            self.have_metadata = False
 
-    def download(self,cleanup=True):
-        """Download the SRTM data in GeoTIFF format"""
-        dpath = os.path.dirname(self.output)
-        if not os.path.isdir(dpath):
-            print('Creating path',dpath)
-            os.makedirs(dpath)
-        elevation.clip(self.bounds, product=self.product, output=self.output)
-        if cleanup:
-            elevation.clean()
+    def _get_utm_crs(self,datum='WGS84',ellps='WGS84'):
+        """Get coordinate system from zone number associated with the
+        longitude of the northwest corner
 
-    def to_terrain(self,dx=None,dy=None,resampling=warp.Resampling.bilinear):
+        Parameters
+        ==========
+        datum : str, optional
+            Origin of destination coordinate system, used to describe
+            PROJ.4 string; default is WGS84.
+        ellps : str, optional
+            Ellipsoid defining the shape of the earth in the destination
+            coordinate system, used to describe PROJ.4 string; default
+            is WGS84.
+        """
+        #west, south, east, north = self.bounds
+        self.zone_number = int((self.bounds[0] + 180) / 6) + 1
+        proj = '+proj=utm +zone={:d} '.format(self.zone_number) \
+             + '+datum={:s} +units=m +no_defs '.format(datum) \
+             + '+ellps={:s} +towgs84=0,0,0'.format(ellps)
+        self.utm_crs = CRS.from_proj4(proj)
+
+    def _get_bounds_from_metadata(self):
+        """This is a stub"""
+        assert self.have_metadata
+        raise NotImplementedError()
+
+    def to_terrain(self,dx,dy=None,resampling=warp.Resampling.bilinear):
         """Load geospatial raster data and reproject onto specified grid
 
         Usage
@@ -80,45 +83,33 @@ class SRTM(object):
         resampling : warp.Resampling value, optional
             See `list(warp.Resampling)`.
         """
-        if dx is None:
-            dx = self.data_products[self.product]
-            print('Output grid at ds=',dx)
         if dy is None:
             dy = dx
 
         # load raster
-        if not os.path.isfile(self.output):
+        if not os.path.isfile(self.tiffdata):
             raise FileNotFoundError('Need to download()')
-        dem_raster = rasterio.open(self.output)
+        dem_raster = rasterio.open(self.tiffdata)
 
-        # calculate source coordinate reference system, transform
+        # get source coordinate reference system, transform
+        west, south, east, north = self.bounds
         src_height, src_width = dem_raster.shape
-        src_crs = dem_raster.crs  # coordinate reference system
+        src_crs = dem_raster.crs
         src_transform = transform.from_bounds(*self.bounds, src_width, src_height)
         src = dem_raster.read(1)
 
         # calculate destination coordinate reference system, transform
-        # - get coordinate system from zone number associated with mean lat/lon
-        west, south, east, north = self.bounds
-        lat0 = (north+south) / 2
-        lon0 = (west+east) / 2
-        x0,y0,zonenum,zonelet = utm.from_latlon(lat0,lon0)
-        self.zone_number = zonenum
-        self.zone_letter = zonelet
-        proj = '+proj=utm +zone={:d}'.format(zonenum) \
-             + '+datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0'
-        dst_crs = CRS.from_proj4(proj)
-        self.utm_crs = dst_crs
-        print('EPSG code:',dst_crs.to_epsg())
+        dst_crs = self.utm_crs
+        print('Projecting from',src_crs,'to',dst_crs)
         # - get origin (the _upper_ left corner) from bounds
-        orix,oriy,_,_ = utm.from_latlon(north,west,force_zone_number=zonenum)
+        orix,oriy = self.to_xy(north,west)
         origin = (orix, oriy)
         self.origin = origin
         dst_transform = transform.from_origin(*origin, dx, dy)
         # - get extents from lower right corner
-        LL_x,LL_y,_,_ = utm.from_latlon(south,east,force_zone_number=zonenum)
-        Lx = LL_x - orix
-        Ly = oriy - LL_y
+        SE_x,SE_y = self.to_xy(south,east)
+        Lx = SE_x - orix
+        Ly = oriy - SE_y
         Nx = int(Lx / dx)
         Ny = int(Ly / dy)
 
@@ -145,7 +136,7 @@ class SRTM(object):
             x = [x]
             y = [y]
         xlon, xlat = warp.transform(self.utm_crs,
-                                    CRS.from_dict(init='epsg:4326'),
+                                    self.latlon_crs,
                                     x, y)
         try:
             shape = x.shape
@@ -156,6 +147,29 @@ class SRTM(object):
             xlat = np.reshape(xlat, shape)
             xlon = np.reshape(xlon, shape)
         return xlat,xlon
+
+    def to_xy(self,lat,lon,xref=None,yref=None):
+        """Transform lat/lon to UTM space"""
+        if not hasattr(lat, '__iter__'):
+            assert ~hasattr(lat, '__iter__')
+            lat = [lat]
+            lon = [lon]
+        x,y = warp.transform(self.latlon_crs,
+                             self.utm_crs,
+                             lon, lat)
+        try:
+            shape = lon.shape
+        except AttributeError:
+            x = x[0]
+            y = y[0]
+        else:
+            x = np.reshape(x, shape)
+            y = np.reshape(y, shape)
+        if xref is not None:
+            x -= xref
+        if yref is not None:
+            y -= yref
+        return x,y
 
     def xtransect(self,xy=None,latlon=None,wdir=270.0,xrange=(None,None)):
         """Get terrain transect along x for a slice aligned with the
@@ -178,7 +192,7 @@ class SRTM(object):
         if xy:
             refloc = xy
         elif latlon: 
-            x,y,_,_ = utm.from_latlon(*latlon)
+            x,y = self.to_xy(*latlon)
             refloc = (x,y)
         ang = 270 - wdir
         print('Slice through',refloc,'at',ang,'deg')
@@ -214,7 +228,7 @@ class SRTM(object):
         if xy:
             refloc = xy
         elif latlon: 
-            x,y,_,_ = utm.from_latlon(*latlon)
+            x,y = self.to_xy(*latlon)
             refloc = (x,y)
         ang = 180 - wdir
         print('Slice through',refloc,'at',ang,'deg')
@@ -228,4 +242,178 @@ class SRTM(object):
         z = self.zfun(x,y,grid=False)
 
         return y-refloc[1], z
+
+
+class SRTM(Terrain):
+    """Class for working with Shuttle Radar Topography Mission (SRTM) data"""
+    data_products = {
+        'SRTM1': 30.0,
+        'SRTM3': 90.0,
+    }
+
+    def __init__(self,latlon_bounds,fpath='terrain.tif',product='SRTM3',
+                 margin=0.05):
+        """Create container for SRTM data in the specified region
+
+        Usage
+        =====
+        latlon_bounds : list or tuple
+            Latitude/longitude corresponding to west, south, east, and
+            north bounds, used to define the source transformation.
+        fpath : str, optional
+            Where to save downloaded GeoTIFF (*.tif) data.
+        product : str, optional
+            Data product name, SRTM1 or SRTM3 (corresponding to 30- and
+            90-m DEM).
+        margin : float, optional
+            Decimal degree margin added to the bounds (default is 3")
+            when clipping the downloaded elevation data.
+        """
+        latlon_bounds = list(latlon_bounds)
+        if margin is not None:
+            latlon_bounds[0] -= margin
+            latlon_bounds[1] -= margin
+            latlon_bounds[2] += margin
+            latlon_bounds[3] += margin
+        super().__init__(latlon_bounds,fpath=fpath)
+        assert (product in self.data_products.keys()), \
+                'product should be one of '+str(list(self.data_products.keys()))
+        self.product = product
+        self.margin = margin
+
+    def download(self,cleanup=True):
+        """Download the SRTM data in GeoTIFF format"""
+        dpath = os.path.dirname(self.tiffdata)
+        if not os.path.isdir(dpath):
+            print('Creating path',dpath)
+            os.makedirs(dpath)
+        elevation.clip(self.bounds, product=self.product, output=self.tiffdata)
+        if cleanup:
+            elevation.clean()
+
+    def to_terrain(self,dx=None,dy=None,resampling=warp.Resampling.bilinear):
+        """Load geospatial raster data and reproject onto specified grid
+
+        Usage
+        =====
+        dx,dy : float
+            Grid spacings [m]. If dy is not specified, then uniform
+            spacing is assumed.
+        resampling : warp.Resampling value, optional
+            See `list(warp.Resampling)`.
+        """
+        if dx is None:
+            dx = self.data_products[self.product]
+            print('Output grid at ds=',dx)
+        if dy is None:
+            dy = dx
+        return super().to_terrain(dx, dy=dy, resampling=resampling)
+
+
+class USGS(Terrain):
+    """Class for working with the US Geological Survey's 3D Elevation
+    Program (3DEP). Note that there is no API so the tif data must be
+    manually downloaded from the USGS.
+    """
+
+    def __init__(self,latlon_bounds=None,fpath='terrain.tif'):
+        """Create container for 3DEP data in the specified region
+
+        Usage
+        =====
+        latlon_bounds : list or tuple, optional
+            Latitude/longitude corresponding to west, south, east, and
+            north bounds, used to define the source transformation. If
+            not specified, then it will be read from a metadata file
+            with the same name.
+        fpath : str
+            Location of downloaded GeoTIFF (*.tif) data.
+        """
+        self.metadata = self._read_metadata(fpath)
+        if latlon_bounds is None:
+            latlon_bounds = self._get_bounds_from_metadata()
+            print('Bounds:',latlon_bounds)
+        super().__init__(latlon_bounds,fpath=fpath)
+
+    def _read_metadata(self,fpath):
+        from xml.etree import ElementTree
+        xmlfile = os.path.splitext(fpath)[0] + '.xml'
+        try:
+            metadata = ElementTree.parse(xmlfile).getroot()
+        except IOError:
+            self.have_metadata = False
+            metadata = None
+        else:
+            assert metadata.tag == 'metadata'
+            print('Source CRS datum:',metadata.find('./spref/horizsys/geodetic/horizdn').text)
+            self.have_metadata = True
+        return metadata
+
+    def _get_bounds_from_metadata(self):
+        assert self.have_metadata
+        bounding = self.metadata.find('./idinfo/spdom/bounding')
+        bounds = [
+            float(bounding.find(bcdir+'bc').text)
+            for bcdir in ['west','south','east','north']
+        ]
+        return bounds
+
+    def download(self):
+        """This is just a stub"""
+        print('Data must be manually downloaded!')
+        print('Go to https://viewer.nationalmap.gov/basic/,')
+        print('select "Data > Elevation Products (3DEP)"')
+        print('and then click "Find Products"')
+
+
+def combine_raster_data(filelist,dtype=Terrain,latlon_bounds=None,
+                        output='output.tif'):
+    """Combine multiple raster datasets into a single GeoTIFF file
+
+    Usage
+    =====
+    filelist : list or glob str
+        List of downloaded GeoTIFF (*.tif) data.
+    dtype : Terrain or derived class, optional
+        Used to provide helper functions if needed.
+    latlon_bounds : list of (list or tuple), optional
+        Each list or tuple of latitude/longitude corresponds to west,
+        south, east, and north bounds, and are used to define the bounds
+        of the combined raster. If not specified, then try to read these
+        bounds from metadata.
+    output : str
+        Location of combined GeoTIFF (*.tif) data.
+    """
+    if not isinstance(filelist, list):
+        filelist = glob.glob(filelist)
+        print('Files:',filelist)
+    assert len(filelist) > 1, 'Did not find enough files to combine'
+    if latlon_bounds is None:
+        latlon_bounds = len(filelist) * [None]
+    else:
+        assert len(latlon_bounds)==len(filelist), 'Not enough specified bounds'
+
+    terraindata = [
+        dtype(bounds,fpath) for bounds,fpath in zip(latlon_bounds,filelist)
+    ]
+
+    # merge rasters
+    from rasterio.merge import merge
+    merged, out_transform = merge([
+        rasterio.open(data.tiffdata) for data in terraindata
+    ])
+
+    # write out merged dataset
+    profile = rasterio.open(filelist[0]).profile
+    print('Raster profile:',profile)
+    with rasterio.open(output,'w',**profile) as dst:
+        dst.write(merged)
+
+    # get global bounds
+    bounds = np.empty((len(filelist),4))
+    for i,data in enumerate(terraindata):
+        bounds[i,:] = data.bounds
+    bounds_min = bounds.min(axis=0)
+    bounds_max = bounds.max(axis=0)
+    return [bounds_min[0],bounds_min[1],bounds_max[2],bounds_max[3]]
 
