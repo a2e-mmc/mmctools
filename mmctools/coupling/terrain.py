@@ -4,7 +4,7 @@ Tools for working with terrain
 Notes
 -----
 For SRTM data download (in GeoTIFF (.tif) format:
-- install (on system, not within python environment): `brew install gdal`
+- install with `conda install -c conda-forge gdal` or `pip install gdal`
 - install with `conda install -c conda-forge elevation` or `pip install elevation`
 - check with `eio selfcheck`
 
