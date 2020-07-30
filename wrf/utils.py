@@ -1047,7 +1047,7 @@ def combine_towers(fdir, restarts, simulation_start, fname,
             if rst == 0:
                 data_previous = data_block
             else:
-                dataF = data_block.combine_first(data_previous)
+                dataF = data_previous.combine_first(data_block)
                 data_previous = dataF
         else:
             dataF = data_block
