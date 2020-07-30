@@ -80,6 +80,11 @@ df = read_dir(dpath, file_filter='*_w*', reader=profiler)
 - `plotting` provides routines for visualization in the *A2e-MMC* style
 
 
+## Installation
+
+To install, run `pip install -e mmctools` after cloning the repository (or `pip install -e .` from inside a2e-mmc/mmctools).
+
+
 ## Code Development Principles
 
 - All code should be usable in, and demonstrated by, Jupyter notebooks.
