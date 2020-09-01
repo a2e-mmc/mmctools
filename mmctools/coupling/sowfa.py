@@ -113,15 +113,17 @@ class InternalCoupling(object):
         =====
         fname : str
             Filename
-        fieldname : str
-            Name of the field to be written out
+        fieldname : str or list-like
+            Name of the scalar field (or a list of names of vector field
+            components) to be written out; 0 may be substituted to
+            indicate an array of zeroes
         fact : float
             Scale factor for the field, e.g., to scale heat flux to follow
             OpenFOAM sign convention that boundary fluxes are positive if
             directed outward
         """
     
-        # extract time and height array
+        # extract time array
         ts = self.df.t_index.values
         nt = ts.size
 
@@ -134,14 +136,16 @@ class InternalCoupling(object):
             fieldnames = [fieldname]
             fmt = ['    (%g', '%.12g)',]
 
-        # setup output data, assert field(s) exists and is complete
+        # assert field(s) exists and is complete, setup output data
         fieldvalues = []
         for fieldname in fieldnames:
             if fieldname == 0:
                 fieldvalues.append(np.zeros_like(ts))
             else:
-                assert(fieldname in self.df.columns), 'Field '+fieldname+' not in df'
-                assert(~pd.isna(self.df[fieldname]).any()), 'Field '+fieldname+' is not complete (contains NaNs)'
+                assert(fieldname in self.df.columns), \
+                        'Field '+fieldname+' not in df'
+                assert(~pd.isna(self.df[fieldname]).any()), \
+                        'Field '+fieldname+' is not complete (contains NaNs)'
                 fieldvalues.append(self.df[fieldname].values)
 
                 # scale field with factor,
@@ -188,7 +192,7 @@ class InternalCoupling(object):
             if not field in df.columns:
                 df.loc[:,field] = 0.0
     
-        # extract time and height array
+        # extract height array
         zs = df.height.values
         nz = zs.size
     
