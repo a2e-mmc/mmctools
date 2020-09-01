@@ -124,19 +124,35 @@ class InternalCoupling(object):
         # extract time and height array
         ts = self.df.t_index.values
         nt = ts.size
-    
-        # assert field exists and is complete
-        assert(fieldname in self.df.columns), 'Field '+fieldname+' not in df'
-        assert(~pd.isna(self.df[fieldname]).any()), 'Field '+fieldname+' is not complete (contains NaNs)'
-    
-        # scale field with factor,
-        # e.g., scale heat flux with fact=-1 to follow OpenFOAM sign convention
-        fieldvalues = fact * self.df[fieldname].values
-    
-        with open(os.path.join(self.dpath,fname),'w') as fid:
+
+        # check if scalar or vector
+        if isinstance(fieldname, (list,tuple)):
+            assert len(fieldname) == 3, 'expected 3 vector components'
+            fieldnames = fieldname
+            fmt = ['    (%g', '(%.12g', '%.12g', '%.12g))',]
+        else:
+            fieldnames = [fieldname]
             fmt = ['    (%g', '%.12g)',]
+
+        # setup output data, assert field(s) exists and is complete
+        fieldvalues = []
+        for fieldname in fieldnames:
+            if fieldname == 0:
+                fieldvalues.append(np.zeros_like(ts))
+            else:
+                assert(fieldname in self.df.columns), 'Field '+fieldname+' not in df'
+                assert(~pd.isna(self.df[fieldname]).any()), 'Field '+fieldname+' is not complete (contains NaNs)'
+                fieldvalues.append(self.df[fieldname].values)
+
+                # scale field with factor,
+                # e.g., scale heat flux with fact=-1 to follow OpenFOAM sign convention
+                fieldvalues[-1] = fact * fieldvalues[-1]
+
+        fieldvalues = np.array(fieldvalues).T  # result: fieldvalues.shape==(nt, ndim)
+
+        with open(os.path.join(self.dpath,fname),'w') as fid:
             np.savetxt(fid,np.concatenate((ts.reshape((nt,1)),
-                                          fieldvalues.reshape((nt,1))
+                                          fieldvalues
                                           ),axis=1),fmt=fmt)
     
         return
