@@ -15,10 +15,11 @@ def e_s(T, celsius=False, model='Tetens'):
     """Calculate the saturation vapor pressure of water, $e_s$ [mb]
     given the air temperature ([K] by default).
     """
+    T = T.copy()
     if celsius:
         # input is deg C
         T_degC = T
-        T = T + 273.15
+        T = T_degC + 273.15
     else:
         # input is in Kelvin
         T_degC = T - 273.15
@@ -82,9 +83,10 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
     pressures of water vapor and dry air (e, pd [mbar]); or dewpoint
     temperature (Td).
     """
+    T = T.copy()
     if celsius:
         T_degC = T
-        T += 273.15
+        T = T_degC + 273.15
     else:
         T_degC = T - 273.15
     if (p is not None) and (RH is not None):
@@ -126,7 +128,7 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
     elif (Td is not None) and (p is not None):
         # From National Weather Service, using Tetens' formula:
         # https://www.weather.gov/media/epz/wxcalc/vaporPressure.pdf
-        Td_degC = Td
+        Td_degC = Td.copy()
         if not celsius:
             Td_degC -= 273.15
         e = e_s(Td_degC, celsius=True, model='Tetens')
