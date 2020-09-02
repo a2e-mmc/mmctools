@@ -558,7 +558,7 @@ def model4D_spectra(ds,spectra_dim,average_dim,vert_levels,horizontal_locs,fld,f
                 f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, 
                                  nfft=nblock, return_onesided=False, detrend='constant')
                 Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
-                if it is 0:
+                if it == 0:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
                 else:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
@@ -613,7 +613,7 @@ def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs,fld,fldMe
 
                 f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
                 Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
-                if it is 0:
+                if it == 0:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
                 else:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
@@ -690,7 +690,7 @@ def model4D_cospectra(ds,spectra_dim,average_dim,vert_levels,horizontal_locs,fld
                             nfft=nblock, return_onesided=False, detrend='constant')
                 Pxxf = (np.multiply(np.real(Pxxfc0),np.conj(Pxxfc1))+
                         np.multiply(np.real(Pxxfc1),np.conj(Pxxfc0)))
-                if it is 0:
+                if it == 0:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
                 else:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
@@ -751,7 +751,7 @@ def model4D_spatial_cospectra(ds,spectra_dim,vert_levels,horizontal_locs,fldv0,f
                 f, Pxxfc1 = welch(series1, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
 
                 Pxxf = (np.multiply(np.real(Pxxfc0),np.conj(Pxxfc1))+np.multiply(np.real(Pxxfc1),np.conj(Pxxfc0)))
-                if it is 0:
+                if it == 0:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
                 else:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
@@ -873,7 +873,7 @@ def model4D_spatial_pdfs(ds,pdf_dim,vert_levels,horizontal_locs,fld,fldMean,bins
                 y = (ds[fld].isel(datetime=it,nz=level,nx=iLoc)-ds[fldMean].isel(datetime=it,nz=level,nx=iLoc))
                 #y = np.ndarray.flatten(dist.isel(nz=level,nx=iLoc).values)
                 hist,bin_edges=np.histogram(y, bins=bins_vector)
-                if it is 0:
+                if it == 0:
                     hist_cum[cnt_lvl,cnt_i,:] = hist
                 else:
                     hist_cum[cnt_lvl,cnt_i,:] = hist_cum[cnt_lvl,cnt_i,:] + hist
