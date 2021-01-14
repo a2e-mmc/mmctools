@@ -1084,7 +1084,8 @@ def combine_towers(fdir, restarts, simulation_start, fname,
 
 def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest,
                        structure='ordered', time_step=None,
-                       heights=None, height_var='heights', select_tower=None):
+                       heights=None, height_var='heights', select_tower=None,
+                       **kwargs):
     '''
     This will combine a series of tslist output over time and location based on the
     path to the case (fdir), the restart directories (restarts), a model start time 
@@ -1130,7 +1131,8 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
         tower_names = good_towers
     dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,
                          structure=structure, time_step=time_step,
-                         heights=heights, height_var=height_var)
+                         heights=heights, height_var=height_var,
+                         **kwargs)
     return dsF
 
 
