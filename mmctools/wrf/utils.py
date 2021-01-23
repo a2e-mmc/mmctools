@@ -484,12 +484,15 @@ class Tower():
             times = times.round(freq='1ms')
             times.name = 'datetime'
         else:
-            timestep = pd.to_timedelta(time_step, unit='s')
-            endtime = start_time + self.nt*timestep + pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h')
-            times = pd.date_range(start=start_time+timestep+pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h'),
-                                  end=endtime,
+            timedelta = pd.to_timedelta(time_step, unit='s')
+            # note: time is in hours and _single-precision_
+            Nsteps0 = np.round(self.time[0] / (time_step/3600))
+            toffset0 = Nsteps0 * timedelta
+            times = pd.date_range(start=start_time+toffset0,
+                                  freq=timedelta,
                                   periods=self.nt,
                                   name='datetime')
+            times = times.round(freq='1ms')
         # combine (and interpolate) time-height data
         # - note 1: self.[varn].shape == self.height.shape == (self.nt, self.nz)
         # - note 2: arraydata.shape == (self.nt, len(varns)*self.nz)
