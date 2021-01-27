@@ -62,7 +62,11 @@ def _to_val_qc(val,defaultqc=0):
     elif val is None:
         return (MISSING, MISSING)
     else:
-        assert isinstance(val, (int,float,np.float32,np.float64))
+        assert isinstance(val, (int,float,np.float32,np.float64,pd.Series)), \
+            'unexpected value type'
+        if isinstance(val, pd.Series):
+            assert len(val)==1, 'series provided instead of single value'
+            val = val[0]
         return (val, defaultqc)
 
 
