@@ -42,7 +42,7 @@ def write_header(f,datetime,lat,lon,stationID,
     is_sound : bool
         Is this a non-surface observation?
     is_bogus : bool
-    count : int
+    levels : int
         Number of levels in sounding
     """
     datetime_str = pd.to_datetime(datetime).strftime('%Y%m%d%H%M%S')
@@ -53,7 +53,7 @@ def write_header(f,datetime,lat,lon,stationID,
         lat=lat, lon=lon,
         id=stationID, namef=datatype,
         platform=platform, source=source,
-        elevation=elevation, is_sound=is_sound, bogus=bogus, meas_count=count,
+        elevation=elevation, is_sound=is_sound, bogus=bogus, meas_count=levels,
     ))
 
 def _to_val_qc(val,defaultqc=0):
@@ -62,7 +62,7 @@ def _to_val_qc(val,defaultqc=0):
     elif val is None:
         return (MISSING, MISSING)
     else:
-        assert isinstance(val, (int,float))
+        assert isinstance(val, (int,float,np.float32,np.float64))
         return (val, defaultqc)
 
 
