@@ -12,7 +12,7 @@ For processing downloaded GeoTIFF data:
 - install with `conda install -c conda-forge rasterio` or `pip install rasterio`
 - note: like the elevation package, this also depends on gdal
 """
-import os,glob
+import sys,os,glob
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
@@ -287,7 +287,14 @@ class SRTM(Terrain):
         if not os.path.isdir(dpath):
             print('Creating path',dpath)
             os.makedirs(dpath)
-        elevation.clip(self.bounds, product=self.product, output=self.tiffdata)
+        try:
+            elevation.clip(self.bounds, product=self.product, output=self.tiffdata)
+        except:
+            info = sys.exc_info()
+            print(info[0])
+            print(info[1])
+            print('')
+            print('Note: Have elevation and gdal been installed properly?')
         if cleanup:
             elevation.clean()
 
