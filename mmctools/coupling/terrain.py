@@ -361,7 +361,7 @@ class USGS(Terrain):
     def download(self):
         """This is just a stub"""
         print('Data must be manually downloaded!')
-        print('Go to https://viewer.nationalmap.gov/basic/,')
+        print('Go to https://apps.nationalmap.gov/downloader/#/,')
         print('select "Data > Elevation Products (3DEP)"')
         print('and then click "Find Products"')
 
