@@ -287,8 +287,9 @@ class SRTM(Terrain):
         if not os.path.isdir(dpath):
             print('Creating path',dpath)
             os.makedirs(dpath)
+        escapedpath = self.tiffdata.replace('\ ',' ').replace(' ','\ ')
         try:
-            elevation.clip(self.bounds, product=self.product, output=self.tiffdata)
+            elevation.clip(self.bounds, product=self.product, output=escapedpath)
         except:
             info = sys.exc_info()
             print(info[0])
