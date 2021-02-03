@@ -253,6 +253,7 @@ class Terrain(object):
         return y-refloc[1], z
 
 
+
 class SRTM(Terrain):
     """Class for working with Shuttle Radar Topography Mission (SRTM) data"""
     data_products = {
@@ -475,3 +476,36 @@ def combine_raster_data(filelist,dtype=Terrain,latlon_bounds=None,
     bounds_max = bounds.max(axis=0)
     return [bounds_min[0],bounds_min[1],bounds_max[2],bounds_max[3]]
 
+def calc_slope(x,y,z):
+    """Calculate local terrain slope based on project grid
+
+    Notes:
+    - Uses neighborhood method (weighted second-order difference, based on
+      3x3 stencil)
+    - Slopes are not calculated at edge points (i.e., locations where a 3x3
+      stencil cannot be formed)
+
+    Usage
+    =====
+    x,y,z : numpy array
+        Equally sized 2-D arrays; if not specified, then the full terrain
+        will be used
+    """
+    dx = x[1,0] - x[0,0]
+    dy = y[0,1] - y[0,0]
+    slope = np.empty_like(z)
+    slope[:,:] = np.nan
+    z1 = z[  :-2, 2:  ] # upper left
+    z2 = z[ 1:-1, 2:  ] # upper middle
+    z3 = z[ 2:  , 2:  ] # upper right
+    z4 = z[  :-2, 1:-1] # center left
+   #z5 = z[ 1:-1, 1:-1] # center
+    z6 = z[ 2:  , 1:-1] # center right
+    z7 = z[  :-2,  :-2] # lower left
+    z8 = z[ 1:-1,  :-2] # lower middle
+    z9 = z[ 2:  ,  :-2] # lower right
+    dz_dx = ((z3 + 2*z6 + z9) - (z1 + 2*z4 + z7)) / (8*dx)
+    dz_dy = ((z1 + 2*z2 + z3) - (z7 + 2*z8 + z9)) / (8*dy)
+    rise_run = np.sqrt(dz_dx**2 + dz_dy**2)
+    slope[1:-1,1:-1] = np.degrees(np.arctan(rise_run))
+    return slope
