@@ -21,6 +21,13 @@ import rasterio
 from rasterio import transform, warp
 from rasterio.crs import CRS
 
+# hard-coded here because ElementTree doesn't appear to have any
+# straightforward way to access the xmlns root attributes
+ISO_namespace = {
+    'gmd': 'http://www.isotc211.org/2005/gmd',
+    'gco': 'http://www.isotc211.org/2005/gco',
+}
+
 
 class Terrain(object):
 
@@ -110,6 +117,8 @@ class Terrain(object):
         SE_x,SE_y = self.to_xy(south,east)
         Lx = SE_x - orix
         Ly = oriy - SE_y
+        print(Lx,Ly,dx,dy)
+        print(west,south,east,north)
         Nx = int(Lx / dx)
         Ny = int(Ly / dy)
 
@@ -337,7 +346,7 @@ class USGS(Terrain):
         fpath : str
             Location of downloaded GeoTIFF (*.tif) data.
         """
-        self.metadata = self._read_metadata(fpath)
+        self._read_metadata(fpath)
         if latlon_bounds is None:
             latlon_bounds = self._get_bounds_from_metadata()
             print('Bounds:',latlon_bounds)
@@ -350,20 +359,61 @@ class USGS(Terrain):
             metadata = ElementTree.parse(xmlfile).getroot()
         except IOError:
             self.have_metadata = False
-            metadata = None
         else:
-            assert metadata.tag == 'metadata'
-            print('Source CRS datum:',metadata.find('./spref/horizsys/geodetic/horizdn').text)
+            if not metadata.tag.endswith('MD_Metadata'):
+                assert metadata.tag in ['metadata','gmd:MD_Metadata','modsCollection']
+            if metadata.tag == 'metadata':
+                # legacy metadata
+                print('Source CRS datum:',metadata.find('./spref/horizsys/geodetic/horizdn').text)
+            elif metadata.tag == 'modsCollection':
+                # MODS XML
+                print(metadata.find('./mods/titleInfo/title').text)
+                raise NotImplementedError('MODS XML detected -- use ISO XML instead')
+            else:
+                # ISO XML
+                title = metadata.find(
+                    '/'.join([
+                        'gmd:identificationInfo',
+                        'gmd:MD_DataIdentification',
+                        'gmd:citation',
+                        'gmd:CI_Citation',
+                        'gmd:title',
+                        'gco:CharacterString',
+                    ]),
+                    ISO_namespace
+                ).text
+                print(title)
             self.have_metadata = True
-        return metadata
+            self.metadata = metadata
 
     def _get_bounds_from_metadata(self):
         assert self.have_metadata
-        bounding = self.metadata.find('./idinfo/spdom/bounding')
-        bounds = [
-            float(bounding.find(bcdir+'bc').text)
-            for bcdir in ['west','south','east','north']
-        ]
+        if self.metadata.tag == 'metadata':
+            # legacy metadata
+            bounding = self.metadata.find('./idinfo/spdom/bounding')
+            bounds = [
+                float(bounding.find(bcdir+'bc').text)
+                for bcdir in ['west','south','east','north']
+            ]
+        else:
+            # ISO XML
+            extent = self.metadata.find(
+                'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent',
+                ISO_namespace
+            )
+            bbox = extent.find(
+                'gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicBoundingBox',
+                ISO_namespace
+            )
+            bounds = [
+                float(bbox.find(f'gmd:{bound}/gco:Decimal',ISO_namespace).text)
+                for bound in [
+                    'westBoundLongitude',
+                    'southBoundLatitude',
+                    'eastBoundLongitude',
+                    'northBoundLatitude',
+                ]
+            ]
         return bounds
 
     def download(self):
