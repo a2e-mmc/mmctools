@@ -117,8 +117,6 @@ class Terrain(object):
         SE_x,SE_y = self.to_xy(south,east)
         Lx = SE_x - orix
         Ly = oriy - SE_y
-        print(Lx,Ly,dx,dy)
-        print(west,south,east,north)
         Nx = int(Lx / dx)
         Ny = int(Ly / dy)
 
@@ -251,7 +249,6 @@ class Terrain(object):
         z = self.zfun(x,y,grid=False)
 
         return y-refloc[1], z
-
 
 
 class SRTM(Terrain):
