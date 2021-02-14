@@ -530,7 +530,8 @@ def plot_timehistory_at_height(datasets,
 
             for k, height in enumerate(args.heights):
                 # Check if height is outside of data range
-                if (height > np.max(heightvalues)) or (height < np.min(heightvalues)):
+                if (heightvalues is not None) and \
+                        ((height > np.max(heightvalues)) or (height < np.min(heightvalues))):
                     if extrapolate:
                         if debug:
                             print('Extrapolating field "'+field+'" at z='+str(height)+' in dataset '+dfname)
