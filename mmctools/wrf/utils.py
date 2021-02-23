@@ -23,7 +23,6 @@ import xarray as xr
 from scipy.spatial import KDTree
 from scipy.interpolate import interp1d, LinearNDInterpolator
 import netCDF4
-import wrf as wrfpy
 
 from ..helper_functions import calc_wind
 
@@ -1165,6 +1164,7 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
         (i.e., want a range of non-interpolated heights), and you only care about
         data that are below a certain vertical index.
     """
+    import wrf as wrfpy
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
         'Time':'datetime',
