@@ -178,7 +178,47 @@ class ERAInterim(RDADataset):
                          datetimes=datetimes,
                          fields=['regn128sc'])
 
+        
+class MERRA2(RDADataset):
+    """MERRA2 Global Atmosphere Forcing Data
 
+    Description:https://rda.ucar.edu/datasets/ds313.3/
+    """
+    
+    def set_resolution(self,resolution_deg=0):
+        if resolution_deg == 2:
+            self.res_str = '1.9x2.5'
+        elif resolution_deg == 1:
+            self.res_str = '0.9x1.25'
+        elif resolution_deg == 0.5:
+            self.res_str = '0.5x0.63'
+        else:
+            self.res_str = 'orig_res'
+
+    def download(self,datetimes,path=None):
+        """Download data at specified datetimes.
+
+        Files to download:
+        - https://rda.ucar.edu/data/ds313.3/0.9x1.25/YYYY/MERRA2_0.9x1.25_YYYYMMDD.nc
+
+        Usage
+        =====
+        datetimes : timestamp or list of timestamps
+            Datetime, e.g., output from
+            pd.date_range(startdate,enddate,freq='21600s')
+        path : str, optional
+            Path to directory in which to save grib files
+        """
+        if path is None:
+            path = '.'
+        else:
+            os.makedirs(path,exist_ok=True)
+        super().download(urlpath='ds313.3/{}/%Y/MERRA2{}_%Y%m%d.nc'.format(self.res_str),
+                         path=path,
+                         datetimes=datetimes)
+
+        
+        
 class CDSDataset(object):
     """Class to help with downloading initial and boundary conditions
     from the Copernicus Climate Data Store (CDS) to use with WPS.
