@@ -12,7 +12,7 @@ For processing downloaded GeoTIFF data:
 - install with `conda install -c conda-forge rasterio` or `pip install rasterio`
 - note: like the elevation package, this also depends on gdal
 """
-import os,glob
+import sys,os,glob
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
@@ -20,6 +20,13 @@ import elevation
 import rasterio
 from rasterio import transform, warp
 from rasterio.crs import CRS
+
+# hard-coded here because ElementTree doesn't appear to have any
+# straightforward way to access the xmlns root attributes
+ISO_namespace = {
+    'gmd': 'http://www.isotc211.org/2005/gmd',
+    'gco': 'http://www.isotc211.org/2005/gco',
+}
 
 
 class Terrain(object):
@@ -287,7 +294,15 @@ class SRTM(Terrain):
         if not os.path.isdir(dpath):
             print('Creating path',dpath)
             os.makedirs(dpath)
-        elevation.clip(self.bounds, product=self.product, output=self.tiffdata)
+        escapedpath = self.tiffdata.replace('\ ',' ').replace(' ','\ ')
+        try:
+            elevation.clip(self.bounds, product=self.product, output=escapedpath)
+        except:
+            info = sys.exc_info()
+            print(info[0])
+            print(info[1])
+            print('')
+            print('Note: Have elevation and gdal been installed properly?')
         if cleanup:
             elevation.clean()
 
@@ -329,7 +344,7 @@ class USGS(Terrain):
         fpath : str
             Location of downloaded GeoTIFF (*.tif) data.
         """
-        self.metadata = self._read_metadata(fpath)
+        self._read_metadata(fpath)
         if latlon_bounds is None:
             latlon_bounds = self._get_bounds_from_metadata()
             print('Bounds:',latlon_bounds)
@@ -342,26 +357,67 @@ class USGS(Terrain):
             metadata = ElementTree.parse(xmlfile).getroot()
         except IOError:
             self.have_metadata = False
-            metadata = None
         else:
-            assert metadata.tag == 'metadata'
-            print('Source CRS datum:',metadata.find('./spref/horizsys/geodetic/horizdn').text)
+            if not metadata.tag.endswith('MD_Metadata'):
+                assert metadata.tag in ['metadata','gmd:MD_Metadata','modsCollection']
+            if metadata.tag == 'metadata':
+                # legacy metadata
+                print('Source CRS datum:',metadata.find('./spref/horizsys/geodetic/horizdn').text)
+            elif metadata.tag == 'modsCollection':
+                # MODS XML
+                print(metadata.find('./mods/titleInfo/title').text)
+                raise NotImplementedError('MODS XML detected -- use ISO XML instead')
+            else:
+                # ISO XML
+                title = metadata.find(
+                    '/'.join([
+                        'gmd:identificationInfo',
+                        'gmd:MD_DataIdentification',
+                        'gmd:citation',
+                        'gmd:CI_Citation',
+                        'gmd:title',
+                        'gco:CharacterString',
+                    ]),
+                    ISO_namespace
+                ).text
+                print(title)
             self.have_metadata = True
-        return metadata
+            self.metadata = metadata
 
     def _get_bounds_from_metadata(self):
         assert self.have_metadata
-        bounding = self.metadata.find('./idinfo/spdom/bounding')
-        bounds = [
-            float(bounding.find(bcdir+'bc').text)
-            for bcdir in ['west','south','east','north']
-        ]
+        if self.metadata.tag == 'metadata':
+            # legacy metadata
+            bounding = self.metadata.find('./idinfo/spdom/bounding')
+            bounds = [
+                float(bounding.find(bcdir+'bc').text)
+                for bcdir in ['west','south','east','north']
+            ]
+        else:
+            # ISO XML
+            extent = self.metadata.find(
+                'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent',
+                ISO_namespace
+            )
+            bbox = extent.find(
+                'gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicBoundingBox',
+                ISO_namespace
+            )
+            bounds = [
+                float(bbox.find(f'gmd:{bound}/gco:Decimal',ISO_namespace).text)
+                for bound in [
+                    'westBoundLongitude',
+                    'southBoundLatitude',
+                    'eastBoundLongitude',
+                    'northBoundLatitude',
+                ]
+            ]
         return bounds
 
     def download(self):
         """This is just a stub"""
         print('Data must be manually downloaded!')
-        print('Go to https://viewer.nationalmap.gov/basic/,')
+        print('Go to https://apps.nationalmap.gov/downloader/#/,')
         print('select "Data > Elevation Products (3DEP)"')
         print('and then click "Find Products"')
 
@@ -417,3 +473,36 @@ def combine_raster_data(filelist,dtype=Terrain,latlon_bounds=None,
     bounds_max = bounds.max(axis=0)
     return [bounds_min[0],bounds_min[1],bounds_max[2],bounds_max[3]]
 
+def calc_slope(x,y,z):
+    """Calculate local terrain slope based on project grid
+
+    Notes:
+    - Uses neighborhood method (weighted second-order difference, based on
+      3x3 stencil)
+    - Slopes are not calculated at edge points (i.e., locations where a 3x3
+      stencil cannot be formed)
+
+    Usage
+    =====
+    x,y,z : numpy array
+        Equally sized 2-D arrays; if not specified, then the full terrain
+        will be used
+    """
+    dx = x[1,0] - x[0,0]
+    dy = y[0,1] - y[0,0]
+    slope = np.empty_like(z)
+    slope[:,:] = np.nan
+    z1 = z[  :-2, 2:  ] # upper left
+    z2 = z[ 1:-1, 2:  ] # upper middle
+    z3 = z[ 2:  , 2:  ] # upper right
+    z4 = z[  :-2, 1:-1] # center left
+   #z5 = z[ 1:-1, 1:-1] # center
+    z6 = z[ 2:  , 1:-1] # center right
+    z7 = z[  :-2,  :-2] # lower left
+    z8 = z[ 1:-1,  :-2] # lower middle
+    z9 = z[ 2:  ,  :-2] # lower right
+    dz_dx = ((z3 + 2*z6 + z9) - (z1 + 2*z4 + z7)) / (8*dx)
+    dz_dy = ((z1 + 2*z2 + z3) - (z7 + 2*z8 + z9)) / (8*dy)
+    rise_run = np.sqrt(dz_dx**2 + dz_dy**2)
+    slope[1:-1,1:-1] = np.degrees(np.arctan(rise_run))
+    return slope
