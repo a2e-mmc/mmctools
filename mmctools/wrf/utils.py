@@ -368,15 +368,15 @@ class Tower():
                     datadict[varn] = ((tsdata[:,1:] + tsdata[:,:-1]) / 2).ravel()
                 elif varn == 'th':
                     # theta is a special case
-                    assert np.all(tsdata[:,-1] == 300), 'Unexpected nonzero value for theta'
+                    #assert np.all(tsdata[:,-1] == 300), 'Unexpected nonzero value for theta'
                     # drop the trailing 0 for already unstaggered quantities
                     datadict[varn] = tsdata[:,:-1].ravel()
                 else:
                     # other quantities already unstaggered
-                    if not varn == 'ww':
-                        # don't throw a warning if w is already unstaggered by the code
-                        # last value is (w(model top) + 0.0)/2.0
-                        assert np.all(tsdata[:,-1] == 0), 'Unexpected nonzero value for '+varn
+                    #if not varn == 'ww':
+                    #    # don't throw a warning if w is already unstaggered by the code
+                    #    # last value is (w(model top) + 0.0)/2.0
+                    #    assert np.all(tsdata[:,-1] == 0), 'Unexpected nonzero value for '+varn
                     # drop the trailing 0 for already unstaggered quantities
                     datadict[varn] = tsdata[:,:-1].ravel()
             else:
