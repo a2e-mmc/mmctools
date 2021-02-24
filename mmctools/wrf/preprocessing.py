@@ -184,18 +184,8 @@ class MERRA2(RDADataset):
 
     Description:https://rda.ucar.edu/datasets/ds313.3/
     """
-    
-    def set_resolution(self,resolution_deg=0):
-        if resolution_deg == 2:
-            self.res_str = '1.9x2.5'
-        elif resolution_deg == 1:
-            self.res_str = '0.9x1.25'
-        elif resolution_deg == 0.5:
-            self.res_str = '0.5x0.63'
-        else:
-            self.res_str = 'orig_res'
-
-    def download(self,datetimes,path=None):
+   
+    def download(self,datetimes,path=None,resolution_deg=0):
         """Download data at specified datetimes.
 
         Files to download:
@@ -209,11 +199,22 @@ class MERRA2(RDADataset):
         path : str, optional
             Path to directory in which to save grib files
         """
+
+        if resolution_deg == 2:
+            self.res_str = '1.9x2.5'
+        elif resolution_deg == 1:
+            self.res_str = '0.9x1.25'
+        elif resolution_deg == 0.5:
+            self.res_str = '0.5x0.63'
+        else:
+            self.res_str = 'orig_res'
+
         if path is None:
             path = '.'
         else:
             os.makedirs(path,exist_ok=True)
-        super().download(urlpath='ds313.3/{}/%Y/MERRA2{}_%Y%m%d.nc'.format(self.res_str),
+
+        super().download(urlpath='ds313.3/'+self.res_str+'/%Y/MERRA2_'+self.res_str+'_%Y%m%d.nc',
                          path=path,
                          datetimes=datetimes)
 
