@@ -899,3 +899,46 @@ class setup_wrf():
         else:
             print('The hpc requested, {}, is not currently supported... please add it!'.format(hpc))
 
+
+            
+    def write_io_fieldnames(self,vars_to_remove,vars_to_add):
+        io_names = self.setup_dict['iofields_filename']
+
+        if type(io_names) is str:
+            io_names = [io_names]
+        if type(io_names) is not list:
+            io_names = list(io_names)
+
+        assert (len(vars_to_remove) == len(vars_to_add)) and (len(vars_to_add) == len(np.unique(io_names))), \
+        'expecting number of io field names ({}) and add/remove lists ({}/{}) to be same shape'.format(
+                                                    len(np.unique(io_names)),len(vars_to_add),len(vars_to_remove))
+
+        rem_str_start = '-:h:0:'
+        add_str_start = '+:h:0:'
+
+        for ii,io_name in enumerate(np.unique(io_names)):
+            rem_vars = vars_to_remove[ii]
+            add_vars = vars_to_add[ii]
+            f = open('{}{}'.format(self.run_directory,io_name),'w')
+            line = ''
+            var_count = 0
+            for rv in rem_vars:
+                line += '{},'.format(rv)
+                if var_count == 7:
+                    f.write('{}{}\n'.format(rem_str_start,line))
+                    var_count = 0
+                    line = ''
+                else:
+                    var_count += 1
+
+            var_count = 0
+            for av in add_vars:
+                line += '{},'.format(av)
+                if var_count == 7:
+                    f.write('{}{}\n'.format(add_str_start,line))
+                    var_count = 0
+                    line = ''
+                else:
+                    var_count += 1
+
+            f.close()
