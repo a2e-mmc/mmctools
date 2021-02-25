@@ -412,7 +412,7 @@ class setup_wrf():
             met_lvls  = 38
             download_freq = '1h'
         elif icbc_type == 'FNL':
-            met_lvls  = 27
+            met_lvls  = 34
         elif icbc_type == 'NARR':
             met_lvls  = 30
         elif icbc_type == 'MERRA2':
@@ -442,6 +442,10 @@ class setup_wrf():
                 missing_options = True
                 
         if not missing_options:
+            if 'usgs' in self.setup_dict['geogrid_args']:
+                land_cat = 24
+            else:
+                land_cat = 21
             namelist_defaults = {
                        'geogrid_args' : '30s',
                    'history_interval' : [60,60],
@@ -468,6 +472,7 @@ class setup_wrf():
                              'icloud' : 0,
                'surface_input_source' : 1,
                     'num_soil_layers' : self.icbc_dict['soil_levels'],
+                       'num_land_cat' : land_cat,
                    'sf_urban_physics' : 0,
                           'w_damping' : 1,
                            'diff_opt' : 1,
@@ -760,6 +765,7 @@ class setup_wrf():
         f.write(" icloud                    = {}, \n".format(self.namelist_opts['icloud']))
         f.write(" surface_input_source      = {}, \n".format(self.namelist_opts['surface_input_source']))
         f.write(" num_soil_layers           = {}, \n".format(self.namelist_opts['num_soil_layers']))
+        f.write(" num_land_cat              = {}, \n".format(self.namelist_opts['num_land_cat']))
         f.write(" sf_urban_physics          = {}\n".format(urb_str))
         f.write(" /\n")
         f.write("\n")
