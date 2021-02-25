@@ -495,7 +495,7 @@ def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_d
     ds['vw'] = ds_perts['v']*ds_perts['w']
     ds['wth'] = ds_perts['w']*ds_perts['theta']
     ds['UU'] = ds_perts['wspd']**2
-    ds['Uw'] = ds_perts['wspd']**2
+    ds['Uw'] = ds_perts['wspd']*ds_perts['w']
     ds['TKE'] = 0.5*np.sqrt(ds['UU']+ds['ww'])
     ds.attrs['MEAN_OPT'] = mean_opt
     if mean_opt == 'lowess':
