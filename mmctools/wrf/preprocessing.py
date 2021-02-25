@@ -455,7 +455,6 @@ class setup_wrf():
                     'input_from_file' : '.true.',
                    'restart_interval' : 360,            
                     'frames_per_file' : 1,            
-                  'iofields_filename' : 'myoutfields.txt',            
                               'debug' : 0,            
                        'ts_locations' : 20,            
                           'ts_levels' : self.setup_dict['num_eta_levels'],            
@@ -656,8 +655,12 @@ class setup_wrf():
         jstart_str         = self._get_nl_str(num_doms,self.namelist_opts['jstart'])
         nx_str             = self._get_nl_str(num_doms,self.namelist_opts['nx'])
         ny_str             = self._get_nl_str(num_doms,self.namelist_opts['ny'])
-            
-        io_str      = self._get_nl_str(num_doms,self.namelist_opts['iofields_filename'])
+        
+        if 'iofields_filename' in self.namelist_opts.keys():
+            include_io = True
+            io_str     = self._get_nl_str(num_doms,self.namelist_opts['iofields_filename'])
+        else:
+            include_io = False
         mp_str      = self._get_nl_str(num_doms,self.namelist_opts['mp_physics'])
         sfclay_str  = self._get_nl_str(num_doms,self.namelist_opts['sf_sfclay_physics'])
         surface_str = self._get_nl_str(num_doms,self.namelist_opts['sf_surface_physics'])
@@ -714,8 +717,9 @@ class setup_wrf():
         f.write(" io_form_boundary          = 2\n")
         f.write(" history_interval          = {}\n".format(history_interval_str))
         f.write(" frames_per_outfile        = {}\n".format("{0:>5},".format(self.namelist_opts['frames_per_file'])*num_doms))
-        f.write(" iofields_filename         = {}\n".format(io_str))
-        f.write(" ignore_iofields_warning   = .true.,\n")
+        if include_io:
+            f.write(" iofields_filename         = {}\n".format(io_str))
+            f.write(" ignore_iofields_warning   = .true.,\n")
         f.write(" debug_level               = {} \n".format(self.namelist_opts['debug']))
         f.write("/\n")
         f.write("\n")
@@ -901,7 +905,10 @@ class setup_wrf():
 
 
             
-    def write_io_fieldnames(self,vars_to_remove,vars_to_add):
+    def write_io_fieldnames(self,vars_to_remove=None,vars_to_add=None):
+        if 'iofields_filename' not in self.setup_dict.keys():
+            print('iofields_filename not found in setup dict... add a name to allow for creating the file')
+            return
         io_names = self.setup_dict['iofields_filename']
 
         if type(io_names) is str:
@@ -909,36 +916,43 @@ class setup_wrf():
         if type(io_names) is not list:
             io_names = list(io_names)
 
-        assert (len(vars_to_remove) == len(vars_to_add)) and (len(vars_to_add) == len(np.unique(io_names))), \
-        'expecting number of io field names ({}) and add/remove lists ({}/{}) to be same shape'.format(
-                                                    len(np.unique(io_names)),len(vars_to_add),len(vars_to_remove))
+        if vars_to_remove is not None:
+            assert len(vars_to_remove) ==  len(np.unique(io_names)), \
+            'expecting number of io field names ({}) and remove lists {} to be same shape'.format(
+                                                    len(np.unique(io_names)),len(vars_to_remove))
 
+        if vars_to_add is not None:
+            assert len(vars_to_add) ==  len(np.unique(io_names)), \
+            'expecting number of io field names ({}) and add lists {} to be same shape'.format(
+                                                    len(np.unique(io_names)),len(vars_to_add))
         rem_str_start = '-:h:0:'
         add_str_start = '+:h:0:'
 
         for ii,io_name in enumerate(np.unique(io_names)):
-            rem_vars = vars_to_remove[ii]
-            add_vars = vars_to_add[ii]
             f = open('{}{}'.format(self.run_directory,io_name),'w')
             line = ''
-            var_count = 0
-            for rv in rem_vars:
-                line += '{},'.format(rv)
-                if var_count == 7:
-                    f.write('{}{}\n'.format(rem_str_start,line))
-                    var_count = 0
-                    line = ''
-                else:
-                    var_count += 1
+            if vars_to_remove is not None:
+                rem_vars = vars_to_remove[ii]
+                var_count = 0
+                for rv in rem_vars:
+                    line += '{},'.format(rv)
+                    if var_count == 7:
+                        f.write('{}{}\n'.format(rem_str_start,line))
+                        var_count = 0
+                        line = ''
+                    else:
+                        var_count += 1
 
-            var_count = 0
-            for av in add_vars:
-                line += '{},'.format(av)
-                if var_count == 7:
-                    f.write('{}{}\n'.format(add_str_start,line))
-                    var_count = 0
-                    line = ''
-                else:
-                    var_count += 1
+            if vars_to_add is not None:
+                add_vars = vars_to_add[ii]
+                var_count = 0
+                for av in add_vars:
+                    line += '{},'.format(av)
+                    if var_count == 7:
+                        f.write('{}{}\n'.format(add_str_start,line))
+                        var_count = 0
+                        line = ''
+                    else:
+                        var_count += 1
 
             f.close()
