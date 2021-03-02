@@ -167,6 +167,7 @@ class ERAInterim(RDADataset):
         else:
             os.makedirs(path,exist_ok=True)
         # pressure-level data
+
         super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
                          path=path,
                          prefix='ei.oper.an.pl',
@@ -390,7 +391,7 @@ class setup_wrf():
 
     def __init__(self,run_directory,icbc_directory,executables_dict,setup_dict):
         self.setup_dict    = setup_dict
-        self.run_directory = run_directory
+        self.run_dir = run_directory
         self.wrf_exe_dir   = executables_dict['wrf']
         self.wps_exe_dir   = executables_dict['wps']
         self.icbc_dir      = icbc_directory
@@ -518,14 +519,14 @@ class setup_wrf():
             
     def link_executables(self):
         # Create run dir:
-        if not os.path.exists(self.run_directory):
-            os.makedirs(self.run_directory)
+        if not os.path.exists(self.run_dir):
+            os.makedirs(self.run_dir)
 
         # Link WPS and WRF files / executables
         wrf_files = glob.glob('{}[!n]*'.format(self.wrf_exe_dir))
-        self._link_files(wrf_files,self.run_directory)
+        self._link_files(wrf_files,self.run_dir)
         wps_files = glob.glob('{}[!n]*'.format(self.wps_exe_dir))
-        self._link_files(wps_files,self.run_directory)
+        self._link_files(wps_files,self.run_dir)
         
     def _get_nl_str(self,num_doms,phys_opt):
         phys_str = ''
@@ -554,7 +555,7 @@ class setup_wrf():
             jstart_str += '{0:>5},'.format(str(self.namelist_opts['jstart'][pp]))
             nx_str += '{0:>5},'.format(str(self.namelist_opts['nx'][pp]))
             ny_str += '{0:>5},'.format(str(self.namelist_opts['ny'][pp]))
-        f = open('{}namelist.wps'.format(self.run_directory),'w')
+        f = open('{}namelist.wps'.format(self.run_dir),'w')
         f.write("&share\n")
         f.write(" wrf_core = 'ARW',\n")
         f.write(" max_dom = {},\n".format(num_doms))
@@ -689,7 +690,7 @@ class setup_wrf():
         specified[0] = '.true.'
         nested[0]    = '.false.'
 
-        f = open('{}namelist.input'.format(self.run_directory),'w')
+        f = open('{}namelist.input'.format(self.run_dir),'w')
         f.write("&time_control\n")
         f.write(" run_days                  =    0,\n")
         f.write(" run_hours                 = {0:>5},\n".format(run_hours))
@@ -845,7 +846,7 @@ class setup_wrf():
             optional_args['bounds'] = bounds
         else:
             print('We currently do not support ',icbc_type)
-
+        
         icbc.download(datetimes,path=self.icbc_dir, **optional_args)
         
         
@@ -853,7 +854,7 @@ class setup_wrf():
         executables = ['wps','real','wrf']
         for executable in executables:
             if hpc == 'cheyenne':
-                f = open('{}submit_{}.sh'.format(self.run_directory,executable),'w')
+                f = open('{}submit_{}.sh'.format(self.run_dir,executable),'w')
                 f.write("#!/bin/bash\n")
                 run_str = '{0}{1}'.format(self.icbc_dict['type'],
                                          (self.setup_dict['start_date'].split(' ')[0]).replace('-',''))
@@ -931,7 +932,7 @@ class setup_wrf():
         add_str_start = '+:h:0:'
 
         for ii,io_name in enumerate(np.unique(io_names)):
-            f = open('{}{}'.format(self.run_directory,io_name),'w')
+            f = open('{}{}'.format(self.run_dir,io_name),'w')
             line = ''
             if vars_to_remove is not None:
                 rem_vars = vars_to_remove[ii]
@@ -960,7 +961,6 @@ class setup_wrf():
             f.close()
             
             
-            
     def create_submitAll_scripts(self,main_directory,list_of_cases,executables):
         str_of_dirs = ' '.join(list_of_cases)    
         for exe in executables:
@@ -976,3 +976,93 @@ class setup_wrf():
             f.write("done\n")
             f.close()
             os.chmod(fname,0o755)
+            
+    def create_tslist_file(self,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
+        fname = '{}tslist'.format(self.run_dir)
+        write_tslist_file(fname,lat=lat,lon=lon,i=i,j=j,twr_names=twr_names,twr_abbr=twr_abbr)
+
+            
+def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
+    """
+    Write a list of lat/lon or i/j locations to a tslist file that is
+    readable by WRF.
+
+    Usage
+    ====
+    fname : string 
+        The path to and filename of the file to be created
+    lat,lon,i,j : list or 1-D array
+        Locations of the towers. 
+        If using lat/lon - locx = lon, locy = lat
+        If using i/j     - locx = i,   locy = j
+    twr_names : list of strings, optional
+        List of names for each tower location. Names should not be
+        longer than 25 characters, each. If None, default names will
+        be given.
+    twr_abbr : list of strings, optional
+        List of abbreviations for each tower location. Names should not be
+        longer than 5 characters, each. If None, default abbreviations
+        will be given.
+    """
+    if (lat is not None) and (lon is not None) and (i is None) and (j is None):
+        header_keys = '# 24 characters for name | pfx |  LAT  |   LON  |'
+        twr_locx = lon
+        twr_locy = lat
+        ij_or_ll = 'll'
+    elif (i is not None) and (j is not None) and (lat is None) and (lon is None):
+        header_keys = '# 24 characters for name | pfx |   I   |    J   |'
+        twr_locx = i
+        twr_locy = j
+        ij_or_ll = 'ij'
+    else:
+        print('Please specify either lat&lon or i&j')
+        return
+    
+    header_line = '#-----------------------------------------------#'
+    header = '{}\n{}\n{}\n'.format(header_line,header_keys,header_line)
+    
+    if len(twr_locy) == len(twr_locx):
+        ntowers = len(twr_locy)  
+    else:
+        print('Error - tower_x: {}, tower_y: {}'.format(len(twr_locx),len(twr_locy)))
+        return
+    
+    if not isinstance(twr_names,list):
+        twr_names = list(twr_names)    
+    if twr_names != None:
+        if len(twr_names) != ntowers:
+            print('Error - Tower names: {}, tower_x: {}, tower_y: {}'.format(len(twr_names),len(twr_locx),len(twr_locy)))
+            return
+    else:
+        twr_names = []
+        for twr in np.arange(0,ntowers):
+            twr_names.append('Tower{0:04d}'.format(twr+1))
+            
+    if not isinstance(twr_abbr,list):
+        twr_abbr = list(twr_abbr)                
+    if twr_abbr != None:
+        if len(twr_abbr) != ntowers:
+            print('Error - Tower abbr: {}, tower_x: {}, tower_y: {}'.format(len(twr_abbr),len(twr_locx),len(twr_locy)))
+            return
+        if len(max(twr_abbr,key=len)) > 5:
+            print('Tower abbreviations are too large... setting to default names')
+            twr_abbr = None
+    if twr_abbr==None:
+        twr_abbr = []
+        for twr in np.arange(0,ntowers):
+            twr_abbr.append('T{0:04d}'.format(twr+1))
+            
+    f = open(fname,'w')
+    f.write(header)
+            
+    for tt in range(0,ntowers):
+        if ij_or_ll == 'ij':
+            twr_line = '{0:<26.25}{1: <6}{2: <8d} {3: <8d}\n'.format(
+                twr_names[tt], twr_abbr[tt], int(twr_locx[tt]), int(twr_locy[tt]))
+        else:
+            twr_line = '{0:<26.25}{1: <6}{2:.7s}  {3:<.8s}\n'.format(
+                twr_names[tt], twr_abbr[tt], '{0:8.7f}'.format(float(twr_locy[tt])), 
+                                             '{0:8.7f}'.format(float(twr_locx[tt])))
+        f.write(twr_line)
+    f.close()
+     
