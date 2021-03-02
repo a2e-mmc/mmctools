@@ -868,7 +868,7 @@ def extract_column_from_wrfdata(fpath, coords,
             continue
             
         # 4D field specific processing
-        if field is 'T':
+        if field == 'T':
             # Add T0, set surface plane to TSK
             WRFdata[field] += T0
             WRFdata[field] = add_surface_plane(WRFdata[field],plane=WRFdata['TSK'])
