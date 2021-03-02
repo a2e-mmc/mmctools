@@ -1140,8 +1140,8 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
 
 
 def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
-                        hlim_ind=None,temp_var='THM',
-                        extra_vars=[],
+                        irange=None,jrange=None,hlim_ind=None,
+                        temp_var='THM',extra_vars=[],
                         use_dimension_coords=False):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
@@ -1161,7 +1161,12 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
         If not None, then a list of static heights to which all data
         variables should be interpolated. Note that this significantly
         increases the data read time.
-    hlim_ind : int, index
+    irange,jrange : tuple, optional
+        If not none, then the DataArray ds_subset is further subset in
+        the horizontal dimensions, which should speed up execution. The
+        tuple should be (idxmin, idxmax), inclusive and 1-based indices
+        (as in WRF).
+    hlim_ind : int, index, optional
         If not none, then the DataArray ds_subset is further subset by
         vertical dimension, keeping vertical layers 0:hlim_ind. This is
         meant to be used to speed up execution of the code or prevent a
@@ -1243,6 +1248,15 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
                 field = wrfpy.destagger(field,stagger_dim=idim,meta=False)
                 newdims[idim] = newdim
         ds_subset[var] = xr.DataArray(field, dims=newdims)
+
+    # subset in horizontal dimensions
+    # note: specified ranges are WRF indices, i.e., python indices +1
+    if irange is not None:
+        assert isinstance(irange, tuple), 'irange should be (imin,imax)'
+        ds_subset = ds_subset.isel(west_east=slice(irange[0]-1, irange[1]))
+    if jrange is not None:
+        assert isinstance(jrange, tuple), 'jrange should be (jmin,jmax)'
+        ds_subset = ds_subset.isel(south_north=slice(jrange[0]-1, jrange[1]))
 
     # clip vertical extent if requested
     if hlim_ind is not None:
