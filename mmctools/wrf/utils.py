@@ -1141,6 +1141,7 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
 
 def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
                         hlim_ind=None,temp_var='THM',
+                        extra_vars=[],
                         use_dimension_coords=False):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
@@ -1167,6 +1168,8 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
         memory error where the specified_heights argument is not well
         suited (i.e., want a range of non-interpolated heights), and you
         only care about data that are below a certain vertical index.
+    extra_vars : list, optional
+        List of additional fields to output
     temp_var : str, optional
         Name of moist potential temperature variable, e.g., 'THM' for
         standard WRF output or 'T' MMC auxiliary output
@@ -1225,6 +1228,22 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     ds_subset['p'] = xr.DataArray(ds['P']+ds['PB'], dims=dim_keys)
     ds_subset['theta'] = xr.DataArray(ds[temp_var]+TH0, dims=dim_keys)
 
+    # extract additional variables if requested
+    for var in extra_vars:
+        if var not in ds.data_vars:
+            print(f'Requested variable "{var}" not in {str(list(ds.data_vars))}')
+            continue
+        field = ds[var]
+        newdims = list(field.dims)
+        print(f'Extracting {var} with dims {str(newdims)}...')
+        for idim, dim in enumerate(field.dims):
+            if dim.endswith('_stag'):
+                newdim = dim[:-len('_stag')]
+                print(f'  destaggering {var} in {newdim}...')
+                field = wrfpy.destagger(field,stagger_dim=idim,meta=False)
+                newdims[idim] = newdim
+        ds_subset[var] = xr.DataArray(field, dims=newdims)
+
     # clip vertical extent if requested
     if hlim_ind is not None:
         ds_subset = ds_subset.isel(bottom_top=slice(0, hlim_ind))
@@ -1232,7 +1251,9 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     # optionally, interpolate to static heights	
     if specified_heights is not None:	
         zarr = ds_subset['z']	
-        for var in ['u','v','w','p','theta']:	
+        for var in ds_subset.data_vars:
+            if (var == 'z') or ('bottom_top' not in ds_subset[var].dims):
+                continue
             print('Interpolating',var)	
             interpolated = wrfpy.interplevel(ds_subset[var], zarr, specified_heights)	
             ds_subset[var] = interpolated #.expand_dims('Time', axis=0)	
