@@ -1140,7 +1140,7 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
 
 
 def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
-                        hlim_ind=None):
+                        hlim_ind=None,temp_var='THM'):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
     series of 3-dimensional WRF output files
@@ -1157,15 +1157,18 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
         output files.
     specified_heights : list-like, optional	
         If not None, then a list of static heights to which all data
-        variables should be	interpolated. Note that this significantly
+        variables should be interpolated. Note that this significantly
         increases the data read time.
     hlim_ind : int, index
-        If not none, then the DataArray ds_subset is further subset by vertical dimension,
-        keeping vertical layers 0:hlim_ind.
-        This is meant to be used to speed up execution of the code or prevent a memory error
-        where the specified_heights argument is not well suited
-        (i.e., want a range of non-interpolated heights), and you only care about
-        data that are below a certain vertical index.
+        If not none, then the DataArray ds_subset is further subset by
+        vertical dimension, keeping vertical layers 0:hlim_ind. This is
+        meant to be used to speed up execution of the code or prevent a
+        memory error where the specified_heights argument is not well
+        suited (i.e., want a range of non-interpolated heights), and you
+        only care about data that are below a certain vertical index.
+    temp_var : str, optional
+        Name of moist potential temperature variable, e.g., 'THM' for
+        standard WRF output or 'T' MMC auxiliary output
     """
     import wrf as wrfpy
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
@@ -1212,7 +1215,7 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
 
     print('Extracting data variables, p,theta...')
     ds_subset['p'] = xr.DataArray(ds['P']+ds['PB'], dims=dim_keys)
-    ds_subset['theta'] = xr.DataArray(ds['THM']+TH0, dims=dim_keys)
+    ds_subset['theta'] = xr.DataArray(ds[temp_var]+TH0, dims=dim_keys)
 
     # optionally, interpolate to static heights	
     if specified_heights is not None:	
