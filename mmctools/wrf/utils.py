@@ -1140,7 +1140,8 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
 
 
 def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
-                        hlim_ind=None,temp_var='THM'):
+                        hlim_ind=None,temp_var='THM',
+                        use_dimension_coords=False):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
     series of 3-dimensional WRF output files
@@ -1169,15 +1170,22 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     temp_var : str, optional
         Name of moist potential temperature variable, e.g., 'THM' for
         standard WRF output or 'T' MMC auxiliary output
+    use_dimension_coords : bool, optional
+        If True, then x and y coordinates will match the corresponding
+        dimension to facilitate and expedite xarray operations
     """
     import wrf as wrfpy
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
         'Time':'datetime',
         'bottom_top':'nz',
-        'south_north': 'ny',
-        'west_east':'nx',
     }
+    if use_dimension_coords:
+        dims_dict['west_east'] = 'x'
+        dims_dict['south_north'] = 'y'
+    else:
+        dims_dict['west_east'] = 'nx'
+        dims_dict['south_north'] = 'ny'
 
     ds = xr.open_mfdataset(os.path.join(wrf_path,wrf_file_filter),
                            chunks={'Time': 10},
@@ -1237,7 +1245,7 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     ds_subset['wdir'] = xr.DataArray(180. + np.arctan2(ds_subset['u'],ds_subset['v'])*180./np.pi,
                                      dims=dim_keys)
     
-    # assign rename coord variable for time, and assign ccordinates 
+    # rename coord variable for time and assign ccordinates 
     ds_subset = ds_subset.rename({'XTIME': 'datetime'})  #Rename after defining the component DataArrays in the DataSet
     if specified_heights is None:
         ds_subset = ds_subset.assign_coords(z=ds_subset['z'])
@@ -1245,9 +1253,12 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     ds_subset = ds_subset.assign_coords(x=ds_subset['x'])
     ds_subset = ds_subset.assign_coords(zsurface=ds_subset['zsurface'])
     ds_subset = ds_subset.rename_vars({'XLAT':'lat', 'XLONG':'lon'})
-    #print(ds_subset)
+    for olddim,newdim in dims_dict.copy().items():
+        if newdim in ds_subset.coords:
+            # have to swap dim instead of renaming if it already exists
+            ds_subset = ds_subset.swap_dims({olddim: newdim})
+            dims_dict.pop(olddim)
     ds_subset = ds_subset.rename_dims(dims_dict)
-    #print(ds_subset)
     
     # Change by WHL to eliminate vertical info far from the surface to prevent memory crash                                       
     try:
