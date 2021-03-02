@@ -737,7 +737,8 @@ class setup_wrf():
         f.write(" e_sn                      =  {}\n".format(ny_str))
         f.write(" s_vert                    =  {}\n".format("{0:>5},".format(1)*num_doms))
         f.write(" e_vert                    =  {}\n".format("{0:>5},".format(self.namelist_opts['num_eta_levels'])*num_doms))
-        f.write(" eta_levels  = {},\n".format(self.namelist_opts['eta_levels']))
+        if 'eta_levels' in self.namelist_opts.keys():
+            f.write(" eta_levels  = {},\n".format(self.namelist_opts['eta_levels']))
         f.write(" p_top_requested           = {},\n".format(self.namelist_opts['p_top_requested']))
         f.write(" num_metgrid_levels        = {},\n".format(self.namelist_opts['num_metgrid_levels']))
         f.write(" num_metgrid_soil_levels   = {},\n".format(self.namelist_opts['num_metgrid_soil_levels']))
@@ -848,60 +849,61 @@ class setup_wrf():
         icbc.download(datetimes,path=self.icbc_dir, **optional_args)
         
         
-    def write_submission_scripts(self,submission_dict,executable,hpc='cheyenne'):
-
-        if hpc == 'cheyenne':
-            f = open('{}submit_{}.sh'.format(self.run_directory,executable),'w')
-            f.write("#!/bin/bash\n")
-            run_str = '{0}{1}'.format(self.icbc_dict['type'],
-                                     (self.setup_dict['start_date'].split(' ')[0]).replace('-',''))
-            f.write("#PBS -N {} \n".format(run_str))
-            f.write("#PBS -A {}\n".format(submission_dict['account_key']))
-            f.write("#PBS -l walltime={0:02d}:00:00\n".format(submission_dict['walltime_hours'][executable]))
-            f.write("#PBS -q economy\n")
-            f.write("#PBS -j oe\n")
-            f.write("#PBS -m abe\n")
-            f.write("#PBS -M {}\n".format(submission_dict['user_email']))
-            f.write("### Select 2 nodes with 36 CPUs each for a total of 72 MPI processes\n")
-            if executable == 'wps':
-                f.write("#PBS -l select=1:ncpus=1:mpiprocs=1\n".format(submission_dict['nodes']))
-            else:
-                f.write("#PBS -l select={0:02d}:ncpus=36:mpiprocs=36\n".format(submission_dict['nodes']))
-            f.write("date_start=`date`\n")
-            f.write("echo $date_start\n")
-            f.write("module list\n")
-            if executable == 'wps':
-                icbc_type = self.icbc_dict['type'].upper()
-                if icbc_type == 'ERA5':
-                    icbc_head = 'era5_*'
-                    icbc_vtable = 'ERA-interim.pl'
-                elif icbc_type == 'ERAI':
-                    icbc_head = 'ei.oper*'
-                    icbc_vtable = 'ERA-interim.pl'
-                elif icbc_type == 'FNL':
-                    icbc_head = 'fnl_*'
-                    icbc_vtable = 'GFS'
-                elif icbc_type == 'MERRA2':
-                    icbc_head = 'MERRA2_*'
-                    icbc_vtable = 'GFS'
+    def write_submission_scripts(self,submission_dict,hpc='cheyenne'):
+        executables = ['wps','real','wrf']
+        for executable in executables:
+            if hpc == 'cheyenne':
+                f = open('{}submit_{}.sh'.format(self.run_directory,executable),'w')
+                f.write("#!/bin/bash\n")
+                run_str = '{0}{1}'.format(self.icbc_dict['type'],
+                                         (self.setup_dict['start_date'].split(' ')[0]).replace('-',''))
+                f.write("#PBS -N {} \n".format(run_str))
+                f.write("#PBS -A {}\n".format(submission_dict['account_key']))
+                f.write("#PBS -l walltime={0:02d}:00:00\n".format(submission_dict['walltime_hours'][executable]))
+                f.write("#PBS -q economy\n")
+                f.write("#PBS -j oe\n")
+                f.write("#PBS -m abe\n")
+                f.write("#PBS -M {}\n".format(submission_dict['user_email']))
+                f.write("### Select 2 nodes with 36 CPUs each for a total of 72 MPI processes\n")
+                if executable == 'wps':
+                    f.write("#PBS -l select=1:ncpus=1:mpiprocs=1\n".format(submission_dict['nodes']))
                 else:
-                    print('We do not support this ICBC yet...')
-                
-                icbc_files = '{}{}'.format(self.icbc_dir,icbc_head)
-                f.write("./link_grib.csh {}\n".format(icbc_files))
-                f.write("ln -sf ungrib/Variable_Tables/Vtable.{} Vtable\n".format(icbc_vtable))
-                f.write("./geogrid.exe\n".format(executable))
-                f.write("./ungrib.exe\n".format(executable))
-                f.write("./metgrid.exe\n".format(executable))
-                f.write("for i in GRIBFILE.*; do unlink $i; done\n")
+                    f.write("#PBS -l select={0:02d}:ncpus=36:mpiprocs=36\n".format(submission_dict['nodes']))
+                f.write("date_start=`date`\n")
+                f.write("echo $date_start\n")
+                f.write("module list\n")
+                if executable == 'wps':
+                    icbc_type = self.icbc_dict['type'].upper()
+                    if icbc_type == 'ERA5':
+                        icbc_head = 'era5_*'
+                        icbc_vtable = 'ERA-interim.pl'
+                    elif icbc_type == 'ERAI':
+                        icbc_head = 'ei.oper*'
+                        icbc_vtable = 'ERA-interim.pl'
+                    elif icbc_type == 'FNL':
+                        icbc_head = 'fnl_*'
+                        icbc_vtable = 'GFS'
+                    elif icbc_type == 'MERRA2':
+                        icbc_head = 'MERRA2_*'
+                        icbc_vtable = 'GFS'
+                    else:
+                        print('We do not support this ICBC yet...')
+
+                    icbc_files = '{}{}'.format(self.icbc_dir,icbc_head)
+                    f.write("./link_grib.csh {}\n".format(icbc_files))
+                    f.write("ln -sf ungrib/Variable_Tables/Vtable.{} Vtable\n".format(icbc_vtable))
+                    f.write("./geogrid.exe\n".format(executable))
+                    f.write("./ungrib.exe\n".format(executable))
+                    f.write("./metgrid.exe\n".format(executable))
+                    f.write("for i in GRIBFILE.*; do unlink $i; done\n")
+                else:
+                    f.write("mpiexec_mpt ./{}.exe\n".format(executable))
+                f.write("date_end=`date`\n")
+                f.write("echo $date_end\n")
+                f.close()
+
             else:
-                f.write("mpiexec_mpt ./{}.exe\n".format(executable))
-            f.write("date_end=`date`\n")
-            f.write("echo $date_end\n")
-            f.close()
-            
-        else:
-            print('The hpc requested, {}, is not currently supported... please add it!'.format(hpc))
+                print('The hpc requested, {}, is not currently supported... please add it!'.format(hpc))
 
 
             
@@ -956,3 +958,21 @@ class setup_wrf():
                         var_count += 1
 
             f.close()
+            
+            
+            
+    def create_submitAll_scripts(self,main_directory,list_of_cases,executables):
+        str_of_dirs = ' '.join(list_of_cases)    
+        for exe in executables:
+            fname = '{}submit_all_{}.sh'.format(main_directory,exe)
+            f = open(fname,'w')
+            f.write("#!/bin/bash\n")
+            f.write("for value in {}\n".format(str_of_dirs))
+            f.write("do\n")
+            f.write("    cd $value/\n")
+            f.write("    pwd\n")
+            f.write("    qsub submit_{}.sh\n".format(exe))
+            f.write("    cd ..\n")
+            f.write("done\n")
+            f.close()
+            os.chmod(fname,0o755)
