@@ -1225,6 +1225,10 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     ds_subset['p'] = xr.DataArray(ds['P']+ds['PB'], dims=dim_keys)
     ds_subset['theta'] = xr.DataArray(ds[temp_var]+TH0, dims=dim_keys)
 
+    # clip vertical extent if requested
+    if hlim_ind is not None:
+        ds_subset = ds_subset.isel(bottom_top=slice(0, hlim_ind))
+
     # optionally, interpolate to static heights	
     if specified_heights is not None:	
         zarr = ds_subset['z']	
@@ -1260,13 +1264,7 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
             dims_dict.pop(olddim)
     ds_subset = ds_subset.rename_dims(dims_dict)
     
-    # Change by WHL to eliminate vertical info far from the surface to prevent memory crash                                       
-    try:
-        ds_subset2 = ds_subset.isel( nz = slice(0, hlim_ind) )
-        return ds_subset2
-    except:
-        # if hlim_ind = None, default code execution
-        return ds_subset
+    return ds_subset
 
 
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
