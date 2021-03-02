@@ -167,7 +167,7 @@ class ERAInterim(RDADataset):
         good_dates = datetimes.copy()
         for dt in datetimes:
             if str(dt) > era_interim_end_date:
-                print('Bad date ({}) - after ERA-Interim EOL ({})'.format(str(dt),era_interim_end_date))
+                print('WARNING: Bad date ({}) - after ERA-Interim EOL ({})'.format(str(dt),era_interim_end_date))
                 good_dates = good_dates.drop(dt)
         if len(good_dates) > 0:
             datetimes = good_dates
@@ -861,7 +861,7 @@ class setup_wrf():
             optional_args['bounds'] = bounds
         else:
             print('We currently do not support ',icbc_type)
-        
+
         icbc.download(datetimes,path=self.icbc_dir, **optional_args)
         
         
