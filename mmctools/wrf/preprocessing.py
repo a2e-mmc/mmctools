@@ -141,7 +141,7 @@ class FNL(RDADataset):
 class ERAInterim(RDADataset):
     """ERA-Interim Reanalysis
 
-    Note: Production stopped on August 31, 2019
+    Note: Production stopped on September 10, 2019
 
     Description: https://rda.ucar.edu/datasets/ds627.0/
     """
@@ -162,23 +162,38 @@ class ERAInterim(RDADataset):
         path : str, optional
             Path to directory in which to save grib files
         """
-        if path is None:
-            path = '.'
+        era_interim_end_date = '2019-09-10 12:00:00'
+        dates_before_end_of_era = True
+        good_dates = datetimes.copy()
+        for dt in datetimes:
+            if str(dt) > era_interim_end_date:
+                print('Bad date ({}) - after ERA-Interim EOL ({})'.format(str(dt),era_interim_end_date))
+                good_dates = good_dates.drop(dt)
+        if len(good_dates) > 0:
+            datetimes = good_dates
         else:
-            os.makedirs(path,exist_ok=True)
-        # pressure-level data
+            dates_before_end_of_era = False
+            print('WARNING: All dates are after ERA-Interim EOL ({})'.format(era_interim_end_date))
+            print('Not downloading anything... Need to change reanalysis for these dates!')
+        
+        if dates_before_end_of_era:
+            if path is None:
+                path = '.'
+            else:
+                os.makedirs(path,exist_ok=True)
+            # pressure-level data
 
-        super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
-                         path=path,
-                         prefix='ei.oper.an.pl',
-                         datetimes=datetimes,
-                         fields=['regn128sc','regn128uv'])
-        # surface data
-        super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
-                         path=path,
-                         prefix='ei.oper.an.sfc',
-                         datetimes=datetimes,
-                         fields=['regn128sc'])
+            super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
+                             path=path,
+                             prefix='ei.oper.an.pl',
+                             datetimes=datetimes,
+                             fields=['regn128sc','regn128uv'])
+            # surface data
+            super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
+                             path=path,
+                             prefix='ei.oper.an.sfc',
+                             datetimes=datetimes,
+                             fields=['regn128sc'])
 
         
 class MERRA2(RDADataset):
