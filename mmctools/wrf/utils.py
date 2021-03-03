@@ -1269,9 +1269,7 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
             if (var == 'z') or ('bottom_top' not in ds_subset[var].dims):
                 continue
             print('Interpolating',var)	
-            interpolated = wrfpy.interplevel(ds_subset[var], zarr, specified_heights)	
-            ds_subset[var] = interpolated #.expand_dims('Time', axis=0)	
-            #print(ds_subset[var])
+            ds_subset[var] = wrfpy.interpz3d(ds_subset[var], zarr, specified_heights)	
         ds_subset = ds_subset.drop_dims('bottom_top').rename({'level':'z'})	
         dim_keys[1] = 'z'	
         dims_dict.pop('bottom_top')
