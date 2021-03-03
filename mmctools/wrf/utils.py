@@ -1139,7 +1139,8 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     return dsF
 
 
-def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
+def wrfout_seriesReader(wrf_path,wrf_file_filter,
+                        specified_heights=None,agl=False,
                         irange=None,jrange=None,hlim_ind=None,
                         temp_var='THM',extra_vars=[],
                         use_dimension_coords=False):
@@ -1161,6 +1162,10 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
         If not None, then a list of static heights to which all data
         variables should be interpolated. Note that this significantly
         increases the data read time.
+    agl : bool, optional
+        If True, then specified heights are expected to be above ground
+        level (AGL) and the interpolation heights will have the local
+        elevation subtracted out.
     irange,jrange : tuple, optional
         If not none, then the DataArray ds_subset is further subset in
         the horizontal dimensions, which should speed up execution. The
@@ -1259,11 +1264,15 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     # optionally, interpolate to static heights	
     if specified_heights is not None:	
         zarr = ds_subset['z']	
+        if agl:
+            zarr -= ds_subset['zsurface']
         for var in ds_subset.data_vars:
             if (var == 'z') or ('bottom_top' not in ds_subset[var].dims):
                 continue
             print('Interpolating',var)	
-            ds_subset[var] = wrfpy.interpz3d(ds_subset[var], zarr, specified_heights)	
+            ds_subset[var] = wrfpy.interplevel(ds_subset[var], zarr, specified_heights)	
+            if np.any(~np.isfinite(ds_subset[var])):
+                print('WARNING: wrf.interplevel() produced NaNs -- make sure requested heights are in range and/or use agl=True')
         ds_subset = ds_subset.drop_dims('bottom_top').rename({'level':'z'})	
         dim_keys[1] = 'z'	
         dims_dict.pop('bottom_top')
