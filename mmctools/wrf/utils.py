@@ -1205,14 +1205,14 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
 
     ds_subset = ds[['XTIME']]
     print('Establishing coordinate variables, x,y,z, zSurface...')
-    zcoord = wrfpy.destagger((ds['PHB'] + ds['PH']) / 9.8, stagger_dim=1, meta=False)
+    ds_subset['z'] = wrfpy.destagger((ds['PHB'] + ds['PH']) / 9.8,
+                                     stagger_dim=1, meta=True)
     #ycoord = ds.DY * np.tile(0.5 + np.arange(ds.dims['south_north']),
     #                         (ds.dims['west_east'],1))
     #xcoord = ds.DX * np.tile(0.5 + np.arange(ds.dims['west_east']),
     #                         (ds.dims['south_north'],1)) 
     ycoord = ds.DY * (0.5 + np.arange(ds.dims['south_north']))
     xcoord = ds.DX * (0.5 + np.arange(ds.dims['west_east']))
-    ds_subset['z'] = xr.DataArray(zcoord, dims=dim_keys)
     #ds_subset['y'] = xr.DataArray(np.transpose(ycoord), dims=horiz_dim_keys)
     #ds_subset['x'] = xr.DataArray(xcoord, dims=horiz_dim_keys)
     ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
@@ -1222,12 +1222,9 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     # for it to be time-varying for moving grids
     ds_subset['zsurface'] = xr.DataArray(ds['HGT'].isel(Time=0), dims=horiz_dim_keys)
     print('Destaggering data variables, u,v,w...')
-    ds_subset['u'] = xr.DataArray(wrfpy.destagger(ds['U'],stagger_dim=3,meta=False),
-                                  dims=dim_keys)
-    ds_subset['v'] = xr.DataArray(wrfpy.destagger(ds['V'],stagger_dim=2,meta=False),
-                                  dims=dim_keys)
-    ds_subset['w'] = xr.DataArray(wrfpy.destagger(ds['W'],stagger_dim=1,meta=False),
-                                  dims=dim_keys)
+    ds_subset['u'] = wrfpy.destagger(ds['U'], stagger_dim=3, meta=True)
+    ds_subset['v'] = wrfpy.destagger(ds['V'], stagger_dim=2, meta=True)
+    ds_subset['w'] = wrfpy.destagger(ds['W'], stagger_dim=1, meta=True)
 
     print('Extracting data variables, p,theta...')
     ds_subset['p'] = xr.DataArray(ds['P']+ds['PB'], dims=dim_keys)
@@ -1239,15 +1236,12 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
             print(f'Requested variable "{var}" not in {str(list(ds.data_vars))}')
             continue
         field = ds[var]
-        newdims = list(field.dims)
-        print(f'Extracting {var} with dims {str(newdims)}...')
+        print(f'Extracting {var}...')
         for idim, dim in enumerate(field.dims):
             if dim.endswith('_stag'):
-                newdim = dim[:-len('_stag')]
-                print(f'  destaggering {var} in {newdim}...')
-                field = wrfpy.destagger(field,stagger_dim=idim,meta=False)
-                newdims[idim] = newdim
-        ds_subset[var] = xr.DataArray(field, dims=newdims)
+                print(f'  destaggering {var} in dim {dim}...')
+                field = wrfpy.destagger(field, stagger_dim=idim, meta=True)
+        ds_subset[var] = field
 
     # subset in horizontal dimensions
     # note: specified ranges are WRF indices, i.e., python indices +1
@@ -1286,9 +1280,9 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     ds_subset = ds_subset.rename({'XTIME': 'datetime'})  #Rename after defining the component DataArrays in the DataSet
     if specified_heights is None:
         ds_subset = ds_subset.assign_coords(z=ds_subset['z'])
-    ds_subset = ds_subset.assign_coords(y=ds_subset['y'])
-    ds_subset = ds_subset.assign_coords(x=ds_subset['x'])
-    ds_subset = ds_subset.assign_coords(zsurface=ds_subset['zsurface'])
+    ds_subset = ds_subset.assign_coords(x=ds_subset['x'],
+                                        y=ds_subset['y'],
+                                        zsurface=ds_subset['zsurface'])
     ds_subset = ds_subset.rename_vars({'XLAT':'lat', 'XLONG':'lon'})
     for olddim,newdim in dims_dict.copy().items():
         if newdim in ds_subset.coords:
