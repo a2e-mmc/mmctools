@@ -433,7 +433,6 @@ class setup_wrf():
             met_lvls  = 30
         elif icbc_type == 'MERRA2':
             met_lvls  = 73
-            download_freq = '1d'
 
         icbc_dict = {'type' : icbc_type,
                     'interval_seconds' : interval_seconds,
@@ -659,7 +658,7 @@ class setup_wrf():
             else:
                 pid = pp
             parent_ids += '{0:>5},'.format(str(pid))
-            dx_str += '{0:>5},'.format(str(int(self.namelist_opts['dxy']/pgr)))
+            dx_str += '{0:>5},'.format(str(int(self.namelist_opts['dxy']/np.prod(self.namelist_opts['parent_grid_ratio'][:(pp+1)]))))
             radt = self.namelist_opts['radt']/pgr
             if radt < 1: radt = 1
             radt_str += '{0:>5},'.format(str(int(radt)))
@@ -843,12 +842,14 @@ class setup_wrf():
         elif icbc_type == 'FNL':
             icbc = FNL()
         elif icbc_type == 'MERRA2':
-            icbc = MERRA2()
-            if 'resolution_deg' not in self.setup_keys():
-                res_drag = 0
-            else:
-                res_drag = self.setup_dict['resolution_deg']
-            optional_args['resolution_deg'] = res_drag
+            print('Cannot download MERRA2 yet... please download manually and put in the IC/BC dir:')
+            print(self.icbc_dir)
+            #icbc = MERRA2()
+            #if 'resolution_deg' not in self.setup_keys():
+            #    res_drag = 0
+            #else:
+            #    res_drag = self.setup_dict['resolution_deg']
+            #optional_args['resolution_deg'] = res_drag
         elif icbc_type == 'ERA5':
             icbc = ERA5()
             if 'bounds' not in self.setup_dict.keys():
@@ -861,8 +862,8 @@ class setup_wrf():
             optional_args['bounds'] = bounds
         else:
             print('We currently do not support ',icbc_type)
-
-        icbc.download(datetimes,path=self.icbc_dir, **optional_args)
+        if icbc_type != 'MERRA2':
+            icbc.download(datetimes,path=self.icbc_dir, **optional_args)
         
         
     def write_submission_scripts(self,submission_dict,hpc='cheyenne'):
@@ -900,18 +901,22 @@ class setup_wrf():
                         icbc_head = 'fnl_*'
                         icbc_vtable = 'GFS'
                     elif icbc_type == 'MERRA2':
-                        icbc_head = 'MERRA2_*'
+                        icbc_head = 'MERRA2*'
                         icbc_vtable = 'GFS'
                     else:
                         print('We do not support this ICBC yet...')
 
-                    icbc_files = '{}{}'.format(self.icbc_dir,icbc_head)
-                    f.write("./link_grib.csh {}\n".format(icbc_files))
-                    f.write("ln -sf ungrib/Variable_Tables/Vtable.{} Vtable\n".format(icbc_vtable))
                     f.write("./geogrid.exe\n".format(executable))
-                    f.write("./ungrib.exe\n".format(executable))
+                    icbc_files = '{}{}'.format(self.icbc_dir,icbc_head)
+                    if icbc_type == 'MERRA2':
+                        f.write('ln -sf {} .\n'.format(icbc_files))
+                    else:
+                        f.write("ln -sf ungrib/Variable_Tables/Vtable.{} Vtable\n".format(icbc_vtable))
+                        f.write("./link_grib.csh {}\n".format(icbc_files))
+                        f.write("./ungrib.exe\n".format(executable))
                     f.write("./metgrid.exe\n".format(executable))
-                    f.write("for i in GRIBFILE.*; do unlink $i; done\n")
+                    if icbc_type != 'MERRA2':
+                        f.write("for i in GRIBFILE.*; do unlink $i; done\n")
                 else:
                     f.write("mpiexec_mpt ./{}.exe\n".format(executable))
                 f.write("date_end=`date`\n")
