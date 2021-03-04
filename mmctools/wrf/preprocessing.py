@@ -676,6 +676,37 @@ class setup_wrf():
             io_str     = self._get_nl_str(num_doms,self.namelist_opts['iofields_filename'])
         else:
             include_io = False
+        if 'auxinput4_inname' in self.namelist_opts.keys():
+            include_aux4  = True
+            aux4_str_name = self.namelist_opts['auxinput4_inname']
+            aux4_str_int  = self._get_nl_str(num_doms,self.namelist_opts['auxinput4_interval'])
+            if 'io_form_auxinput4' in self.namelist_opts.keys():
+                aux4_str_form = self.namelist_opts['io_form_auxinput4']
+            else:
+                aux4_str_form = '2' 
+        else:
+            include_aux4 = False
+
+        aux_list = []
+        for key in self.namelist_opts.keys():
+            if ('auxhist' in key) and ('outname' in key):
+                aux_list.append(key.replace('auxhist','').replace('_outname',''))
+        include_auxout = False
+        if aux_list != []:
+            include_auxout = True
+            n_aux = len(aux_list)
+            aux_block = ''
+            for aa,aux in enumerate(aux_list):
+                aux_out_str = '{},'.format(self.namelist_opts['auxhist{}_outname'.format(aux)])
+                aux_int_str = self._get_nl_str(num_doms,self.namelist_opts['auxhist{}_interval'.format(aux)])
+                aux_per_str = self._get_nl_str(num_doms,self.namelist_opts['frames_per_auxhist{}'.format(aux)])
+                aux_frm_str = '{},'.format(self.namelist_opts['io_form_auxhist{}'.format(aux)])
+                line1 = ' auxhist{}_outname         = {}\n'.format(aux,aux_out_str)
+                line2 = ' auxhist{}_interval        = {}\n'.format(aux,aux_int_str)
+                line3 = ' frames_per_auxhist{}      = {}\n'.format(aux,aux_per_str)
+                line4 = ' io_form_auxhist{}         = {}\n'.format(aux,aux_frm_str)
+                aux_block += line1 + line2 + line3 + line4
+            
         mp_str      = self._get_nl_str(num_doms,self.namelist_opts['mp_physics'])
         sfclay_str  = self._get_nl_str(num_doms,self.namelist_opts['sf_sfclay_physics'])
         surface_str = self._get_nl_str(num_doms,self.namelist_opts['sf_surface_physics'])
@@ -707,6 +738,7 @@ class setup_wrf():
         f = open('{}namelist.input'.format(self.run_dir),'w')
         f.write("&time_control\n")
         f.write(" run_days                  =    0,\n")
+                
         f.write(" run_hours                 = {0:>5},\n".format(run_hours))
         f.write(" run_minutes               =    0,\n")
         f.write(" run_seconds               =    0,\n")
@@ -735,6 +767,12 @@ class setup_wrf():
         if include_io:
             f.write(" iofields_filename         = {}\n".format(io_str))
             f.write(" ignore_iofields_warning   = .true.,\n")
+        if include_aux4:
+            f.write(" auxinput4_inname          = {},\n".format(aux4_str_name))
+            f.write(" auxinput4_interval        = {}\n".format(aux4_str_int))
+            f.write(" io_form_auxinput4         = {},\n".format(aux4_str_form))
+        if include_auxout:
+            f.write(aux_block)
         f.write(" debug_level               = {} \n".format(self.namelist_opts['debug']))
         f.write("/\n")
         f.write("\n")
