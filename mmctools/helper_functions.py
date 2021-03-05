@@ -293,7 +293,10 @@ def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
     # Determine sampling rate and samples per window
     dts = np.diff(timevalues.unique())/timescale
     dt  = dts[0]
-    nperseg = int( pd.to_timedelta(window_size)/pd.to_timedelta(dt,'s') )
+    if type(window_type) is str:
+        nperseg = int( pd.to_timedelta(window_size)/pd.to_timedelta(dt,'s') )
+    else:
+        nperseg = len(window_type)
     assert(np.allclose(dts,dt)),\
         'Timestamps must be spaced equidistantly'
 
@@ -540,31 +543,47 @@ def model4D_spectra(ds,spectra_dim,average_dim,vert_levels,horizontal_locs,fld,f
     fs = 1 / dt
     overlap = 0
     win = hamming(nblock, True) #Assumed non-periodic in the spectra_dim
-    Puuf_cum = np.zeros((len(vert_levels),len(horizontal_locs),ds.dims[spectra_dim]))
+    
+    init_Puuf_cum = True
 
     for cnt_lvl,level in enumerate(vert_levels): # loop over levels
         print('grabbing a slice...')
         spec_start = time.time()
         series_lvl = ds[fld].isel(nz=level)-ds[fldMean].isel(nz=level)
+        series_lvl.name = 'varn'
         print(time.time() - spec_start)
         for cnt_i,iLoc in enumerate(horizontal_locs): # loop over x
             for cnt,it in enumerate(range(ds.dims[average_dim])): # loop over y
                 if spectra_dim == 'datetime':
                     series = series_lvl.isel(nx=iLoc,ny=it)
+                    if (type(series) == xr.Dataset) or (type(series) == xr.DataArray):
+                        series = series.to_dataframe()
+                        for key in series.keys():
+                            if key != 'varn':
+                                series = series.drop([key],axis=1)
+                    
                 elif 'y' in spectra_dim:
                     series = series_lvl.isel(nx=iLoc,datetime=it)
                 else:
                     print('Please choose spectral_dim of \'ny\', or \'datetime\'')
-                f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, 
-                                 nfft=nblock, return_onesided=False, detrend='constant')
-                Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
+                #f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, 
+                #                 nfft=nblock, return_onesided=False, detrend='constant')
+                #Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
+                
+                Pxxf = power_spectral_density(series,window_type=win,detrend='constant')
                 if it == 0:
-                    Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
+                    if init_Puuf_cum:
+                        Puuf_cum = np.zeros((len(vert_levels),len(horizontal_locs),len(Pxxf)))
+                        init_Puuf_cum = False
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf.varn
+                    sum_count = 1
                 else:
-                    Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
-    Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims[spectra_dim]/2).astype(int))]   ###2.0 is to account for the dropping of the negative side of the FFT 
-    f = f[:(np.floor(ds.dims[spectra_dim]/2).astype(int))]
-
+                    Puuf_cum[cnt_lvl,cnt_i,:] += Pxxf.varn
+                    sum_count += 1
+    #Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims[spectra_dim]/2).astype(int))]   ###2.0 is to account for the dropping of the negative side of the FFT 
+    #f = f[:(np.floor(ds.dims[spectra_dim]/2).astype(int))]
+    Puuf = (1.0/sum_count)*Puuf_cum
+    f = Pxxf.index.get_level_values('frequency')
     return f,Puuf
 
 def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs,fld,fldMean):

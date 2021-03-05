@@ -2,6 +2,8 @@
 A repository for mesoscale-to-microscale coupling (MMC) preprocessing,
 postprocessing, and analysis tools
 
+See the `dev` branch for the latest code under development. 
+
 
 ## Overview
 
