@@ -4,6 +4,7 @@ from getpass import getpass
 import numpy as np
 import pandas as pd
 import glob
+import xarray as xr
 
 def prompt(s):
     if sys.version_info[0] < 3:
