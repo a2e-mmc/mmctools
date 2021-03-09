@@ -1388,7 +1388,6 @@ class overwrite_sst():
 
         closest_time = sst_times[np.where(time_dist == np.min(time_dist))]
 
-
         if len(closest_time) == 1:
             if closest_time == met_time:
                 sst_before = closest_time[0]
@@ -1397,24 +1396,25 @@ class overwrite_sst():
                 got_before = False
                 got_after  = False
                 closest_time = closest_time[0]
+                closest_ind = int(np.where(sst_times == closest_time)[0])
                 if (closest_time - met_time).total_seconds() < 0:
                     sst_before = closest_time
+                    next_closest_times = sst_times[closest_ind+1:]
+                    next_closest_dist  = time_dist[closest_ind+1:]
                     got_before = True
                 else:
                     sst_after = closest_time
+                    next_closest_times = sst_times[:closest_ind-1]
+                    next_closest_dist  = time_dist[:closest_ind-1]
                     got_after = True
 
-                next_closest_dist  = list(time_dist)
-                next_closest_times = list(sst_times)
-                next_closest_dist.remove(np.min(time_dist))
-                next_closest_times.remove(closest_time)
-                next_closest_dist = np.asarray(next_closest_dist)
-                next_closest_times = np.asarray(next_closest_times)
                 next_closest_time = next_closest_times[np.where(next_closest_dist == np.min(next_closest_dist))][0]
 
                 if got_before:
+                    assert (next_closest_time - met_time).total_seconds() >= 0.0, 'Next closest time not after first time.'
                     sst_after = next_closest_time
                 if got_after:
+                    assert (next_closest_time - met_time).total_seconds() <= 0.0, 'Next closest time not before first time.'
                     sst_before = next_closest_time                
 
         elif len(closest_time) == 2:
