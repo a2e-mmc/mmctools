@@ -1228,7 +1228,7 @@ class overwrite_sst():
             self._get_sst_info()
 
         # Overwrite the met_em SST data:
-        for mm,met_file in enumerate(self.met_em_files[::10]):
+        for mm,met_file in enumerate(self.met_em_files):
             self._get_new_sst(met_file)
             # If filling missing values with SKINTEMP:
             if fill_missing:
