@@ -869,7 +869,7 @@ def extract_column_from_wrfdata(fpath, coords,
             continue
             
         # 4D field specific processing
-        if field is 'T':
+        if field == 'T':
             # Add T0, set surface plane to TSK
             WRFdata[field] += T0
             WRFdata[field] = add_surface_plane(WRFdata[field],plane=WRFdata['TSK'])
@@ -1140,8 +1140,11 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     return dsF
 
 
-def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
-                        hlim_ind=None):
+def wrfout_seriesReader(wrf_path,wrf_file_filter,
+                        specified_heights=None,agl=False,
+                        irange=None,jrange=None,hlim_ind=None,
+                        temp_var='THM',extra_vars=[],
+                        use_dimension_coords=False):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
     series of 3-dimensional WRF output files
@@ -1158,24 +1161,45 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
         output files.
     specified_heights : list-like, optional	
         If not None, then a list of static heights to which all data
-        variables should be	interpolated. Note that this significantly
+        variables should be interpolated. Note that this significantly
         increases the data read time.
-    hlim_ind : int, index
-        If not none, then the DataArray ds_subset is further subset by vertical dimension,
-        keeping vertical layers 0:hlim_ind.
-        This is meant to be used to speed up execution of the code or prevent a memory error
-        where the specified_heights argument is not well suited
-        (i.e., want a range of non-interpolated heights), and you only care about
-        data that are below a certain vertical index.
+    agl : bool, optional
+        If True, then specified heights are expected to be above ground
+        level (AGL) and the interpolation heights will have the local
+        elevation subtracted out.
+    irange,jrange : tuple, optional
+        If not none, then the DataArray ds_subset is further subset in
+        the horizontal dimensions, which should speed up execution. The
+        tuple should be (idxmin, idxmax), inclusive and 1-based indices
+        (as in WRF).
+    hlim_ind : int, index, optional
+        If not none, then the DataArray ds_subset is further subset by
+        vertical dimension, keeping vertical layers 0:hlim_ind. This is
+        meant to be used to speed up execution of the code or prevent a
+        memory error where the specified_heights argument is not well
+        suited (i.e., want a range of non-interpolated heights), and you
+        only care about data that are below a certain vertical index.
+    extra_vars : list, optional
+        List of additional fields to output
+    temp_var : str, optional
+        Name of moist potential temperature variable, e.g., 'THM' for
+        standard WRF output or 'T' MMC auxiliary output
+    use_dimension_coords : bool, optional
+        If True, then x and y coordinates will match the corresponding
+        dimension to facilitate and expedite xarray operations
     """
     import wrf as wrfpy
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
         'Time':'datetime',
         'bottom_top':'nz',
-        'south_north': 'ny',
-        'west_east':'nx',
     }
+    if use_dimension_coords:
+        dims_dict['west_east'] = 'x'
+        dims_dict['south_north'] = 'y'
+    else:
+        dims_dict['west_east'] = 'nx'
+        dims_dict['south_north'] = 'ny'
 
     ds = xr.open_mfdataset(os.path.join(wrf_path,wrf_file_filter),
                            chunks={'Time': 10},
@@ -1187,14 +1211,14 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
 
     ds_subset = ds[['XTIME']]
     print('Establishing coordinate variables, x,y,z, zSurface...')
-    zcoord = wrfpy.destagger((ds['PHB'] + ds['PH']) / 9.8, stagger_dim=1, meta=False)
+    ds_subset['z'] = wrfpy.destagger((ds['PHB'] + ds['PH']) / 9.8,
+                                     stagger_dim=1, meta=True)
     #ycoord = ds.DY * np.tile(0.5 + np.arange(ds.dims['south_north']),
     #                         (ds.dims['west_east'],1))
     #xcoord = ds.DX * np.tile(0.5 + np.arange(ds.dims['west_east']),
     #                         (ds.dims['south_north'],1)) 
     ycoord = ds.DY * (0.5 + np.arange(ds.dims['south_north']))
     xcoord = ds.DX * (0.5 + np.arange(ds.dims['west_east']))
-    ds_subset['z'] = xr.DataArray(zcoord, dims=dim_keys)
     #ds_subset['y'] = xr.DataArray(np.transpose(ycoord), dims=horiz_dim_keys)
     #ds_subset['x'] = xr.DataArray(xcoord, dims=horiz_dim_keys)
     ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
@@ -1204,25 +1228,52 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     # for it to be time-varying for moving grids
     ds_subset['zsurface'] = xr.DataArray(ds['HGT'].isel(Time=0), dims=horiz_dim_keys)
     print('Destaggering data variables, u,v,w...')
-    ds_subset['u'] = xr.DataArray(wrfpy.destagger(ds['U'],stagger_dim=3,meta=False),
-                                  dims=dim_keys)
-    ds_subset['v'] = xr.DataArray(wrfpy.destagger(ds['V'],stagger_dim=2,meta=False),
-                                  dims=dim_keys)
-    ds_subset['w'] = xr.DataArray(wrfpy.destagger(ds['W'],stagger_dim=1,meta=False),
-                                  dims=dim_keys)
+    ds_subset['u'] = wrfpy.destagger(ds['U'], stagger_dim=3, meta=True)
+    ds_subset['v'] = wrfpy.destagger(ds['V'], stagger_dim=2, meta=True)
+    ds_subset['w'] = wrfpy.destagger(ds['W'], stagger_dim=1, meta=True)
 
     print('Extracting data variables, p,theta...')
     ds_subset['p'] = xr.DataArray(ds['P']+ds['PB'], dims=dim_keys)
-    ds_subset['theta'] = xr.DataArray(ds['THM']+TH0, dims=dim_keys)
+    ds_subset['theta'] = xr.DataArray(ds[temp_var]+TH0, dims=dim_keys)
+
+    # extract additional variables if requested
+    for var in extra_vars:
+        if var not in ds.data_vars:
+            print(f'Requested variable "{var}" not in {str(list(ds.data_vars))}')
+            continue
+        field = ds[var]
+        print(f'Extracting {var}...')
+        for idim, dim in enumerate(field.dims):
+            if dim.endswith('_stag'):
+                print(f'  destaggering {var} in dim {dim}...')
+                field = wrfpy.destagger(field, stagger_dim=idim, meta=True)
+        ds_subset[var] = field
+
+    # subset in horizontal dimensions
+    # note: specified ranges are WRF indices, i.e., python indices +1
+    if irange is not None:
+        assert isinstance(irange, tuple), 'irange should be (imin,imax)'
+        ds_subset = ds_subset.isel(west_east=slice(irange[0]-1, irange[1]))
+    if jrange is not None:
+        assert isinstance(jrange, tuple), 'jrange should be (jmin,jmax)'
+        ds_subset = ds_subset.isel(south_north=slice(jrange[0]-1, jrange[1]))
+
+    # clip vertical extent if requested
+    if hlim_ind is not None:
+        ds_subset = ds_subset.isel(bottom_top=slice(0, hlim_ind))
 
     # optionally, interpolate to static heights	
     if specified_heights is not None:	
         zarr = ds_subset['z']	
-        for var in ['u','v','w','p','theta']:	
+        if agl:
+            zarr -= ds_subset['zsurface']
+        for var in ds_subset.data_vars:
+            if (var == 'z') or ('bottom_top' not in ds_subset[var].dims):
+                continue
             print('Interpolating',var)	
-            interpolated = wrfpy.interplevel(ds_subset[var], zarr, specified_heights)	
-            ds_subset[var] = interpolated #.expand_dims('Time', axis=0)	
-            #print(ds_subset[var])
+            ds_subset[var] = wrfpy.interplevel(ds_subset[var], zarr, specified_heights)	
+            if np.any(~np.isfinite(ds_subset[var])):
+                print('WARNING: wrf.interplevel() produced NaNs -- make sure requested heights are in range and/or use agl=True')
         ds_subset = ds_subset.drop_dims('bottom_top').rename({'level':'z'})	
         dim_keys[1] = 'z'	
         dims_dict.pop('bottom_top')
@@ -1235,25 +1286,22 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     ds_subset['wdir'] = xr.DataArray(180. + np.arctan2(ds_subset['u'],ds_subset['v'])*180./np.pi,
                                      dims=dim_keys)
     
-    # assign rename coord variable for time, and assign ccordinates 
+    # rename coord variable for time and assign ccordinates 
     ds_subset = ds_subset.rename({'XTIME': 'datetime'})  #Rename after defining the component DataArrays in the DataSet
     if specified_heights is None:
         ds_subset = ds_subset.assign_coords(z=ds_subset['z'])
-    ds_subset = ds_subset.assign_coords(y=ds_subset['y'])
-    ds_subset = ds_subset.assign_coords(x=ds_subset['x'])
-    ds_subset = ds_subset.assign_coords(zsurface=ds_subset['zsurface'])
+    ds_subset = ds_subset.assign_coords(x=ds_subset['x'],
+                                        y=ds_subset['y'],
+                                        zsurface=ds_subset['zsurface'])
     ds_subset = ds_subset.rename_vars({'XLAT':'lat', 'XLONG':'lon'})
-    #print(ds_subset)
+    for olddim,newdim in dims_dict.copy().items():
+        if newdim in ds_subset.coords:
+            # have to swap dim instead of renaming if it already exists
+            ds_subset = ds_subset.swap_dims({olddim: newdim})
+            dims_dict.pop(olddim)
     ds_subset = ds_subset.rename_dims(dims_dict)
-    #print(ds_subset)
     
-    # Change by WHL to eliminate vertical info far from the surface to prevent memory crash                                       
-    try:
-        ds_subset2 = ds_subset.isel( nz = slice(0, hlim_ind) )
-        return ds_subset2
-    except:
-        # if hlim_ind = None, default code execution
-        return ds_subset
+    return ds_subset
 
 
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
