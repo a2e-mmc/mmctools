@@ -399,7 +399,7 @@ class ERA5(CDSDataset):
         )
 
 
-class setup_wrf():
+class SetupWRF():
     '''
     Set up run directory for WRF / WPS
     '''
@@ -1175,7 +1175,7 @@ icbc_dict = {
 }
 
 
-class overwrite_sst():
+class OverwriteSST():
     '''
     Given WRF met_em files and auxiliary SST data, overwrite the SST data with 
     the new SST data.
