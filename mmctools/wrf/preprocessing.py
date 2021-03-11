@@ -1234,6 +1234,7 @@ class OverwriteSST():
             # If filling missing values with SKINTEMP:
             if fill_missing:
                 self._fill_missing(met_file)
+            self.new_sst = np.nan_to_num(self.new_sst)
             # Write to new file:
             self._write_new_file(met_file)
             
