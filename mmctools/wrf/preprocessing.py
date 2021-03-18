@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import glob
 import xarray as xr
+from mmctools.helper_functions import get_nc_file_times
 
 def prompt(s):
     if sys.version_info[0] < 3:
@@ -1240,6 +1241,22 @@ class OverwriteSST():
             
 
     def _get_sst_info(self):
+        
+        if self.overwrite == 'MODIS':
+            get_time_from_fname = True
+        else:
+            get_time_from_fname = False
+            
+        sst_file_times = get_nc_file_times(f_dir='{}'.format(self.sst_dir),
+                                           f_grep_str='*.nc',
+                                           decode_times=True,
+                                           time_dim=sst_dict[self.overwrite]['time_dim'],
+                                           get_time_from_fname=get_time_from_fname,
+                                           f_split=['.'],
+                                           time_pos=[1])
+
+        
+        '''
         self.sst_files = sorted(glob.glob('{}*.nc'.format(self.sst_dir)))
         num_sst_files = len(self.sst_files)
         sst_file_times = {}
@@ -1258,7 +1275,13 @@ class OverwriteSST():
             for ft in f_time:
                 ft = pd.to_datetime(ft)
                 sst_file_times[ft] = fname
+        '''
         self.sst_file_times = sst_file_times
+        
+        sst = xr.open_dataset(sst_file_times[list(sst_file_times.keys())[0]])
+        self.sst_lat = sst[sst_dict[self.overwrite]['lat_dim']]
+        self.sst_lon = sst[sst_dict[self.overwrite]['lon_dim']]
+
 
     
     def _get_new_sst(self,met_file):

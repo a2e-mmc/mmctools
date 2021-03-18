@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import time
-
+import glob
+from datetime import datetime,timedelta
 
 # constants
 epsilon = 0.622 # ratio of molecular weights of water to dry air
@@ -272,6 +273,7 @@ def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
     
     # Determine time scale
     timevalues = df.index.get_level_values(0)
+
     if isinstance(timevalues,pd.DatetimeIndex):
         timescale = pd.to_timedelta(1,'s')
     else:
@@ -293,6 +295,7 @@ def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
     # Determine sampling rate and samples per window
     dts = np.diff(timevalues.unique())/timescale
     dt  = dts[0]
+
     if type(window_type) is str:
         nperseg = int( pd.to_timedelta(window_size)/pd.to_timedelta(dt,'s') )
     else:
@@ -1002,3 +1005,69 @@ def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
     ablh.name = 'ABLheight'
     return ablh
 
+def get_nc_file_times(f_dir,
+                      f_grep_str,
+                      decode_times=True,
+                      time_dim='time',
+                      get_time_from_fname=False,
+                      f_split=[],
+                      time_pos=[],
+                      time_fmt='%Y%m%d'):
+    '''
+    Get times from netCDF files and returns dictionary of times associated with the file that it's in:
+    dict{'time' : 'file_path'}. This uses xarray to find the times.
+    
+    This is useful for when you're using different NetCDF datasets that have non-uniform time 
+    conventions (i.e., some have 1 time per file, others have multiple.)
+    
+    f_dir : str
+        path to files
+    f_grep_str : str
+        string to grep the file - should include '*'
+    decode_times : bool
+        (Default=True) If you want xarray to decode the times (if xarray cannot decode the time, set 
+        this to False)
+    time_dim : str
+        (Default='time') time dimension name
+    get_time_from_fname : bool
+        if there is no time in the file, you can use the following options to parse the file name
+        f_split : list
+            The strings (in order) for which the file name should be parsed
+        time_pos : list (same dimension as f_split)
+            After the string has been split, which index should be taken. Must be same dimension and
+            order as f_split to work properly
+        time_fmt : str
+            (Default '%Y%m%d') Format for the datetime in file.
+    '''
+    files = sorted(glob.glob('{}{}'.format(f_dir,f_grep_str)))
+    num_files = len(files)
+    file_times = {}
+
+    for ff,fname in enumerate(files): 
+        ncf = xr.open_dataset(fname,decode_times=decode_times)
+
+        #ncf = ncdf(fname,'r')
+
+        if get_time_from_fname:
+            assert f_split != [], 'Need to specify how to split the file name.'
+            assert time_pos != [], 'Need to specify index of time string after split.'
+            f_name = fname.replace(f_dir,'')
+            assert len(f_split) == len(time_pos), 'f_split (how to parse the file name) and time_pos (index of time string is after split) must be same size.'
+            for split,pos in zip(f_split,time_pos):
+                f_name = f_name.split(split)[pos]
+            
+            f_time = [datetime.strptime(f_name,time_fmt)]
+        else:
+            if not decode_times:
+                nc_times = ncf[time_dim][:].data
+                f_time = []
+                for ff,nc_time in enumerate(nc_times):
+                    time_start = pd.to_datetime(ncf[time_dim].units.replace('seconds since ',''))            
+                    f_time.append(datetime(time_start.year, time_start.month, time_start.day) + timedelta(seconds=int(nc_time)))
+            else:
+                f_time = ncf[time_dim].data
+
+        for ft in f_time:
+            ft = pd.to_datetime(ft)
+            file_times[ft] = fname
+    return (file_times)
