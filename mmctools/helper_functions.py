@@ -259,7 +259,8 @@ def covariance(a,b,interval='10min',resample=False,**kwargs):
 
 
 def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
-                           window_type='hanning',detrend='linear',scaling='density'):
+                           window_type='hanning',detrend='linear',scaling='density',
+                           num_overlap=None):
     """
     Calculate power spectral density using welch method and return
     a new dataframe. The spectrum is calculated for every column
@@ -309,8 +310,9 @@ def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
 
     spectra = {}
     for col in df.columns:
-        f,P = welch( df.loc[inrange,col], fs=1./dt, nperseg=nperseg,
-            detrend=detrend,window=window_type,scaling=scaling)    
+        f,P = welch(df.loc[inrange,col], fs=1./dt, nperseg=nperseg,
+                    detrend=detrend,window=window_type,scaling=scaling,
+                    noverlap=num_overlap)    
         spectra[col] = P
     spectra['frequency'] = f
     return pd.DataFrame(spectra).set_index('frequency')
@@ -1071,3 +1073,194 @@ def get_nc_file_times(f_dir,
             ft = pd.to_datetime(ft)
             file_times[ft] = fname
     return (file_times)
+
+def calc_spectra(data,
+                 var_oi=None,
+                 spectra_dim=None,
+                 average_dim=None,
+                 level_dim=None,
+                 level=None,
+                 window='hamming',
+                 number_of_windows=1,
+                 window_length=None,
+                 window_overlap_pct=None,
+                 detrend='constant'
+                 ):
+    
+    '''
+    Calculate spectra using the Welch function. This code uses the 
+    power_spectral_density function from helper_functions.py. This function
+    accepts either xarray dataset or dataArray, or pandas dataframe. Dimensions
+    must be 4 or less (time, x, y, z). Returns a xarray dataset with the PSD of
+    the variable (f(average_dim, level, frequency/wavelength)) and the frequency 
+    or wavelength variables. Averages of the PSD over time or space can easily
+    be done with xarray.Dataset.mean(dim='[dimension_name]').
+    
+    Parameters
+    ==========
+    data : xr.Dataset, xr.DataArray, or pd.dataframe
+        The data that spectra should be calculated over
+    var_oi : str
+        Variable of interest - what variable should PSD be computed from.
+    spectra_dim : str
+        Name of the dimension that the variable spans for spectra to be 
+        computed. E.g., if you want time spectra, this should be something like
+        'time' or 'datetime', if you want spatial spectra, this should be 'x' or 
+        'y' (or for WRF, 'south_north' / 'west_east')
+    average_dim : str
+        Which dimension should be looped over for averaging. Name should be
+        similar to what is described in spectra_dim
+    level_dim : str (optional)
+        If you have a third dimension that you want to loop over, specify the
+        dimension name here. E.g., if you want to calculate PSD at several
+        heights, level_dim = 'height_dim'
+    level : list, array, int (optional)
+        If there is a level_dim, what levels should be looped over. Default is 
+        the length of level_dim.
+    window : 'hamming' or specific window (optional)
+        What window should be used for the PSD calculation? If None, no window
+        is used in the Welch function (window is all 1's).
+    number_of_windows : int (optional)
+        Number of windows - determines window length as signal length / int
+    window_length : int or str (optional)
+        Alternative to number_of_windows, you can directly specify the length
+        of the windows as an integer or as a string to be converted to a 
+        time_delta. This will overwrite number_of_windows. If using time_delta,
+        the window_length cannot be shorter than the data frequency.
+    overlap_percent : int (optional)
+        Percentage of data overlap with respect to window length.
+    detrend : str (optional)
+        Should the data be detrended (constant, linear, etc.). See Welch 
+        function for more details.
+        
+    Example Call
+    ============
+    
+    psd = calc_spectra(data,                       # data read in with xarray 
+                       var_oi='W',                # PSD of 'W' to be computed
+                       spectra_dim='west_east',     # Take the west-east line
+                       average_dim='south_north',  # Average over north/south
+                       level_dim='bottom_top_stag', # Compute over each level
+                       level=None)    # level defaults to all levels in array
+    
+    '''
+    from scipy.signal.windows import hamming
+
+    # Datasets, DataArrays, or dataframes
+    if not isinstance(data,xr.Dataset):
+        if isinstance(data,pd.DataFrame):
+            data = data.to_xarray()
+        elif isinstance(data,xr.DataArray):
+            if data.name is None:
+                data.name = var_oi
+            data = data.to_dataset()
+        else:
+            raise ValueError('unsupported type: {}'.format(type(data)))
+    
+    # Get index for frequency / wavelength:
+    spec_index = data.coords[spectra_dim]
+    dX = (spec_index.data[1] - spec_index.data[0])
+    if isinstance(dX,(pd.Timedelta,np.timedelta64)):
+        dX = pd.to_timedelta(dX)#.total_seconds()
+    else:
+        dX = float(dX)
+
+    # Window length specification:
+    if window_length is not None:
+        if (isinstance(window_length,str)):
+            if isinstance(dX,(pd.Timedelta,np.timedelta64)):
+                try:
+                    dwindow = pd.to_timedelta(window_length)
+                except:
+                    raise ValueError('Cannot convert {} to timedelta'.format(window_length))
+                    
+                if dwindow < dX:
+                    raise ValueError('window_length is smaller than data time spacing')
+                nblock = int( dwindow/dX )
+            else:
+                raise ValueError('window_length given as timedelta, but spectra_dim is not datetime...')
+        else:
+            nblock = int(window_length)
+    else:
+        nblock = int((len(data[spectra_dim].data))/number_of_windows)
+    
+    # Create window:
+    if window is None:
+        window = np.ones(nblock)
+    elif (window == 'hamming') or (window == 'hanning'):
+        window = hamming(nblock, True) #Assumed non-periodic in the spectra_dim    
+    
+    # Calculate number of overlapping points:
+    if window_overlap_pct is not None:
+        if window_overlap_pct > 1:
+            window_overlap_pct /= 100.0
+        num_overlap = int(nblock*window_overlap_pct)
+    else:
+        num_overlap = None
+    
+    # Make sure 'level' is iterable:
+    if level is None:
+        if level_dim is not None:
+            level = data[level_dim].data[:]
+        else:
+            level = [None]
+    elif isinstance(level,(int,float)):
+        level = [level]
+    level = list(level)
+    n_levels = len(level)
+
+    if average_dim is None:
+        average_dim_data = [None]
+    else:
+        average_dim_data = data[average_dim]
+    
+    for ll,lvl in enumerate(level):
+        if lvl is not None:
+            spec_dat_lvl = data.sel({level_dim:lvl})
+        else:
+            spec_dat_lvl = data.copy()
+        for ad,avg_dim in enumerate(average_dim_data):
+            if avg_dim is not None:
+                spec_dat = spec_dat_lvl.sel({average_dim:avg_dim})
+            else:
+                spec_dat = spec_dat_lvl.copy()
+            if len(list(spec_dat.dims)) > 1:
+                dim_list = list(spec_dat.dims)
+                dim_list.remove(spectra_dim)
+                assert len(dim_list) == 1, 'There are too many dimensions... drop one of {}'.format(dim_list)
+                assert len(spec_dat[dim_list[0]].data) == 1, 'Not sure how to parse this dimension, {}, reduce to 1 or remove'.format(dim_list)
+                spec_dat = spec_dat.squeeze()
+            for varn in list(spec_dat.variables.keys()):
+                if (varn != var_oi) and (varn != spectra_dim):
+                    spec_dat = spec_dat.drop(varn)
+            
+            spec_dat_df = spec_dat[var_oi].to_dataframe()
+            
+            psd = power_spectral_density(spec_dat_df,
+                                         window_type=window,
+                                         detrend=detrend,
+                                         num_overlap=num_overlap)
+            psd = psd.to_xarray()
+            if avg_dim is not None:
+                psd = psd.assign_coords({average_dim:1})
+                psd[average_dim] = avg_dim.data            
+                psd = psd.expand_dims(average_dim)
+
+                if ad == 0:
+                    psd_level = psd
+                else:
+                    psd_level = psd.combine_first(psd_level)
+            else:
+                psd_level = psd
+                
+        if level_dim is not None:
+            psd_level = psd_level.assign_coords({level_dim:1})
+            psd_level[level_dim] = lvl#.data            
+            psd_level = psd_level.expand_dims(level_dim)
+
+        if ll == 0:
+            psd_f = psd_level
+        else:
+            psd_f = psd_level.combine_first(psd_f)
+    return(psd_f)
+
