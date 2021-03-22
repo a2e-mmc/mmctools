@@ -1084,7 +1084,9 @@ def calc_spectra(data,
                  number_of_windows=1,
                  window_length=None,
                  window_overlap_pct=None,
-                 detrend='constant'
+                 detrend='constant',
+                 tstart=None,
+                 interval=None
                  ):
     
     '''
@@ -1132,6 +1134,14 @@ def calc_spectra(data,
     detrend : str (optional)
         Should the data be detrended (constant, linear, etc.). See Welch 
         function for more details.
+    tstart : datetime (optional)
+        If calculating the spectra over only a portion of the data, when will
+        the series start (only available for timeseries at the moment).
+    interval : str (optional)
+        If calculating the spectra over only a portion of the data, how long
+        of a segment is considered (only available for timeseries at the 
+        moment).
+        
         
     Example Call
     ============
@@ -1239,7 +1249,8 @@ def calc_spectra(data,
             psd = power_spectral_density(spec_dat_df,
                                          window_type=window,
                                          detrend=detrend,
-                                         num_overlap=num_overlap)
+                                         num_overlap=num_overlap,
+                                         tstart=tstart,interval=interval)
             psd = psd.to_xarray()
             if avg_dim is not None:
                 psd = psd.assign_coords({average_dim:1})
