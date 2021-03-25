@@ -1226,7 +1226,8 @@ def calc_spectra(data,
     
     for ll,lvl in enumerate(level):
         if lvl is not None:
-            spec_dat_lvl = data.sel({level_dim:lvl})
+            spec_dat_lvl = data.sel({level_dim:lvl},method='nearest')
+            lvl = spec_dat_lvl[level_dim].data
         else:
             spec_dat_lvl = data.copy()
         for ad,avg_dim in enumerate(average_dim_data):
