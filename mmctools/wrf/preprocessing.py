@@ -473,8 +473,8 @@ class SetupWRF():
                    'restart_interval' : 360,            
                     'frames_per_file' : 1,            
                               'debug' : 0,            
-                       'ts_locations' : 20,            
-                          'ts_levels' : self.setup_dict['num_eta_levels'],            
+                        'max_ts_locs' : 20,            
+                       'max_ts_level' : self.setup_dict['num_eta_levels'],            
                          'mp_physics' : 10,            
                               'ra_lw' : 4,            
                               'ra_sw' : 4,
@@ -514,6 +514,7 @@ class SetupWRF():
                          'relax_zone' : 4,
                 'nio_tasks_per_group' : 0,
                          'nio_groups' : 1,
+                         'sst_update' : 1,
             }
 
             namelist_opts = namelist_defaults
@@ -539,10 +540,10 @@ class SetupWRF():
             os.makedirs(self.run_dir)
 
         # Link WPS and WRF files / executables
-        wrf_files = glob.glob('{}[!n]*'.format(self.wrf_exe_dir))
-        self._link_files(wrf_files,self.run_dir)
         wps_files = glob.glob('{}[!n]*'.format(self.wps_exe_dir))
         self._link_files(wps_files,self.run_dir)
+        wrf_files = glob.glob('{}[!n]*'.format(self.wrf_exe_dir))
+        self._link_files(wrf_files,self.run_dir)
         
     def _get_nl_str(self,num_doms,phys_opt):
         phys_str = ''
@@ -783,8 +784,8 @@ class SetupWRF():
         f.write(" time_step_fract_num       =  {},\n".format(ts_num))
         f.write(" time_step_fract_den       =  {},\n".format(ts_den))
         f.write(" max_dom                   =  {},\n".format(num_doms))
-        f.write(" max_ts_locs               =  {},\n".format(self.namelist_opts['ts_locations']))
-        f.write(" max_ts_level              =  {},\n".format(self.namelist_opts['ts_locations']))
+        f.write(" max_ts_locs               =  {},\n".format(self.namelist_opts['max_ts_locs']))
+        f.write(" max_ts_level              =  {},\n".format(self.namelist_opts['max_ts_level']))
         f.write(" tslist_unstagger_winds    = .true., \n")
         f.write(" s_we                      =  {}\n".format("{0:>5},".format(1)*num_doms))
         f.write(" e_we                      =  {}\n".format(nx_str))
@@ -827,12 +828,18 @@ class SetupWRF():
         f.write(" num_soil_layers           = {}, \n".format(self.namelist_opts['num_soil_layers']))
         f.write(" num_land_cat              = {}, \n".format(self.namelist_opts['num_land_cat']))
         f.write(" sf_urban_physics          = {}\n".format(urb_str))
+        f.write(" sst_update                = {}, \n".format(self.namelist_opts['sst_update']))
         f.write(" /\n")
         f.write("\n")
         f.write("&fdda\n")
         f.write("/\n")
         f.write("\n")
         f.write("&dynamics\n")
+        if 'hybrid_opt' in self.namelist_opts:
+            f.write(" hybrid_opt                = {}, \n".format(self.namelist_opts['hybrid_opt']))
+        if 'use_theta_m' in self.namelist_opts:
+            f.write(" use_theta_m               = {}, \n".format(self.namelist_opts['use_theta_m']))
+
         f.write(" w_damping                 = {}, \n".format(self.namelist_opts['w_damping']))
         f.write(" diff_opt                  = {}\n".format(diff_str))
         f.write(" km_opt                    = {}\n".format(km_str))
@@ -992,6 +999,10 @@ class SetupWRF():
         add_str_start = '+:h:0:'
 
         for ii,io_name in enumerate(np.unique(io_names)):
+            if '"' in io_name:
+                io_name = io_name.replace('"','')
+            if "'" in io_name:
+                io_name = io_name.replace("'",'')
             f = open('{}{}'.format(self.run_dir,io_name),'w')
             line = ''
             if vars_to_remove is not None:
