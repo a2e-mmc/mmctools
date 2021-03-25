@@ -1134,4 +1134,342 @@ def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_a
                                              '{0:8.7f}'.format(float(twr_locx[tt])))
         f.write(twr_line)
     f.close()
-     
+    
+
+
+sst_dict = {
+    'OSTIA' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 5.5, # km
+    },
+    
+    'MUR' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 1.1,
+    },
+    
+    'MODIS' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'latitude',
+         'lon_dim' : 'longitude',
+        'sst_name' : 'sst_data',
+          'sst_dx' : 4.625,
+    },
+    
+    'GOES16' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lats',
+         'lon_dim' : 'lons',
+        'sst_name' : 'sea_surface_temperature',
+          'sst_dx' : 2.0,
+    },
+}
+
+icbc_dict = {
+    'ERAI' : {
+        'sst_name' : 'SST',
+    },
+    
+    'FNL' : {
+        'sst_name' : 'SKINTEMP',
+    },
+    
+    'ERA5' : {
+        'sst_name' : 'SST',
+    },
+}
+
+
+class overwrite_sst():
+    '''
+    Given WRF met_em files and auxiliary SST data, overwrite the SST data with 
+    the new SST data.
+    
+    Inputs:
+    met_type       = string; Initial / boundary conditions used (currently only ERAI,
+                             ERA5, and FNL are supported)
+    overwrite_type = string; Name of SST data (OSTIA, MUT, MODIS) or FILL (replace
+                             only missing values with SKINTEMP), or TSKIN (replace
+                             all SST values with SKINTEMP)
+    met_directory  = string; location of met_em files
+    sst_directory  = string; location of sst files
+    out_directory  = string; location to save new met_em files
+    smooth_opt     = boolean; use smoothing over new SST data 
+    fill_missing   = boolean; fill missing values in SST data with SKINTEMP
+    
+    '''
+
+    def __init__(self,
+                 met_type,
+                 overwrite_type,
+                 met_directory,
+                 sst_directory,
+                 out_directory,
+                 smooth_opt=False,
+                 fill_missing=False):
+        
+        self.met_type   = met_type
+        self.overwrite  = overwrite_type
+        self.met_dir    = met_directory
+        self.sst_dir    = sst_directory
+        self.out_dir    = out_directory
+        self.smooth_opt = smooth_opt
+        self.fill_opt   = fill_missing
+        
+        if overwrite_type == 'FILL': fill_missing=True
+        
+        if smooth_opt:
+            self.smooth_str = 'smooth'
+        else:
+            self.smooth_str = 'raw'
+
+        self.out_dir += '{}/'.format(self.smooth_str)
+        
+        # Get met_em_files 
+        self.met_em_files = sorted(glob.glob('{}met_em.d0*'.format(self.met_dir)))
+        
+        # Get SST data info (if not doing fill or tskin)
+        if (overwrite_type.upper() != 'FILL') and (overwrite_type.upper() != 'TSKIN'):
+            self._get_sst_info()
+
+        # Overwrite the met_em SST data:
+        for mm,met_file in enumerate(self.met_em_files[::10]):
+            self._get_new_sst(met_file)
+            # If filling missing values with SKINTEMP:
+            if fill_missing:
+                self._fill_missing(met_file)
+            # Write to new file:
+            self._write_new_file(met_file)
+            
+
+    def _get_sst_info(self):
+        self.sst_files = sorted(glob.glob('{}*.nc'.format(self.sst_dir)))
+        num_sst_files = len(self.sst_files)
+        sst_file_times = {}
+        for ff,fname in enumerate(self.sst_files): 
+            sst = xr.open_dataset(fname)
+            
+            if ff == 0:
+                self.sst_lat = sst[sst_dict[self.overwrite]['lat_dim']]
+                self.sst_lon = sst[sst_dict[self.overwrite]['lon_dim']]
+            
+            if self.overwrite == 'MODIS':
+                f_time = [datetime.strptime(fname.split('/')[-1].split('.')[1],'%Y%m%d')]
+            else:
+                f_time = sst[sst_dict[self.overwrite]['time_dim']].data
+                
+            for ft in f_time:
+                ft = pd.to_datetime(ft)
+                sst_file_times[ft] = fname
+        self.sst_file_times = sst_file_times
+
+    
+    def _get_new_sst(self,met_file):
+        met = xr.open_dataset(met_file)
+
+        met_time = pd.to_datetime(met.Times.data[0].decode().replace('_',' '))
+        met_lat = np.squeeze(met.XLAT_M)
+        met_lon = np.squeeze(met.XLONG_M)
+        met_landmask = np.squeeze(met.LANDMASK)
+        met_sst = np.squeeze(met[icbc_dict[self.met_type]['sst_name']])
+        
+        if (self.overwrite.upper() != 'FILL') and (self.overwrite.upper() != 'TSKIN'):
+
+            # Get window length for smoothing
+            if self.smooth_opt:
+                met_dx = met.DX/1000.0
+                met_dy = met.DY/1000.0
+                sst_dx = sst_dict[self.overwrite]['sst_dx']
+                window = int(min([met_dx/sst_dx,met_dy/sst_dx])/2.0)
+            else:
+                window = 0
+
+            # Find closest SST files:
+            sst_neighbors = self._get_closest_files(met_time)
+            sst_weights   = self._get_time_weights(met_time,sst_neighbors)
+
+            before_ds = xr.open_dataset(self.sst_file_times[sst_neighbors[0]])
+            after_ds  = xr.open_dataset(self.sst_file_times[sst_neighbors[1]])
+
+            min_lon = np.max([np.nanmin(met_lon)-1,-180])
+            max_lon = np.min([np.nanmax(met_lon)+1,180])
+            
+            if (self.overwrite == 'MODIS') or (self.overwrite == 'GOES16'):
+                min_lat = np.min([np.nanmax(met_lat)+1,90])
+                max_lat = np.max([np.nanmin(met_lat)-1,-90])
+            else:
+                min_lat = np.max([np.nanmin(met_lat)-1,-90])
+                max_lat = np.min([np.nanmax(met_lat)+1,90])
+
+            before_ds = before_ds.sel({sst_dict[self.overwrite]['lat_dim']:slice(min_lat,max_lat),
+                                      sst_dict[self.overwrite]['lon_dim']:slice(min_lon,max_lon)})
+            after_ds  = after_ds.sel({sst_dict[self.overwrite]['lat_dim']:slice(min_lat,max_lat),
+                                     sst_dict[self.overwrite]['lon_dim']:slice(min_lon,max_lon)})
+
+            # Select the time from the dataset:
+            if self.overwrite == 'MODIS':
+                # MODIS doesn't have time, so just squeeze:
+                before_sst = np.squeeze(before_ds[sst_dict[self.overwrite]['sst_name']]) + 273.15
+                after_sst  = np.squeeze(after_ds[sst_dict[self.overwrite]['sst_name']]) + 273.15
+            else:
+                # Grab time and SST data:
+                before_sst = before_ds.sel({sst_dict[self.overwrite]['time_dim'] : sst_neighbors[0]})[sst_dict[self.overwrite]['sst_name']]
+                after_sst  = after_ds.sel({sst_dict[self.overwrite]['time_dim'] : sst_neighbors[1]})[sst_dict[self.overwrite]['sst_name']]
+                if self.overwrite == 'GOES16':
+                    before_sst += 273.15
+                    after_sst  += 273.15
+
+            new_sst = met_sst.data.copy()
+
+            sst_lat = self.sst_lat.data
+            sst_lon = self.sst_lon.data
+
+            for jj in met.south_north:
+                for ii in met.west_east:
+                    if met_landmask[jj,ii] == 0.0:
+                        dist_lat = abs(sst_lat - float(met_lat[jj,ii]))
+                        dist_lon = abs(sst_lon - float(met_lon[jj,ii]))
+
+                        lat_ind = np.where(dist_lat==np.min(dist_lat))[0]
+                        lon_ind = np.where(dist_lon==np.min(dist_lon))[0]
+
+                        if (len(lat_ind) > 1) and (len(lon_ind) > 1):
+                            lat_s = sst_lat[lat_ind[0] - window]
+                            lat_e = sst_lat[lat_ind[1] + window]
+                            lon_s = sst_lon[lon_ind[0] - window]
+                            lon_e = sst_lon[lon_ind[1] + window]
+
+                        elif (len(lat_ind) > 1) and (len(lon_ind) == 1):
+                            lat_s = sst_lat[lat_ind[0] - window]
+                            lat_e = sst_lat[lat_ind[1] + window]
+                            lon_s = sst_lon[lon_ind[0] - window]
+                            lon_e = sst_lon[lon_ind[0] + window]
+
+                        elif (len(lat_ind) == 1) and (len(lon_ind) > 1):
+                            lat_s = sst_lat[lat_ind[0] - window]
+                            lat_e = sst_lat[lat_ind[0] + window]
+                            lon_s = sst_lon[lon_ind[0] - window]
+                            lon_e = sst_lon[lon_ind[1] + window]
+
+                        else:
+                            lat_s = sst_lat[lat_ind[0] - window]
+                            lat_e = sst_lat[lat_ind[0] + window]
+                            lon_s = sst_lon[lon_ind[0] - window]
+                            try:
+                                lon_e = sst_lon[lon_ind[0] + window]
+                            except IndexError:
+                                lon_e = len(sst_lon)
+
+                        sst_before_val = before_sst.sel({
+                                            sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
+                                            sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+
+                        sst_after_val  = after_sst.sel({
+                                            sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
+                                            sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+
+                        new_sst[jj,ii] = sst_before_val*sst_weights[0] + sst_after_val*sst_weights[1]
+                        
+        else:
+            if (self.overwrite.upper() == 'TSKIN'):
+                new_sst = met_sst.data.copy()
+                tsk = np.squeeze(met.SKINTEMP).data
+                new_sst[np.where(met_landmask==0.0)] = tsk[np.where(met_landmask==0.0)]
+            elif (self.overwrite.upper() == 'FILL'):
+                new_sst = np.squeeze(met[icbc_dict[self.met_type]['sst_name']]).data
+        self.new_sst = new_sst
+            
+
+    def _get_closest_files(self,met_time):
+        sst_times = np.asarray(list(self.sst_file_times.keys()))
+
+        if (met_time > max(sst_times)) or (met_time < min(sst_times)):
+            raise Exception("met_em time out of range of SST times:\nSST min,max = {}, {}\nmet_time = {}".format(
+                                min(sst_times),max(sst_times),met_time))
+
+        time_dist = sst_times.copy()
+        for dt,stime in enumerate(sst_times):
+            time_dist[dt] = abs(stime - met_time)
+
+        closest_time = sst_times[np.where(time_dist == np.min(time_dist))]
+
+        if len(closest_time) == 1:
+            if closest_time == met_time:
+                sst_before = closest_time[0]
+                sst_after  = closest_time[0]
+            else:
+                got_before = False
+                got_after  = False
+                closest_time = closest_time[0]
+                closest_ind = int(np.where(sst_times == closest_time)[0])
+                if (closest_time - met_time).total_seconds() < 0:
+                    sst_before = closest_time
+                    next_closest_times = sst_times[closest_ind+1:]
+                    next_closest_dist  = time_dist[closest_ind+1:]
+                    got_before = True
+                else:
+                    sst_after = closest_time
+                    next_closest_times = sst_times[:closest_ind-1]
+                    next_closest_dist  = time_dist[:closest_ind-1]
+                    got_after = True
+
+                next_closest_time = next_closest_times[np.where(next_closest_dist == np.min(next_closest_dist))][0]
+
+                if got_before:
+                    assert (next_closest_time - met_time).total_seconds() >= 0.0, 'Next closest time not after first time.'
+                    sst_after = next_closest_time
+                if got_after:
+                    assert (next_closest_time - met_time).total_seconds() <= 0.0, 'Next closest time not before first time.'
+                    sst_before = next_closest_time                
+
+        elif len(closest_time) == 2:
+            sst_before = closest_time[0]
+            sst_after  = closest_time[1]
+
+        return([sst_before,sst_after])
+    
+    
+    def _get_time_weights(self,met_time,times):
+        before = times[0]
+        after  = times[1]
+        
+        d1 = (met_time - before).seconds
+        d2 = (after - met_time).seconds
+        if d1 == 0 & d2 == 0:
+            w1,w2 = 1.0,0.0
+        else:
+            w1 = d2/(d1+d2)
+            w2 = d1/(d1+d2)
+            
+        return([w1,w2])
+            
+        
+    def _fill_missing(self,met_file):
+        met = xr.open_dataset(met_file)
+        tsk = np.squeeze(met.SKINTEMP)
+        met_landmask = np.squeeze(met.LANDMASK)
+        bad_inds = np.where(((met_landmask == 0) & (self.new_sst == 0.0)))
+        self.new_sst[bad_inds] = tsk.data[bad_inds]
+        bad_inds = np.where(np.isnan(self.new_sst))
+        self.new_sst[bad_inds] = tsk.data[bad_inds]
+        
+        
+    def _write_new_file(self,met_file):
+        f_name = met_file.split('/')[-1]
+        new_file = self.out_dir + f_name
+        print(new_file)
+        new = xr.open_dataset(met_file)
+        new.SST.data = np.expand_dims(self.new_sst,axis=0)
+        new.attrs['source']   = '{}'.format(self.overwrite)
+        new.attrs['smoothed'] = '{}'.format(self.smooth_opt)
+        new.attrs['filled']   = '{}'.format(self.fill_opt)
+        if os.path.exists(new_file):
+            print('File exists... replacing')
+            os.remove(new_file)
+        new.to_netcdf(new_file)
