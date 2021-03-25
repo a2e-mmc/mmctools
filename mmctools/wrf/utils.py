@@ -1111,7 +1111,7 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     ntimes = np.shape(restarts)[0]
     floc = '{}{}/*{}.??'.format(fdir,restarts[0],domain_of_interest)
     file_list = glob.glob(floc)
-
+    assert file_list != [], 'No tslist files found. Check kwargs.'
     for ff,file in enumerate(file_list):
         file = file[:-3]
         file_list[ff] = file

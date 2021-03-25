@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import glob
 import xarray as xr
+from mmctools.helper_functions import get_nc_file_times
 
 def prompt(s):
     if sys.version_info[0] < 3:
@@ -472,8 +473,8 @@ class SetupWRF():
                    'restart_interval' : 360,            
                     'frames_per_file' : 1,            
                               'debug' : 0,            
-                       'ts_locations' : 20,            
-                          'ts_levels' : self.setup_dict['num_eta_levels'],            
+                        'max_ts_locs' : 20,            
+                       'max_ts_level' : self.setup_dict['num_eta_levels'],            
                          'mp_physics' : 10,            
                               'ra_lw' : 4,            
                               'ra_sw' : 4,
@@ -513,6 +514,7 @@ class SetupWRF():
                          'relax_zone' : 4,
                 'nio_tasks_per_group' : 0,
                          'nio_groups' : 1,
+                         'sst_update' : 1,
             }
 
             namelist_opts = namelist_defaults
@@ -538,10 +540,10 @@ class SetupWRF():
             os.makedirs(self.run_dir)
 
         # Link WPS and WRF files / executables
-        wrf_files = glob.glob('{}[!n]*'.format(self.wrf_exe_dir))
-        self._link_files(wrf_files,self.run_dir)
         wps_files = glob.glob('{}[!n]*'.format(self.wps_exe_dir))
         self._link_files(wps_files,self.run_dir)
+        wrf_files = glob.glob('{}[!n]*'.format(self.wrf_exe_dir))
+        self._link_files(wrf_files,self.run_dir)
         
     def _get_nl_str(self,num_doms,phys_opt):
         phys_str = ''
@@ -782,8 +784,8 @@ class SetupWRF():
         f.write(" time_step_fract_num       =  {},\n".format(ts_num))
         f.write(" time_step_fract_den       =  {},\n".format(ts_den))
         f.write(" max_dom                   =  {},\n".format(num_doms))
-        f.write(" max_ts_locs               =  {},\n".format(self.namelist_opts['ts_locations']))
-        f.write(" max_ts_level              =  {},\n".format(self.namelist_opts['ts_locations']))
+        f.write(" max_ts_locs               =  {},\n".format(self.namelist_opts['max_ts_locs']))
+        f.write(" max_ts_level              =  {},\n".format(self.namelist_opts['max_ts_level']))
         f.write(" tslist_unstagger_winds    = .true., \n")
         f.write(" s_we                      =  {}\n".format("{0:>5},".format(1)*num_doms))
         f.write(" e_we                      =  {}\n".format(nx_str))
@@ -826,12 +828,18 @@ class SetupWRF():
         f.write(" num_soil_layers           = {}, \n".format(self.namelist_opts['num_soil_layers']))
         f.write(" num_land_cat              = {}, \n".format(self.namelist_opts['num_land_cat']))
         f.write(" sf_urban_physics          = {}\n".format(urb_str))
+        f.write(" sst_update                = {}, \n".format(self.namelist_opts['sst_update']))
         f.write(" /\n")
         f.write("\n")
         f.write("&fdda\n")
         f.write("/\n")
         f.write("\n")
         f.write("&dynamics\n")
+        if 'hybrid_opt' in self.namelist_opts:
+            f.write(" hybrid_opt                = {}, \n".format(self.namelist_opts['hybrid_opt']))
+        if 'use_theta_m' in self.namelist_opts:
+            f.write(" use_theta_m               = {}, \n".format(self.namelist_opts['use_theta_m']))
+
         f.write(" w_damping                 = {}, \n".format(self.namelist_opts['w_damping']))
         f.write(" diff_opt                  = {}\n".format(diff_str))
         f.write(" km_opt                    = {}\n".format(km_str))
@@ -991,6 +999,10 @@ class SetupWRF():
         add_str_start = '+:h:0:'
 
         for ii,io_name in enumerate(np.unique(io_names)):
+            if '"' in io_name:
+                io_name = io_name.replace('"','')
+            if "'" in io_name:
+                io_name = io_name.replace("'",'')
             f = open('{}{}'.format(self.run_dir,io_name),'w')
             line = ''
             if vars_to_remove is not None:
@@ -1234,11 +1246,28 @@ class OverwriteSST():
             # If filling missing values with SKINTEMP:
             if fill_missing:
                 self._fill_missing(met_file)
+            self.new_sst = np.nan_to_num(self.new_sst)
             # Write to new file:
             self._write_new_file(met_file)
             
 
     def _get_sst_info(self):
+        
+        if self.overwrite == 'MODIS':
+            get_time_from_fname = True
+        else:
+            get_time_from_fname = False
+            
+        sst_file_times = get_nc_file_times(f_dir='{}'.format(self.sst_dir),
+                                           f_grep_str='*.nc',
+                                           decode_times=True,
+                                           time_dim=sst_dict[self.overwrite]['time_dim'],
+                                           get_time_from_fname=get_time_from_fname,
+                                           f_split=['.'],
+                                           time_pos=[1])
+
+        
+        '''
         self.sst_files = sorted(glob.glob('{}*.nc'.format(self.sst_dir)))
         num_sst_files = len(self.sst_files)
         sst_file_times = {}
@@ -1257,7 +1286,13 @@ class OverwriteSST():
             for ft in f_time:
                 ft = pd.to_datetime(ft)
                 sst_file_times[ft] = fname
+        '''
         self.sst_file_times = sst_file_times
+        
+        sst = xr.open_dataset(sst_file_times[list(sst_file_times.keys())[0]])
+        self.sst_lat = sst[sst_dict[self.overwrite]['lat_dim']]
+        self.sst_lon = sst[sst_dict[self.overwrite]['lon_dim']]
+
 
     
     def _get_new_sst(self,met_file):
