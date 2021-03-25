@@ -4,6 +4,8 @@ from getpass import getpass
 import numpy as np
 import pandas as pd
 import glob
+import xarray as xr
+from mmctools.helper_functions import get_nc_file_times
 
 def prompt(s):
     if sys.version_info[0] < 3:
@@ -141,7 +143,7 @@ class FNL(RDADataset):
 class ERAInterim(RDADataset):
     """ERA-Interim Reanalysis
 
-    Note: Production stopped on August 31, 2019
+    Note: Production stopped on September 10, 2019
 
     Description: https://rda.ucar.edu/datasets/ds627.0/
     """
@@ -162,22 +164,38 @@ class ERAInterim(RDADataset):
         path : str, optional
             Path to directory in which to save grib files
         """
-        if path is None:
-            path = '.'
+        era_interim_end_date = '2019-09-10 12:00:00'
+        dates_before_end_of_era = True
+        good_dates = datetimes.copy()
+        for dt in datetimes:
+            if str(dt) > era_interim_end_date:
+                print('WARNING: Bad date ({}) - after ERA-Interim EOL ({})'.format(str(dt),era_interim_end_date))
+                good_dates = good_dates.drop(dt)
+        if len(good_dates) > 0:
+            datetimes = good_dates
         else:
-            os.makedirs(path,exist_ok=True)
-        # pressure-level data
-        super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
-                         path=path,
-                         prefix='ei.oper.an.pl',
-                         datetimes=datetimes,
-                         fields=['regn128sc','regn128uv'])
-        # surface data
-        super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
-                         path=path,
-                         prefix='ei.oper.an.sfc',
-                         datetimes=datetimes,
-                         fields=['regn128sc'])
+            dates_before_end_of_era = False
+            print('WARNING: All dates are after ERA-Interim EOL ({})'.format(era_interim_end_date))
+            print('Not downloading anything... Need to change reanalysis for these dates!')
+        
+        if dates_before_end_of_era:
+            if path is None:
+                path = '.'
+            else:
+                os.makedirs(path,exist_ok=True)
+            # pressure-level data
+
+            super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
+                             path=path,
+                             prefix='ei.oper.an.pl',
+                             datetimes=datetimes,
+                             fields=['regn128sc','regn128uv'])
+            # surface data
+            super().download(urlpath='ds627.0/{prefix:s}/%Y%m/{prefix:s}.{field:s}.%Y%m%d%H',
+                             path=path,
+                             prefix='ei.oper.an.sfc',
+                             datetimes=datetimes,
+                             fields=['regn128sc'])
 
         
 class MERRA2(RDADataset):
@@ -383,14 +401,14 @@ class ERA5(CDSDataset):
         )
 
 
-class setup_wrf():
+class SetupWRF():
     '''
     Set up run directory for WRF / WPS
     '''
 
     def __init__(self,run_directory,icbc_directory,executables_dict,setup_dict):
         self.setup_dict    = setup_dict
-        self.run_directory = run_directory
+        self.run_dir = run_directory
         self.wrf_exe_dir   = executables_dict['wrf']
         self.wps_exe_dir   = executables_dict['wps']
         self.icbc_dir      = icbc_directory
@@ -412,12 +430,11 @@ class setup_wrf():
             met_lvls  = 38
             download_freq = '1h'
         elif icbc_type == 'FNL':
-            met_lvls  = 27
+            met_lvls  = 34
         elif icbc_type == 'NARR':
             met_lvls  = 30
         elif icbc_type == 'MERRA2':
             met_lvls  = 73
-            download_freq = '1d'
 
         icbc_dict = {'type' : icbc_type,
                     'interval_seconds' : interval_seconds,
@@ -442,6 +459,10 @@ class setup_wrf():
                 missing_options = True
                 
         if not missing_options:
+            if 'usgs' in self.setup_dict['geogrid_args']:
+                land_cat = 24
+            else:
+                land_cat = 21
             namelist_defaults = {
                        'geogrid_args' : '30s',
                    'history_interval' : [60,60],
@@ -451,7 +472,6 @@ class setup_wrf():
                     'input_from_file' : '.true.',
                    'restart_interval' : 360,            
                     'frames_per_file' : 1,            
-                  'iofields_filename' : 'myoutfields.txt',            
                               'debug' : 0,            
                        'ts_locations' : 20,            
                           'ts_levels' : self.setup_dict['num_eta_levels'],            
@@ -468,6 +488,7 @@ class setup_wrf():
                              'icloud' : 0,
                'surface_input_source' : 1,
                     'num_soil_layers' : self.icbc_dict['soil_levels'],
+                       'num_land_cat' : land_cat,
                    'sf_urban_physics' : 0,
                           'w_damping' : 1,
                            'diff_opt' : 1,
@@ -514,14 +535,14 @@ class setup_wrf():
             
     def link_executables(self):
         # Create run dir:
-        if not os.path.exists(self.run_directory):
-            os.makedirs(self.run_directory)
+        if not os.path.exists(self.run_dir):
+            os.makedirs(self.run_dir)
 
         # Link WPS and WRF files / executables
         wrf_files = glob.glob('{}[!n]*'.format(self.wrf_exe_dir))
-        self._link_files(wrf_files,self.run_directory)
+        self._link_files(wrf_files,self.run_dir)
         wps_files = glob.glob('{}[!n]*'.format(self.wps_exe_dir))
-        self._link_files(wps_files,self.run_directory)
+        self._link_files(wps_files,self.run_dir)
         
     def _get_nl_str(self,num_doms,phys_opt):
         phys_str = ''
@@ -550,7 +571,7 @@ class setup_wrf():
             jstart_str += '{0:>5},'.format(str(self.namelist_opts['jstart'][pp]))
             nx_str += '{0:>5},'.format(str(self.namelist_opts['nx'][pp]))
             ny_str += '{0:>5},'.format(str(self.namelist_opts['ny'][pp]))
-        f = open('{}namelist.wps'.format(self.run_directory),'w')
+        f = open('{}namelist.wps'.format(self.run_dir),'w')
         f.write("&share\n")
         f.write(" wrf_core = 'ARW',\n")
         f.write(" max_dom = {},\n".format(num_doms))
@@ -639,7 +660,7 @@ class setup_wrf():
             else:
                 pid = pp
             parent_ids += '{0:>5},'.format(str(pid))
-            dx_str += '{0:>5},'.format(str(int(self.namelist_opts['dxy']/pgr)))
+            dx_str += '{0:>5},'.format(str(int(self.namelist_opts['dxy']/np.prod(self.namelist_opts['parent_grid_ratio'][:(pp+1)]))))
             radt = self.namelist_opts['radt']/pgr
             if radt < 1: radt = 1
             radt_str += '{0:>5},'.format(str(int(radt)))
@@ -651,8 +672,43 @@ class setup_wrf():
         jstart_str         = self._get_nl_str(num_doms,self.namelist_opts['jstart'])
         nx_str             = self._get_nl_str(num_doms,self.namelist_opts['nx'])
         ny_str             = self._get_nl_str(num_doms,self.namelist_opts['ny'])
+        
+        if 'iofields_filename' in self.namelist_opts.keys():
+            include_io = True
+            io_str     = self._get_nl_str(num_doms,self.namelist_opts['iofields_filename'])
+        else:
+            include_io = False
+        if 'auxinput4_inname' in self.namelist_opts.keys():
+            include_aux4  = True
+            aux4_str_name = self.namelist_opts['auxinput4_inname']
+            aux4_str_int  = self._get_nl_str(num_doms,self.namelist_opts['auxinput4_interval'])
+            if 'io_form_auxinput4' in self.namelist_opts.keys():
+                aux4_str_form = self.namelist_opts['io_form_auxinput4']
+            else:
+                aux4_str_form = '2' 
+        else:
+            include_aux4 = False
+
+        aux_list = []
+        for key in self.namelist_opts.keys():
+            if ('auxhist' in key) and ('outname' in key):
+                aux_list.append(key.replace('auxhist','').replace('_outname',''))
+        include_auxout = False
+        if aux_list != []:
+            include_auxout = True
+            n_aux = len(aux_list)
+            aux_block = ''
+            for aa,aux in enumerate(aux_list):
+                aux_out_str = '{},'.format(self.namelist_opts['auxhist{}_outname'.format(aux)])
+                aux_int_str = self._get_nl_str(num_doms,self.namelist_opts['auxhist{}_interval'.format(aux)])
+                aux_per_str = self._get_nl_str(num_doms,self.namelist_opts['frames_per_auxhist{}'.format(aux)])
+                aux_frm_str = '{},'.format(self.namelist_opts['io_form_auxhist{}'.format(aux)])
+                line1 = ' auxhist{}_outname         = {}\n'.format(aux,aux_out_str)
+                line2 = ' auxhist{}_interval        = {}\n'.format(aux,aux_int_str)
+                line3 = ' frames_per_auxhist{}      = {}\n'.format(aux,aux_per_str)
+                line4 = ' io_form_auxhist{}         = {}\n'.format(aux,aux_frm_str)
+                aux_block += line1 + line2 + line3 + line4
             
-        io_str      = self._get_nl_str(num_doms,self.namelist_opts['iofields_filename'])
         mp_str      = self._get_nl_str(num_doms,self.namelist_opts['mp_physics'])
         sfclay_str  = self._get_nl_str(num_doms,self.namelist_opts['sf_sfclay_physics'])
         surface_str = self._get_nl_str(num_doms,self.namelist_opts['sf_surface_physics'])
@@ -681,9 +737,10 @@ class setup_wrf():
         specified[0] = '.true.'
         nested[0]    = '.false.'
 
-        f = open('{}namelist.input'.format(self.run_directory),'w')
+        f = open('{}namelist.input'.format(self.run_dir),'w')
         f.write("&time_control\n")
         f.write(" run_days                  =    0,\n")
+                
         f.write(" run_hours                 = {0:>5},\n".format(run_hours))
         f.write(" run_minutes               =    0,\n")
         f.write(" run_seconds               =    0,\n")
@@ -709,8 +766,15 @@ class setup_wrf():
         f.write(" io_form_boundary          = 2\n")
         f.write(" history_interval          = {}\n".format(history_interval_str))
         f.write(" frames_per_outfile        = {}\n".format("{0:>5},".format(self.namelist_opts['frames_per_file'])*num_doms))
-        f.write(" iofields_filename         = {}\n".format(io_str))
-        f.write(" ignore_iofields_warning   = .true.,\n")
+        if include_io:
+            f.write(" iofields_filename         = {}\n".format(io_str))
+            f.write(" ignore_iofields_warning   = .true.,\n")
+        if include_aux4:
+            f.write(" auxinput4_inname          = {},\n".format(aux4_str_name))
+            f.write(" auxinput4_interval        = {}\n".format(aux4_str_int))
+            f.write(" io_form_auxinput4         = {},\n".format(aux4_str_form))
+        if include_auxout:
+            f.write(aux_block)
         f.write(" debug_level               = {} \n".format(self.namelist_opts['debug']))
         f.write("/\n")
         f.write("\n")
@@ -728,7 +792,8 @@ class setup_wrf():
         f.write(" e_sn                      =  {}\n".format(ny_str))
         f.write(" s_vert                    =  {}\n".format("{0:>5},".format(1)*num_doms))
         f.write(" e_vert                    =  {}\n".format("{0:>5},".format(self.namelist_opts['num_eta_levels'])*num_doms))
-        f.write(" eta_levels  = {},\n".format(self.namelist_opts['eta_levels']))
+        if 'eta_levels' in self.namelist_opts.keys():
+            f.write(" eta_levels  = {},\n".format(self.namelist_opts['eta_levels']))
         f.write(" p_top_requested           = {},\n".format(self.namelist_opts['p_top_requested']))
         f.write(" num_metgrid_levels        = {},\n".format(self.namelist_opts['num_metgrid_levels']))
         f.write(" num_metgrid_soil_levels   = {},\n".format(self.namelist_opts['num_metgrid_soil_levels']))
@@ -760,6 +825,7 @@ class setup_wrf():
         f.write(" icloud                    = {}, \n".format(self.namelist_opts['icloud']))
         f.write(" surface_input_source      = {}, \n".format(self.namelist_opts['surface_input_source']))
         f.write(" num_soil_layers           = {}, \n".format(self.namelist_opts['num_soil_layers']))
+        f.write(" num_land_cat              = {}, \n".format(self.namelist_opts['num_land_cat']))
         f.write(" sf_urban_physics          = {}\n".format(urb_str))
         f.write(" /\n")
         f.write("\n")
@@ -816,12 +882,14 @@ class setup_wrf():
         elif icbc_type == 'FNL':
             icbc = FNL()
         elif icbc_type == 'MERRA2':
-            icbc = MERRA2()
-            if 'resolution_deg' not in self.setup_keys():
-                res_drag = 0
-            else:
-                res_drag = self.setup_dict['resolution_deg']
-            optional_args['resolution_deg'] = res_drag
+            print('Cannot download MERRA2 yet... please download manually and put in the IC/BC dir:')
+            print(self.icbc_dir)
+            #icbc = MERRA2()
+            #if 'resolution_deg' not in self.setup_keys():
+            #    res_drag = 0
+            #else:
+            #    res_drag = self.setup_dict['resolution_deg']
+            #optional_args['resolution_deg'] = res_drag
         elif icbc_type == 'ERA5':
             icbc = ERA5()
             if 'bounds' not in self.setup_dict.keys():
@@ -834,62 +902,588 @@ class setup_wrf():
             optional_args['bounds'] = bounds
         else:
             print('We currently do not support ',icbc_type)
-
-        icbc.download(datetimes,path=self.icbc_dir, **optional_args)
+        if icbc_type != 'MERRA2':
+            icbc.download(datetimes,path=self.icbc_dir, **optional_args)
         
         
-    def write_submission_scripts(self,submission_dict,executable,hpc='cheyenne'):
-
-        if hpc == 'cheyenne':
-            f = open('{}submit_{}.sh'.format(self.run_directory,executable),'w')
-            f.write("#!/bin/bash\n")
-            run_str = '{0}{1}'.format(self.icbc_dict['type'],
-                                     (self.setup_dict['start_date'].split(' ')[0]).replace('-',''))
-            f.write("#PBS -N {} \n".format(run_str))
-            f.write("#PBS -A {}\n".format(submission_dict['account_key']))
-            f.write("#PBS -l walltime={0:02d}:00:00\n".format(submission_dict['walltime_hours'][executable]))
-            f.write("#PBS -q economy\n")
-            f.write("#PBS -j oe\n")
-            f.write("#PBS -m abe\n")
-            f.write("#PBS -M {}\n".format(submission_dict['user_email']))
-            f.write("### Select 2 nodes with 36 CPUs each for a total of 72 MPI processes\n")
-            if executable == 'wps':
-                f.write("#PBS -l select=1:ncpus=1:mpiprocs=1\n".format(submission_dict['nodes']))
-            else:
-                f.write("#PBS -l select={0:02d}:ncpus=36:mpiprocs=36\n".format(submission_dict['nodes']))
-            f.write("date_start=`date`\n")
-            f.write("echo $date_start\n")
-            f.write("module list\n")
-            if executable == 'wps':
-                icbc_type = self.icbc_dict['type'].upper()
-                if icbc_type == 'ERA5':
-                    icbc_head = 'era5_*'
-                    icbc_vtable = 'ERA-interim.pl'
-                elif icbc_type == 'ERAI':
-                    icbc_head = 'ei.oper*'
-                    icbc_vtable = 'ERA-interim.pl'
-                elif icbc_type == 'FNL':
-                    icbc_head = 'fnl_*'
-                    icbc_vtable = 'GFS'
-                elif icbc_type == 'MERRA2':
-                    icbc_head = 'MERRA2_*'
-                    icbc_vtable = 'GFS'
+    def write_submission_scripts(self,submission_dict,hpc='cheyenne'):
+        executables = ['wps','real','wrf']
+        for executable in executables:
+            if hpc == 'cheyenne':
+                f = open('{}submit_{}.sh'.format(self.run_dir,executable),'w')
+                f.write("#!/bin/bash\n")
+                run_str = '{0}{1}'.format(self.icbc_dict['type'],
+                                         (self.setup_dict['start_date'].split(' ')[0]).replace('-',''))
+                f.write("#PBS -N {} \n".format(run_str))
+                f.write("#PBS -A {}\n".format(submission_dict['account_key']))
+                f.write("#PBS -l walltime={0:02d}:00:00\n".format(submission_dict['walltime_hours'][executable]))
+                f.write("#PBS -q economy\n")
+                f.write("#PBS -j oe\n")
+                f.write("#PBS -m abe\n")
+                f.write("#PBS -M {}\n".format(submission_dict['user_email']))
+                f.write("### Select 2 nodes with 36 CPUs each for a total of 72 MPI processes\n")
+                if executable == 'wps':
+                    f.write("#PBS -l select=1:ncpus=1:mpiprocs=1\n".format(submission_dict['nodes']))
                 else:
-                    print('We do not support this ICBC yet...')
-                
-                icbc_files = '{}{}'.format(self.icbc_dir,icbc_head)
-                f.write("./link_grib.csh {}\n".format(icbc_files))
-                f.write("ln -sf ungrib/Variable_Tables/Vtable.{} Vtable\n".format(icbc_vtable))
-                f.write("./geogrid.exe\n".format(executable))
-                f.write("./ungrib.exe\n".format(executable))
-                f.write("./metgrid.exe\n".format(executable))
-                f.write("for i in GRIBFILE.*; do unlink $i; done\n")
+                    f.write("#PBS -l select={0:02d}:ncpus=36:mpiprocs=36\n".format(submission_dict['nodes']))
+                f.write("date_start=`date`\n")
+                f.write("echo $date_start\n")
+                f.write("module list\n")
+                if executable == 'wps':
+                    icbc_type = self.icbc_dict['type'].upper()
+                    if icbc_type == 'ERA5':
+                        icbc_head = 'era5_*'
+                        icbc_vtable = 'ERA-interim.pl'
+                    elif icbc_type == 'ERAI':
+                        icbc_head = 'ei.oper*'
+                        icbc_vtable = 'ERA-interim.pl'
+                    elif icbc_type == 'FNL':
+                        icbc_head = 'fnl_*'
+                        icbc_vtable = 'GFS'
+                    elif icbc_type == 'MERRA2':
+                        icbc_head = 'MERRA2*'
+                        icbc_vtable = 'GFS'
+                    else:
+                        print('We do not support this ICBC yet...')
+
+                    f.write("./geogrid.exe\n".format(executable))
+                    icbc_files = '{}{}'.format(self.icbc_dir,icbc_head)
+                    if icbc_type == 'MERRA2':
+                        f.write('ln -sf {} .\n'.format(icbc_files))
+                    else:
+                        f.write("ln -sf ungrib/Variable_Tables/Vtable.{} Vtable\n".format(icbc_vtable))
+                        f.write("./link_grib.csh {}\n".format(icbc_files))
+                        f.write("./ungrib.exe\n".format(executable))
+                    f.write("./metgrid.exe\n".format(executable))
+                    if icbc_type != 'MERRA2':
+                        f.write("for i in GRIBFILE.*; do unlink $i; done\n")
+                else:
+                    f.write("mpiexec_mpt ./{}.exe\n".format(executable))
+                f.write("date_end=`date`\n")
+                f.write("echo $date_end\n")
+                f.close()
+
             else:
-                f.write("mpiexec_mpt ./{}.exe\n".format(executable))
-            f.write("date_end=`date`\n")
-            f.write("echo $date_end\n")
+                print('The hpc requested, {}, is not currently supported... please add it!'.format(hpc))
+
+
+            
+    def write_io_fieldnames(self,vars_to_remove=None,vars_to_add=None):
+        if 'iofields_filename' not in self.setup_dict.keys():
+            print('iofields_filename not found in setup dict... add a name to allow for creating the file')
+            return
+        io_names = self.setup_dict['iofields_filename']
+
+        if type(io_names) is str:
+            io_names = [io_names]
+        if type(io_names) is not list:
+            io_names = list(io_names)
+
+        if vars_to_remove is not None:
+            assert len(vars_to_remove) ==  len(np.unique(io_names)), \
+            'expecting number of io field names ({}) and remove lists {} to be same shape'.format(
+                                                    len(np.unique(io_names)),len(vars_to_remove))
+
+        if vars_to_add is not None:
+            assert len(vars_to_add) ==  len(np.unique(io_names)), \
+            'expecting number of io field names ({}) and add lists {} to be same shape'.format(
+                                                    len(np.unique(io_names)),len(vars_to_add))
+        rem_str_start = '-:h:0:'
+        add_str_start = '+:h:0:'
+
+        for ii,io_name in enumerate(np.unique(io_names)):
+            f = open('{}{}'.format(self.run_dir,io_name),'w')
+            line = ''
+            if vars_to_remove is not None:
+                rem_vars = vars_to_remove[ii]
+                var_count = 0
+                for rv in rem_vars:
+                    line += '{},'.format(rv)
+                    if var_count == 7:
+                        f.write('{}{}\n'.format(rem_str_start,line))
+                        var_count = 0
+                        line = ''
+                    else:
+                        var_count += 1
+
+            if vars_to_add is not None:
+                add_vars = vars_to_add[ii]
+                var_count = 0
+                for av in add_vars:
+                    line += '{},'.format(av)
+                    if var_count == 7:
+                        f.write('{}{}\n'.format(add_str_start,line))
+                        var_count = 0
+                        line = ''
+                    else:
+                        var_count += 1
+
             f.close()
             
-        else:
-            print('The hpc requested, {}, is not currently supported... please add it!'.format(hpc))
+            
+    def create_submitAll_scripts(self,main_directory,list_of_cases,executables):
+        str_of_dirs = ' '.join(list_of_cases)    
+        for exe in executables:
+            fname = '{}submit_all_{}.sh'.format(main_directory,exe)
+            f = open(fname,'w')
+            f.write("#!/bin/bash\n")
+            f.write("for value in {}\n".format(str_of_dirs))
+            f.write("do\n")
+            f.write("    cd $value/\n")
+            f.write("    pwd\n")
+            f.write("    qsub submit_{}.sh\n".format(exe))
+            f.write("    cd ..\n")
+            f.write("done\n")
+            f.close()
+            os.chmod(fname,0o755)
+            
+    def create_tslist_file(self,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
+        fname = '{}tslist'.format(self.run_dir)
+        write_tslist_file(fname,lat=lat,lon=lon,i=i,j=j,twr_names=twr_names,twr_abbr=twr_abbr)
 
+            
+def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
+    """
+    Write a list of lat/lon or i/j locations to a tslist file that is
+    readable by WRF.
+
+    Usage
+    ====
+    fname : string 
+        The path to and filename of the file to be created
+    lat,lon,i,j : list or 1-D array
+        Locations of the towers. 
+        If using lat/lon - locx = lon, locy = lat
+        If using i/j     - locx = i,   locy = j
+    twr_names : list of strings, optional
+        List of names for each tower location. Names should not be
+        longer than 25 characters, each. If None, default names will
+        be given.
+    twr_abbr : list of strings, optional
+        List of abbreviations for each tower location. Names should not be
+        longer than 5 characters, each. If None, default abbreviations
+        will be given.
+    """
+    if (lat is not None) and (lon is not None) and (i is None) and (j is None):
+        header_keys = '# 24 characters for name | pfx |  LAT  |   LON  |'
+        twr_locx = lon
+        twr_locy = lat
+        ij_or_ll = 'll'
+    elif (i is not None) and (j is not None) and (lat is None) and (lon is None):
+        header_keys = '# 24 characters for name | pfx |   I   |    J   |'
+        twr_locx = i
+        twr_locy = j
+        ij_or_ll = 'ij'
+    else:
+        print('Please specify either lat&lon or i&j')
+        return
+    
+    header_line = '#-----------------------------------------------#'
+    header = '{}\n{}\n{}\n'.format(header_line,header_keys,header_line)
+    
+    if len(twr_locy) == len(twr_locx):
+        ntowers = len(twr_locy)  
+    else:
+        print('Error - tower_x: {}, tower_y: {}'.format(len(twr_locx),len(twr_locy)))
+        return
+    
+    if not isinstance(twr_names,list):
+        twr_names = list(twr_names)    
+    if twr_names != None:
+        if len(twr_names) != ntowers:
+            print('Error - Tower names: {}, tower_x: {}, tower_y: {}'.format(len(twr_names),len(twr_locx),len(twr_locy)))
+            return
+    else:
+        twr_names = []
+        for twr in np.arange(0,ntowers):
+            twr_names.append('Tower{0:04d}'.format(twr+1))
+            
+    if not isinstance(twr_abbr,list):
+        twr_abbr = list(twr_abbr)                
+    if twr_abbr != None:
+        if len(twr_abbr) != ntowers:
+            print('Error - Tower abbr: {}, tower_x: {}, tower_y: {}'.format(len(twr_abbr),len(twr_locx),len(twr_locy)))
+            return
+        if len(max(twr_abbr,key=len)) > 5:
+            print('Tower abbreviations are too large... setting to default names')
+            twr_abbr = None
+    if twr_abbr==None:
+        twr_abbr = []
+        for twr in np.arange(0,ntowers):
+            twr_abbr.append('T{0:04d}'.format(twr+1))
+            
+    f = open(fname,'w')
+    f.write(header)
+            
+    for tt in range(0,ntowers):
+        if ij_or_ll == 'ij':
+            twr_line = '{0:<26.25}{1: <6}{2: <8d} {3: <8d}\n'.format(
+                twr_names[tt], twr_abbr[tt], int(twr_locx[tt]), int(twr_locy[tt]))
+        else:
+            twr_line = '{0:<26.25}{1: <6}{2:.7s}  {3:<.8s}\n'.format(
+                twr_names[tt], twr_abbr[tt], '{0:8.7f}'.format(float(twr_locy[tt])), 
+                                             '{0:8.7f}'.format(float(twr_locx[tt])))
+        f.write(twr_line)
+    f.close()
+    
+
+
+sst_dict = {
+    'OSTIA' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 5.5, # km
+    },
+    
+    'MUR' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 1.1,
+    },
+    
+    'MODIS' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'latitude',
+         'lon_dim' : 'longitude',
+        'sst_name' : 'sst_data',
+          'sst_dx' : 4.625,
+    },
+    
+    'GOES16' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lats',
+         'lon_dim' : 'lons',
+        'sst_name' : 'sea_surface_temperature',
+          'sst_dx' : 2.0,
+    },
+}
+
+icbc_dict = {
+    'ERAI' : {
+        'sst_name' : 'SST',
+    },
+    
+    'FNL' : {
+        'sst_name' : 'SKINTEMP',
+    },
+    
+    'ERA5' : {
+        'sst_name' : 'SST',
+    },
+}
+
+
+class OverwriteSST():
+    '''
+    Given WRF met_em files and auxiliary SST data, overwrite the SST data with 
+    the new SST data.
+    
+    Inputs:
+    met_type       = string; Initial / boundary conditions used (currently only ERAI,
+                             ERA5, and FNL are supported)
+    overwrite_type = string; Name of SST data (OSTIA, MUT, MODIS) or FILL (replace
+                             only missing values with SKINTEMP), or TSKIN (replace
+                             all SST values with SKINTEMP)
+    met_directory  = string; location of met_em files
+    sst_directory  = string; location of sst files
+    out_directory  = string; location to save new met_em files
+    smooth_opt     = boolean; use smoothing over new SST data 
+    fill_missing   = boolean; fill missing values in SST data with SKINTEMP
+    
+    '''
+
+    def __init__(self,
+                 met_type,
+                 overwrite_type,
+                 met_directory,
+                 sst_directory,
+                 out_directory,
+                 smooth_opt=False,
+                 fill_missing=False):
+        
+        self.met_type   = met_type
+        self.overwrite  = overwrite_type
+        self.met_dir    = met_directory
+        self.sst_dir    = sst_directory
+        self.out_dir    = out_directory
+        self.smooth_opt = smooth_opt
+        self.fill_opt   = fill_missing
+        
+        if overwrite_type == 'FILL': fill_missing=True
+        
+        if smooth_opt:
+            self.smooth_str = 'smooth'
+        else:
+            self.smooth_str = 'raw'
+
+        self.out_dir += '{}/'.format(self.smooth_str)
+        
+        # Get met_em_files 
+        self.met_em_files = sorted(glob.glob('{}met_em.d0*'.format(self.met_dir)))
+        
+        # Get SST data info (if not doing fill or tskin)
+        if (overwrite_type.upper() != 'FILL') and (overwrite_type.upper() != 'TSKIN'):
+            self._get_sst_info()
+
+        # Overwrite the met_em SST data:
+        for mm,met_file in enumerate(self.met_em_files):
+            self._get_new_sst(met_file)
+            # If filling missing values with SKINTEMP:
+            if fill_missing:
+                self._fill_missing(met_file)
+            self.new_sst = np.nan_to_num(self.new_sst)
+            # Write to new file:
+            self._write_new_file(met_file)
+            
+
+    def _get_sst_info(self):
+        
+        if self.overwrite == 'MODIS':
+            get_time_from_fname = True
+        else:
+            get_time_from_fname = False
+            
+        sst_file_times = get_nc_file_times(f_dir='{}'.format(self.sst_dir),
+                                           f_grep_str='*.nc',
+                                           decode_times=True,
+                                           time_dim=sst_dict[self.overwrite]['time_dim'],
+                                           get_time_from_fname=get_time_from_fname,
+                                           f_split=['.'],
+                                           time_pos=[1])
+
+        
+        '''
+        self.sst_files = sorted(glob.glob('{}*.nc'.format(self.sst_dir)))
+        num_sst_files = len(self.sst_files)
+        sst_file_times = {}
+        for ff,fname in enumerate(self.sst_files): 
+            sst = xr.open_dataset(fname)
+            
+            if ff == 0:
+                self.sst_lat = sst[sst_dict[self.overwrite]['lat_dim']]
+                self.sst_lon = sst[sst_dict[self.overwrite]['lon_dim']]
+            
+            if self.overwrite == 'MODIS':
+                f_time = [datetime.strptime(fname.split('/')[-1].split('.')[1],'%Y%m%d')]
+            else:
+                f_time = sst[sst_dict[self.overwrite]['time_dim']].data
+                
+            for ft in f_time:
+                ft = pd.to_datetime(ft)
+                sst_file_times[ft] = fname
+        '''
+        self.sst_file_times = sst_file_times
+        
+        sst = xr.open_dataset(sst_file_times[list(sst_file_times.keys())[0]])
+        self.sst_lat = sst[sst_dict[self.overwrite]['lat_dim']]
+        self.sst_lon = sst[sst_dict[self.overwrite]['lon_dim']]
+
+
+    
+    def _get_new_sst(self,met_file):
+        met = xr.open_dataset(met_file)
+
+        met_time = pd.to_datetime(met.Times.data[0].decode().replace('_',' '))
+        met_lat = np.squeeze(met.XLAT_M)
+        met_lon = np.squeeze(met.XLONG_M)
+        met_landmask = np.squeeze(met.LANDMASK)
+        met_sst = np.squeeze(met[icbc_dict[self.met_type]['sst_name']])
+        
+        if (self.overwrite.upper() != 'FILL') and (self.overwrite.upper() != 'TSKIN'):
+
+            # Get window length for smoothing
+            if self.smooth_opt:
+                met_dx = met.DX/1000.0
+                met_dy = met.DY/1000.0
+                sst_dx = sst_dict[self.overwrite]['sst_dx']
+                window = int(min([met_dx/sst_dx,met_dy/sst_dx])/2.0)
+            else:
+                window = 0
+
+            # Find closest SST files:
+            sst_neighbors = self._get_closest_files(met_time)
+            sst_weights   = self._get_time_weights(met_time,sst_neighbors)
+
+            before_ds = xr.open_dataset(self.sst_file_times[sst_neighbors[0]])
+            after_ds  = xr.open_dataset(self.sst_file_times[sst_neighbors[1]])
+
+            min_lon = np.max([np.nanmin(met_lon)-1,-180])
+            max_lon = np.min([np.nanmax(met_lon)+1,180])
+            
+            if (self.overwrite == 'MODIS') or (self.overwrite == 'GOES16'):
+                min_lat = np.min([np.nanmax(met_lat)+1,90])
+                max_lat = np.max([np.nanmin(met_lat)-1,-90])
+            else:
+                min_lat = np.max([np.nanmin(met_lat)-1,-90])
+                max_lat = np.min([np.nanmax(met_lat)+1,90])
+
+            before_ds = before_ds.sel({sst_dict[self.overwrite]['lat_dim']:slice(min_lat,max_lat),
+                                      sst_dict[self.overwrite]['lon_dim']:slice(min_lon,max_lon)})
+            after_ds  = after_ds.sel({sst_dict[self.overwrite]['lat_dim']:slice(min_lat,max_lat),
+                                     sst_dict[self.overwrite]['lon_dim']:slice(min_lon,max_lon)})
+
+            # Select the time from the dataset:
+            if self.overwrite == 'MODIS':
+                # MODIS doesn't have time, so just squeeze:
+                before_sst = np.squeeze(before_ds[sst_dict[self.overwrite]['sst_name']]) + 273.15
+                after_sst  = np.squeeze(after_ds[sst_dict[self.overwrite]['sst_name']]) + 273.15
+            else:
+                # Grab time and SST data:
+                before_sst = before_ds.sel({sst_dict[self.overwrite]['time_dim'] : sst_neighbors[0]})[sst_dict[self.overwrite]['sst_name']]
+                after_sst  = after_ds.sel({sst_dict[self.overwrite]['time_dim'] : sst_neighbors[1]})[sst_dict[self.overwrite]['sst_name']]
+                if self.overwrite == 'GOES16':
+                    before_sst += 273.15
+                    after_sst  += 273.15
+
+            new_sst = met_sst.data.copy()
+
+            sst_lat = self.sst_lat.data
+            sst_lon = self.sst_lon.data
+
+            for jj in met.south_north:
+                for ii in met.west_east:
+                    if met_landmask[jj,ii] == 0.0:
+                        dist_lat = abs(sst_lat - float(met_lat[jj,ii]))
+                        dist_lon = abs(sst_lon - float(met_lon[jj,ii]))
+
+                        lat_ind = np.where(dist_lat==np.min(dist_lat))[0]
+                        lon_ind = np.where(dist_lon==np.min(dist_lon))[0]
+
+                        if (len(lat_ind) > 1) and (len(lon_ind) > 1):
+                            lat_s = sst_lat[lat_ind[0] - window]
+                            lat_e = sst_lat[lat_ind[1] + window]
+                            lon_s = sst_lon[lon_ind[0] - window]
+                            lon_e = sst_lon[lon_ind[1] + window]
+
+                        elif (len(lat_ind) > 1) and (len(lon_ind) == 1):
+                            lat_s = sst_lat[lat_ind[0] - window]
+                            lat_e = sst_lat[lat_ind[1] + window]
+                            lon_s = sst_lon[lon_ind[0] - window]
+                            lon_e = sst_lon[lon_ind[0] + window]
+
+                        elif (len(lat_ind) == 1) and (len(lon_ind) > 1):
+                            lat_s = sst_lat[lat_ind[0] - window]
+                            lat_e = sst_lat[lat_ind[0] + window]
+                            lon_s = sst_lon[lon_ind[0] - window]
+                            lon_e = sst_lon[lon_ind[1] + window]
+
+                        else:
+                            lat_s = sst_lat[lat_ind[0] - window]
+                            lat_e = sst_lat[lat_ind[0] + window]
+                            lon_s = sst_lon[lon_ind[0] - window]
+                            try:
+                                lon_e = sst_lon[lon_ind[0] + window]
+                            except IndexError:
+                                lon_e = len(sst_lon)
+
+                        sst_before_val = before_sst.sel({
+                                            sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
+                                            sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+
+                        sst_after_val  = after_sst.sel({
+                                            sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
+                                            sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+
+                        new_sst[jj,ii] = sst_before_val*sst_weights[0] + sst_after_val*sst_weights[1]
+                        
+        else:
+            if (self.overwrite.upper() == 'TSKIN'):
+                new_sst = met_sst.data.copy()
+                tsk = np.squeeze(met.SKINTEMP).data
+                new_sst[np.where(met_landmask==0.0)] = tsk[np.where(met_landmask==0.0)]
+            elif (self.overwrite.upper() == 'FILL'):
+                new_sst = np.squeeze(met[icbc_dict[self.met_type]['sst_name']]).data
+        self.new_sst = new_sst
+            
+
+    def _get_closest_files(self,met_time):
+        sst_times = np.asarray(list(self.sst_file_times.keys()))
+
+        if (met_time > max(sst_times)) or (met_time < min(sst_times)):
+            raise Exception("met_em time out of range of SST times:\nSST min,max = {}, {}\nmet_time = {}".format(
+                                min(sst_times),max(sst_times),met_time))
+
+        time_dist = sst_times.copy()
+        for dt,stime in enumerate(sst_times):
+            time_dist[dt] = abs(stime - met_time)
+
+        closest_time = sst_times[np.where(time_dist == np.min(time_dist))]
+
+        if len(closest_time) == 1:
+            if closest_time == met_time:
+                sst_before = closest_time[0]
+                sst_after  = closest_time[0]
+            else:
+                got_before = False
+                got_after  = False
+                closest_time = closest_time[0]
+                closest_ind = int(np.where(sst_times == closest_time)[0])
+                if (closest_time - met_time).total_seconds() < 0:
+                    sst_before = closest_time
+                    next_closest_times = sst_times[closest_ind+1:]
+                    next_closest_dist  = time_dist[closest_ind+1:]
+                    got_before = True
+                else:
+                    sst_after = closest_time
+                    next_closest_times = sst_times[:closest_ind-1]
+                    next_closest_dist  = time_dist[:closest_ind-1]
+                    got_after = True
+
+                next_closest_time = next_closest_times[np.where(next_closest_dist == np.min(next_closest_dist))][0]
+
+                if got_before:
+                    assert (next_closest_time - met_time).total_seconds() >= 0.0, 'Next closest time not after first time.'
+                    sst_after = next_closest_time
+                if got_after:
+                    assert (next_closest_time - met_time).total_seconds() <= 0.0, 'Next closest time not before first time.'
+                    sst_before = next_closest_time                
+
+        elif len(closest_time) == 2:
+            sst_before = closest_time[0]
+            sst_after  = closest_time[1]
+
+        return([sst_before,sst_after])
+    
+    
+    def _get_time_weights(self,met_time,times):
+        before = times[0]
+        after  = times[1]
+        
+        d1 = (met_time - before).seconds
+        d2 = (after - met_time).seconds
+        if d1 == 0 & d2 == 0:
+            w1,w2 = 1.0,0.0
+        else:
+            w1 = d2/(d1+d2)
+            w2 = d1/(d1+d2)
+            
+        return([w1,w2])
+            
+        
+    def _fill_missing(self,met_file):
+        met = xr.open_dataset(met_file)
+        tsk = np.squeeze(met.SKINTEMP)
+        met_landmask = np.squeeze(met.LANDMASK)
+        bad_inds = np.where(((met_landmask == 0) & (self.new_sst == 0.0)))
+        self.new_sst[bad_inds] = tsk.data[bad_inds]
+        bad_inds = np.where(np.isnan(self.new_sst))
+        self.new_sst[bad_inds] = tsk.data[bad_inds]
+        
+        
+    def _write_new_file(self,met_file):
+        f_name = met_file.split('/')[-1]
+        new_file = self.out_dir + f_name
+        print(new_file)
+        new = xr.open_dataset(met_file)
+        new.SST.data = np.expand_dims(self.new_sst,axis=0)
+        new.attrs['source']   = '{}'.format(self.overwrite)
+        new.attrs['smoothed'] = '{}'.format(self.smooth_opt)
+        new.attrs['filled']   = '{}'.format(self.fill_opt)
+        if os.path.exists(new_file):
+            print('File exists... replacing')
+            os.remove(new_file)
+        new.to_netcdf(new_file)
