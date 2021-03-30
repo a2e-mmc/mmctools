@@ -51,6 +51,7 @@ EXTRAS = {
     'terrain': ['elevation==1.0.6', 'rasterio==1.0.25'],
     # For calculating vector ruggedness 
     'richdem': ['richdem==0.3.4']
+}
 
 # The rest you shouldn't have to touch too much :)
 # ------------------------------------------------
