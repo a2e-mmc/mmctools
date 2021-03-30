@@ -14,3 +14,4 @@ dependencies:
   - f90nml=1.1.2
   - elevation=1.0.6
   - rasterio=1.0.25
+  - richdem=0.3.4
