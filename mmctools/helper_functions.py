@@ -1296,26 +1296,18 @@ def calcTRI(hgt,window):
     Hwindow = int(np.floor(window/2))
     
     # Type and dimension check:
-    if isinstance(hgt,(xr.Dataset,xr.DataArray)):
+    if isinstance(hgt,(xr.Dataset,xr.DataArray,xr.Variable)):
         hgt = hgt.data    
     assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
     
     ny,nx = np.shape(hgt)
     
-    tri_calc_type = 'new'
+    def tri_filt(x):
+        middle_ind = int(len(x)/2)
+        return((sum((x - x[middle_ind])**2.0))**0.5)
     
-    if tri_calc_type == 'old':
-        tri = np.zeros((ny,nx))
-        # Loop over all cells within bounds of window:
-        for ii in range(Hwindow+1,nx-Hwindow-1):
-            for jj in range(Hwindow+1,ny-Hwindow-1):
-                hgt_window = hgt[jj-Hwindow:jj+Hwindow+1,ii-Hwindow:ii+Hwindow+1]
-                tri[jj,ii] = (np.sum((hgt_window - hgt[jj,ii])**2.0))**0.5
-    else:
-        def tri_filt(x):
-            middle_ind = int(len(x)/2)
-            return((sum((x - x[middle_ind])**2.0))**0.5)
-        tri = generic_filter(hgt,tri_filt, size = (3,3))
+    tri = generic_filter(hgt,tri_filt, size = (window,window))
+    
     return tri
 
 
@@ -1333,13 +1325,14 @@ def calcVRM(hgt,window):
         Length of window in x and y direction. Must be odd.
     '''
     import richdem as rd
+    from scipy.ndimage.filters import generic_filter
     
     # Window setup:
     assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
     Hwndw = int(np.floor(window/2))
 
     # Type and dimension check:
-    if isinstance(hgt,(xr.Dataset,xr.DataArray)):
+    if isinstance(hgt,(xr.Dataset,xr.DataArray,xr.Variable)):
         hgt = hgt.data    
     assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
     ny,nx = np.shape(hgt)
@@ -1356,12 +1349,14 @@ def calcVRM(hgt,window):
     rugdxy = np.sin(slope*np.pi/180.0)
     rugx   = rugdxy*np.cos(aspect*np.pi/180.0)
     rugy   = rugdxy*np.sin(aspect*np.pi/180.0)
-    
-    # Loop over all cells within bounds of window:
-    for ii in range(Hwndw+1,nx-Hwndw-1):
-        for jj in range(Hwndw+1,ny-Hwndw-1):
-            vrm[jj,ii] = 1.0 - np.sqrt(\
-                    np.sum(rugx[jj-Hwndw:jj+Hwndw+1,ii-Hwndw:ii+Hwndw+1])**2.0 + \
-                    np.sum(rugy[jj-Hwndw:jj+Hwndw+1,ii-Hwndw:ii+Hwndw+1])**2.0 + \
-                    np.sum(rugz[jj-Hwndw:jj+Hwndw+1,ii-Hwndw:ii+Hwndw+1])**2.0)/float(window**2)
+        
+
+    def vrm_filt(x):
+        return(sum(x)**2)
+
+    vrmX = generic_filter(rugx,vrm_filt, size = (window,window))
+    vrmY = generic_filter(rugy,vrm_filt, size = (window,window))
+    vrmZ = generic_filter(rugz,vrm_filt, size = (window,window))
+
+    vrm = 1.0 - np.sqrt(vrmX + vrmY + vrmZ)/float(window**2)
     return vrm
