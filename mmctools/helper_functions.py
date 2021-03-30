@@ -1289,7 +1289,8 @@ def calcTRI(hgt,window):
     window : int
         Length of window in x and y direction. Must be odd.
     '''
-    
+    from scipy.ndimage.filters import generic_filter
+
     # Window setup:
     assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
     Hwindow = int(np.floor(window/2))
@@ -1300,12 +1301,21 @@ def calcTRI(hgt,window):
     assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
     
     ny,nx = np.shape(hgt)
-    tri = np.zeros((ny,nx))
-    # Loop over all cells within bounds of window:
-    for ii in range(Hwindow+1,nx-Hwindow-1):
-        for jj in range(Hwindow+1,ny-Hwindow-1):
-            hgt_window = hgt[jj-Hwindow:jj+Hwindow+1,ii-Hwindow:ii+Hwindow+1]
-            tri[jj,ii] = (np.sum((hgt_window - hgt[jj,ii])**2.0))**0.5
+    
+    tri_calc_type = 'new'
+    
+    if tri_calc_type == 'old':
+        tri = np.zeros((ny,nx))
+        # Loop over all cells within bounds of window:
+        for ii in range(Hwindow+1,nx-Hwindow-1):
+            for jj in range(Hwindow+1,ny-Hwindow-1):
+                hgt_window = hgt[jj-Hwindow:jj+Hwindow+1,ii-Hwindow:ii+Hwindow+1]
+                tri[jj,ii] = (np.sum((hgt_window - hgt[jj,ii])**2.0))**0.5
+    else:
+        def tri_filt(x):
+            middle_ind = int(len(x)/2)
+            return((sum((x - x[middle_ind])**2.0))**0.5)
+        tri = generic_filter(hgt,tri_filt, size = (3,3))
     return tri
 
 
