@@ -1276,3 +1276,82 @@ def calc_spectra(data,
             psd_f = psd_level.combine_first(psd_f)
     return(psd_f)
 
+
+def calcTRI(hgt,window):
+    '''
+    Terrain Ruggedness Index
+    Riley, S. J., DeGloria, S. D., & Elliot, R. (1999). Index that 
+        quantifies topographic heterogeneity. intermountain Journal 
+        of sciences, 5(1-4), 23-27.
+    
+    hgt : array
+        Array of heights over which TRI will be calculated
+    window : int
+        Length of window in x and y direction. Must be odd.
+    '''
+    
+    # Window setup:
+    assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
+    Hwindow = int(np.floor(window/2))
+    
+    # Type and dimension check:
+    if isinstance(hgt,(xr.Dataset,xr.DataArray)):
+        hgt = hgt.data    
+    assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
+    
+    ny,nx = np.shape(hgt)
+    tri = np.zeros((ny,nx))
+    # Loop over all cells within bounds of window:
+    for ii in range(Hwindow+1,nx-Hwindow-1):
+        for jj in range(Hwindow+1,ny-Hwindow-1):
+            hgt_window = hgt[jj-Hwindow:jj+Hwindow+1,ii-Hwindow:ii+Hwindow+1]
+            tri[jj,ii] = (np.sum((hgt_window - hgt[jj,ii])**2.0))**0.5
+    return tri
+
+
+def calcVRM(hgt,window):
+    '''
+    Vector Ruggedness Measure
+    Sappington, J. M., Longshore, K. M., & Thompson, D. B. (2007). 
+        Quantifying landscape ruggedness for animal habitat analysis: 
+        a case study using bighorn sheep in the Mojave Desert. The 
+        Journal of wildlife management, 71(5), 1419-1426.
+    
+    hgt : array
+        Array of heights over which TRI will be calculated
+    window : int
+        Length of window in x and y direction. Must be odd.
+    '''
+    import richdem as rd
+    
+    # Window setup:
+    assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
+    Hwndw = int(np.floor(window/2))
+
+    # Type and dimension check:
+    if isinstance(hgt,(xr.Dataset,xr.DataArray)):
+        hgt = hgt.data    
+    assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
+    ny,nx = np.shape(hgt)
+
+    # Get slope and aspect:
+    hgt_rd = rd.rdarray(hgt, no_data=-9999)
+    rd.FillDepressions(hgt_rd, in_place=True)
+    slope  = rd.TerrainAttribute(hgt_rd, attrib='slope_riserun')
+    aspect = rd.TerrainAttribute(hgt_rd, attrib='aspect')
+    
+    # Calculate vectors:
+    vrm = np.zeros((ny,nx))
+    rugz   = np.cos(slope*np.pi/180.0)
+    rugdxy = np.sin(slope*np.pi/180.0)
+    rugx   = rugdxy*np.cos(aspect*np.pi/180.0)
+    rugy   = rugdxy*np.sin(aspect*np.pi/180.0)
+    
+    # Loop over all cells within bounds of window:
+    for ii in range(Hwndw+1,nx-Hwndw-1):
+        for jj in range(Hwndw+1,ny-Hwndw-1):
+            vrm[jj,ii] = 1.0 - np.sqrt(\
+                    np.sum(rugx[jj-Hwndw:jj+Hwndw+1,ii-Hwndw:ii+Hwndw+1])**2.0 + \
+                    np.sum(rugy[jj-Hwndw:jj+Hwndw+1,ii-Hwndw:ii+Hwndw+1])**2.0 + \
+                    np.sum(rugz[jj-Hwndw:jj+Hwndw+1,ii-Hwndw:ii+Hwndw+1])**2.0)/float(window**2)
+    return vrm
