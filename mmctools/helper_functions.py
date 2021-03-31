@@ -1166,7 +1166,14 @@ def calc_spectra(data,
             data = data.to_dataset()
         else:
             raise ValueError('unsupported type: {}'.format(type(data)))
-    
+            
+    for xr_cor in list(data.coords):
+        if xr_cor not in list(data.dims):
+            data = data.reset_coords(xr_cor)
+    for xr_dim in list(data.dims):
+        if xr_dim not in list(data.coords):
+            data = data.assign_coords({xr_dim:np.arange(len(data[xr_dim]))})
+
     # Get index for frequency / wavelength:
     spec_index = data.coords[spectra_dim]
     dX = (spec_index.data[1] - spec_index.data[0])
@@ -1226,7 +1233,10 @@ def calc_spectra(data,
     
     for ll,lvl in enumerate(level):
         if lvl is not None:
-            spec_dat_lvl = data.sel({level_dim:lvl},method='nearest')
+            if level_dim in list(data.coords.keys()):
+                spec_dat_lvl = data.sel({level_dim:lvl},method='nearest')
+            else:
+                spec_dat_lvl = data.sel({level_dim:lvl})
             lvl = spec_dat_lvl[level_dim].data
         else:
             spec_dat_lvl = data.copy()
@@ -1311,7 +1321,7 @@ def calcTRI(hgt,window):
     return tri
 
 
-def calcVRM(hgt,window):
+def calcVRM(hgt,window,return_slope=False):
     '''
     Vector Ruggedness Measure
     Sappington, J. M., Longshore, K. M., & Thompson, D. B. (2007). 
@@ -1359,4 +1369,7 @@ def calcVRM(hgt,window):
     vrmZ = generic_filter(rugz,vrm_filt, size = (window,window))
 
     vrm = 1.0 - np.sqrt(vrmX + vrmY + vrmZ)/float(window**2)
-    return vrm
+    if return_slope:
+        return vrm,slope
+    else:
+        return vrm
