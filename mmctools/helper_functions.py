@@ -1167,9 +1167,6 @@ def calc_spectra(data,
         else:
             raise ValueError('unsupported type: {}'.format(type(data)))
             
-    for xr_cor in list(data.coords):
-        if xr_cor not in list(data.dims):
-            data = data.reset_coords(xr_cor)
     for xr_dim in list(data.dims):
         if xr_dim not in list(data.coords):
             data = data.assign_coords({xr_dim:np.arange(len(data[xr_dim]))})
