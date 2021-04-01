@@ -1258,7 +1258,7 @@ def calc_spectra(data,
                                          tstart=tstart,interval=interval)
             psd = psd.to_xarray()
             if avg_dim is not None:
-                psd = psd.assign_coords({average_dim:1})
+                psd = psd.assign_coords(**{average_dim:1})
                 psd[average_dim] = avg_dim.data            
                 psd = psd.expand_dims(average_dim)
 
@@ -1270,7 +1270,7 @@ def calc_spectra(data,
                 psd_level = psd
                 
         if level_dim is not None:
-            psd_level = psd_level.assign_coords({level_dim:1})
+            psd_level = psd_level.assign_coords(**{level_dim:1})
             psd_level[level_dim] = lvl#.data            
             psd_level = psd_level.expand_dims(level_dim)
 
