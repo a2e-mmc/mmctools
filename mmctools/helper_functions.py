@@ -1281,7 +1281,7 @@ def calc_spectra(data,
     return(psd_f)
 
 
-def calcTRI(hgt,window):
+def calcTRI(hgt,window=None,footprint=None):
     '''
     Terrain Ruggedness Index
     Riley, S. J., DeGloria, S. D., & Elliot, R. (1999). Index that 
@@ -1296,6 +1296,10 @@ def calcTRI(hgt,window):
     from scipy.ndimage.filters import generic_filter
 
     # Window setup:
+    if footprint is not None:
+        assert window is None, 'Must specify either window or footprint'
+        window = np.shape(footprint)[0]
+    
     assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
     Hwindow = int(np.floor(window/2))
     
@@ -1310,12 +1314,15 @@ def calcTRI(hgt,window):
         middle_ind = int(len(x)/2)
         return((sum((x - x[middle_ind])**2.0))**0.5)
     
-    tri = generic_filter(hgt,tri_filt, size = (window,window))
+    if footprint is None:
+        tri = generic_filter(hgt,tri_filt, size = (window,window))
+    else:
+        tri = generic_filter(hgt,tri_filt, footprint=footprint)
     
     return tri
 
 
-def calcVRM(hgt,window,return_slope=False):
+def calcVRM(hgt,window=None,footprint=None,slope_zscale=1.0,return_slope=False):
     '''
     Vector Ruggedness Measure
     Sappington, J. M., Longshore, K. M., & Thompson, D. B. (2007). 
@@ -1330,8 +1337,12 @@ def calcVRM(hgt,window,return_slope=False):
     '''
     import richdem as rd
     from scipy.ndimage.filters import generic_filter
-    
+
     # Window setup:
+    if footprint is not None:
+        assert window is None, 'Must specify either window or footprint'
+        window = np.shape(footprint)[0]
+        
     assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
     Hwndw = int(np.floor(window/2))
 
@@ -1344,7 +1355,7 @@ def calcVRM(hgt,window,return_slope=False):
     # Get slope and aspect:
     hgt_rd = rd.rdarray(hgt, no_data=-9999)
     rd.FillDepressions(hgt_rd, in_place=True)
-    slope  = rd.TerrainAttribute(hgt_rd, attrib='slope_riserun')
+    slope  = rd.TerrainAttribute(hgt_rd, attrib='slope_riserun', zscale=slope_zscale)
     aspect = rd.TerrainAttribute(hgt_rd, attrib='aspect')
     
     # Calculate vectors:
@@ -1353,16 +1364,25 @@ def calcVRM(hgt,window,return_slope=False):
     rugdxy = np.sin(slope*np.pi/180.0)
     rugx   = rugdxy*np.cos(aspect*np.pi/180.0)
     rugy   = rugdxy*np.sin(aspect*np.pi/180.0)
-        
 
     def vrm_filt(x):
         return(sum(x)**2)
 
-    vrmX = generic_filter(rugx,vrm_filt, size = (window,window))
-    vrmY = generic_filter(rugy,vrm_filt, size = (window,window))
-    vrmZ = generic_filter(rugz,vrm_filt, size = (window,window))
+    if footprint is None:
+        vrmX = generic_filter(rugx,vrm_filt, size = (window,window))
+        vrmY = generic_filter(rugy,vrm_filt, size = (window,window))
+        vrmZ = generic_filter(rugz,vrm_filt, size = (window,window))
+    else:
+        vrmX = generic_filter(rugx,vrm_filt, footprint=footprint)
+        vrmY = generic_filter(rugy,vrm_filt, footprint=footprint)
+        vrmZ = generic_filter(rugz,vrm_filt, footprint=footprint)    
 
-    vrm = 1.0 - np.sqrt(vrmX + vrmY + vrmZ)/float(window**2)
+
+    if footprint is not None:
+        num_points = len(footprint[footprint != 0.0])
+    else:
+        num_points = float(window**2)
+    vrm = 1.0 - np.sqrt(vrmX + vrmY + vrmZ)/num_points
     if return_slope:
         return vrm,slope
     else:
