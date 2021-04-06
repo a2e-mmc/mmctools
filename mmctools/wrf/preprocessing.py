@@ -598,7 +598,7 @@ class SetupWRF():
         f.write(" truelat1  = {},\n".format(self.namelist_opts['true_lat1']))
         f.write(" truelat2  = {},\n".format(self.namelist_opts['true_lat2']))
         f.write(" stand_lon = {},\n".format(self.namelist_opts['stand_lon'])) 
-        f.write(" geog_data_path = '/glade/work/hawbecke/geog/',\n")
+        f.write(" geog_data_path = '{}',\n".format(self.namelist_opts['geog_data_path']))
         f.write("/\n")
         f.write("\n")
         f.write("&ungrib\n")
