@@ -75,7 +75,7 @@ standard_spectrumlabels = spectrumlabels_default_units
 
 # Supported dimensions and associated names
 dimension_names = {
-    'time':      ['datetime','time','Time'],
+    'time':      ['datetime','time','Time','t'],
     'height':    ['height','heights','z'],
     'frequency': ['frequency','f',]
 }
