@@ -559,12 +559,12 @@ class Tower():
                 for varn in varns_unstag:
                     newdata = np.empty((self.nt, len(z)))
                     tsdata = getattr(self,varn)
-                    if varn == 'th':
-                        # theta is a special case
-                        assert np.all(tsdata[:,-1] == 300)
-                    elif not varn == 'ww':
-                        # if w has already been destaggered by wrf
-                        assert np.all(tsdata[:,-1] == 0)
+                    #if varn == 'th':
+                    #    # theta is a special case
+                    #    assert np.all(tsdata[:,-1] == 300)
+                    #elif not varn == 'ww':
+                    #    # if w has already been destaggered by wrf
+                    #    assert np.all(tsdata[:,-1] == 0)
                     for itime in range(self.nt):
                         interpfun = interp1d(zt_unstag[itime,:],
                                              tsdata[itime,:-1],
@@ -1047,7 +1047,7 @@ def combine_towers(fdir, restarts, simulation_start, fname,
             if rst == 0:
                 data_previous = data_block
             else:
-                dataF = data_block.combine_first(data_previous)
+                dataF = data_previous.combine_first(data_block)
                 data_previous = dataF
         else:
             dataF = data_block
@@ -1120,6 +1120,9 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     for ff,file in enumerate(file_list):
         tower_names[ff] = file.split('/')[-1]
         
+    if not isinstance(select_tower,(list)) and select_tower is not None:
+        select_tower = list(select_tower)
+            
     if select_tower != None:
         good_towers = []
         for twr in select_tower:

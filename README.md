@@ -2,6 +2,8 @@
 A repository for mesoscale-to-microscale coupling (MMC) preprocessing,
 postprocessing, and analysis tools
 
+See the `dev` branch for the latest code under development. 
+
 
 ## Overview
 
@@ -76,6 +78,11 @@ df = read_dir(dpath, file_filter='*_w*', reader=profiler)
    for converting between quantities of interest
 
 - `plotting` provides routines for visualization in the *A2e-MMC* style
+
+
+## Installation
+
+To install, run `pip install -e mmctools` after cloning the repository (or `pip install -e .` from inside a2e-mmc/mmctools).
 
 
 ## Code Development Principles
