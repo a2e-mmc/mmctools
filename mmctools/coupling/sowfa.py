@@ -394,7 +394,7 @@ class BoundaryCoupling(object):
         print('Input is an {:s}-boundary at {:g}'.format(constdim,
                                                          self.ds.coords[constdim].values))
         
-    def write(self, fields, binary=False, gzip=False):
+    def write(self, fields, points=True, binary=False, gzip=False):
         """
         Write surface boundary conditions to SOWFA-readable input files
         for the solver in constant/boundaryData
@@ -408,9 +408,13 @@ class BoundaryCoupling(object):
             field name, values corresponding to dataset data variables;
             values may be a single variable (scalar) or a list/tuple of
             variables (vector)
+        points : bool, optional
+            Write out points definition for this patch
         binary : bool, optional
             Write out actual data (coordinates, scalars, vectors) in
             binary for faster I/O
+        gzip : bool, optional
+            Write out compressed data to save disk space
         """
         # check output options
         if binary and gzip:
@@ -426,7 +430,8 @@ class BoundaryCoupling(object):
         self.bndry_dims = [dim for dim in ['x','y','height'] if dim in dims]
         assert (len(self.bndry_dims) == 2)
         # write out patch/points
-        self._write_points(binary=binary, gzip=gzip)
+        if points:
+            self._write_points(binary=binary, gzip=gzip)
         # write out patch/*/field
         for fieldname,dvars in fields.items():
             if isinstance(dvars, (list,tuple)):
