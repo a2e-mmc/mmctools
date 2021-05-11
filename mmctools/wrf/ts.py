@@ -188,7 +188,8 @@ class Toof(object):
             agl=True,
             verbose=self.verbose
         )
-        self.ds = self.ds.swap_dims({'nz':'height'}) # to facilitate ds.interp()
+        self.ds = self.ds.swap_dims({'nz':'z'}) # dimension coordinate to enable ds.interp()
+        self.ds = self.ds.rename({'z':'height'})
         if self.verbose:
             print('... done reading ts outputs')
 
@@ -281,9 +282,6 @@ class Toof(object):
         elif (j is not None):
             mydim = 'y'
             idx = j
-        elif (k is not None):
-            mydim = 'height'
-            idx = k
         if ((i is not None) or (j is not None)) and allpts:
             # if allpts, interpolate side boundary profiles to exact domain heights
             ds = ds.interp(height=self.domain.z)
