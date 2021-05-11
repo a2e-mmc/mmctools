@@ -381,18 +381,17 @@ class BoundaryCoupling(object):
         """Do all sanity checks here"""
         for dim in self.ds.dims:
             # dimension coordinates
-            assert dim in expected_dims
+            assert dim in expected_dims, f'missing dim {dim}'
             coord = self.ds.coords[dim]
-            assert (coord.dims[0] == dim) and (len(coord.dims) == 1)
+            assert (coord.dims[0] == dim) and (len(coord.dims) == 1), \
+                    f'{dim} is not a dimension coordinate'
         # Only handle a single boundary plane at a time; boundaries
         # should be aligned with the Cartesian axes
-        dims = expected_dims.copy()
-        for dim in self.ds.dims:
-            dims.remove(dim)
-        assert (len(dims) == 1)
-        constdim = dims[0]
-        print('Input is an {:s}-boundary at {:g}'.format(constdim,
-                                                         self.ds.coords[constdim].values))
+        constdims = [dim for dim in self.ds.dims if self.ds.dims[dim]==1]
+        assert (len(constdims) == 1), 'more than one constant dim'
+        constdim = constdims[0]
+        print('Input is a {:s}-boundary at {:g}'.format(constdim,
+                                                        float(self.ds.coords[constdim])))
         
     def write(self, fields, points=True, binary=False, gzip=False):
         """
@@ -427,8 +426,11 @@ class BoundaryCoupling(object):
         # make sure ordering of bnd_dims is correct
         dims = list(self.ds.dims)
         dims.remove('datetime')
-        self.bndry_dims = [dim for dim in ['x','y','height'] if dim in dims]
-        assert (len(self.bndry_dims) == 2)
+        self.bndry_dims = [
+            dim for dim in ['x','y','height']
+            if (dim in dims) and self.ds.dims[dim] > 1
+        ]
+        assert (len(self.bndry_dims) == 2), f'boundary patch dims: {str(self.bndry_dims)}'
         # write out patch/points
         if points:
             self._write_points(binary=binary, gzip=gzip)
