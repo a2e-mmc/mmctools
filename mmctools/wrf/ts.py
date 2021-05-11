@@ -230,18 +230,17 @@ class Toof(object):
         assert (tgtlat >= wrflat[i,j]) and (tgtlat < wrflat[i,j+1])
         assert (tgtlon >= wrflon[i,j]) and (tgtlon < wrflon[i+1,j])
         # bilinear interpolation
-        f00 = self.ds.sel(nx=i  ,ny=j)
-        f10 = self.ds.sel(nx=i+1,ny=j)
-        f01 = self.ds.sel(nx=i  ,ny=j+1)
-        f11 = self.ds.sel(nx=i+1,ny=j+1)
-        finterp = f00 * (wrflon[i+1,j] - tgtlon     ) * (wrflat[i,j+1] - tgtlat     ) + \
-                  f10 * (tgtlon        - wrflon[i,j]) * (wrflat[i,j+1] - tgtlat     ) + \
-                  f01 * (wrflon[i+1,j] - tgtlon     ) * (tgtlat        - wrflat[i,j]) + \
-                  f11 * (tgtlon        - wrflon[i,j]) * (tgtlat        - wrflat[i,j])
+        f00 = self.ds.sel(nx=i  ,ny=j).drop_vars(['x','y'])
+        f10 = self.ds.sel(nx=i+1,ny=j).drop_vars(['x','y'])
+        f01 = self.ds.sel(nx=i  ,ny=j+1).drop_vars(['x','y'])
+        f11 = self.ds.sel(nx=i+1,ny=j+1).drop_vars(['x','y'])
+        finterp = f00 * (wrflon[i+1,j] - tgtlon     ) * (wrflat[i,j+1] - tgtlat     ) \
+                + f10 * (tgtlon        - wrflon[i,j]) * (wrflat[i,j+1] - tgtlat     ) \
+                + f01 * (wrflon[i+1,j] - tgtlon     ) * (tgtlat        - wrflat[i,j]) \
+                + f11 * (tgtlon        - wrflon[i,j]) * (tgtlat        - wrflat[i,j])
         finterp = finterp / ((wrflon[i+1,j] - wrflon[i,j]) * (wrflat[i,j+1] - wrflat[i,j]))
-        # note: y and z coordinates don't get interpolated
         finterp = finterp.assign_coords({'lon':tgtlon,'lat':tgtlat})
-        return finterp.drop_vars(['y','z'])
+        return finterp
 
 
     def map_to_boundary(self,i=None,j=None,k=None,allpts=False):
