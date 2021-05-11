@@ -392,6 +392,7 @@ class BoundaryCoupling(object):
         constdim = constdims[0]
         print('Input is a {:s}-boundary at {:g}'.format(constdim,
                                                         float(self.ds.coords[constdim])))
+        self.constdim = constdim
         
     def write(self, fields, points=True, binary=False, gzip=False):
         """
@@ -480,7 +481,7 @@ class BoundaryCoupling(object):
         print('Wrote',N,'points to',fpath)
 
     def _write_boundary_vector(self,fname,components,binary=False,gzip=False):
-        ds = self.ds.copy()
+        ds = self.ds.isel({self.constdim:0})
         # add missing dimensions, if any
         for dim in self.bndry_dims:
             for var in components:
