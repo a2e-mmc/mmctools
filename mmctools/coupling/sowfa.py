@@ -527,7 +527,7 @@ class BoundaryCoupling(object):
             print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
 
     def _write_boundary_scalar(self,fname,var,binary=False,gzip=False):
-        ds = self.ds.copy()
+        ds = self.ds.isel({self.constdim:0})
         # add missing dimensions, if any
         for dim in self.bndry_dims:
             if dim not in ds[var].dims:
