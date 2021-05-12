@@ -234,10 +234,11 @@ class Toof(object):
         f10 = self.ds.sel(nx=i+1,ny=j).drop_vars(['x','y'])
         f01 = self.ds.sel(nx=i  ,ny=j+1).drop_vars(['x','y'])
         f11 = self.ds.sel(nx=i+1,ny=j+1).drop_vars(['x','y'])
-        finterp = f00 * (wrflon[i+1,j] - tgtlon     ) * (wrflat[i,j+1] - tgtlat     ) \
-                + f10 * (tgtlon        - wrflon[i,j]) * (wrflat[i,j+1] - tgtlat     ) \
-                + f01 * (wrflon[i+1,j] - tgtlon     ) * (tgtlat        - wrflat[i,j]) \
-                + f11 * (tgtlon        - wrflon[i,j]) * (tgtlat        - wrflat[i,j])
+        coef00  = (wrflon[i+1,j] - tgtlon     ) * (wrflat[i,j+1] - tgtlat     )
+        coef10  = (tgtlon        - wrflon[i,j]) * (wrflat[i,j+1] - tgtlat     )
+        coef01  = (wrflon[i+1,j] - tgtlon     ) * (tgtlat        - wrflat[i,j])
+        coef11  = (tgtlon        - wrflon[i,j]) * (tgtlat        - wrflat[i,j])
+        finterp = coef00*f00 + coef10*f10 + coef01*f01 + coef11*f11
         finterp = finterp / ((wrflon[i+1,j] - wrflon[i,j]) * (wrflat[i,j+1] - wrflat[i,j]))
         finterp = finterp.assign_coords({'lon':tgtlon,'lat':tgtlat})
         return finterp
