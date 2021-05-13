@@ -316,7 +316,8 @@ class BoundaryCoupling(object):
                  name='patch',
                  dateref=None,
                  datefrom=None,
-                 dateto=None):
+                 dateto=None,
+                 verbose=True):
         """
         Initialize SOWFA input object. This should be called for _each_
         inflow/outflow boundary.
@@ -344,6 +345,7 @@ class BoundaryCoupling(object):
             with the last timestamp in df; only used if dateref is
             specified
         """
+        self.verbose = verbose
         self.name = name
         self.dpath = os.path.join(dpath, name)
         # Create folder dpath if needed
@@ -478,7 +480,8 @@ class BoundaryCoupling(object):
         else:
             with self._open(fpath, 'w', gzip=gzip) as f:
                 np.savetxt(f, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
-        print('Wrote',N,'points to',fpath)
+        if self.verbose: 
+            print('Wrote',N,'points to',fpath)
 
     def _write_boundary_vector(self,fname,components,binary=False,gzip=False):
         ds = self.ds.isel({self.constdim:0})
@@ -524,7 +527,8 @@ class BoundaryCoupling(object):
                         f.write(b'\n(0 0 0) // average value')
                     else:
                         f.write('\n(0 0 0) // average value')
-            print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
+            if self.verbose: 
+                print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
 
     def _write_boundary_scalar(self,fname,var,binary=False,gzip=False):
         ds = self.ds.isel({self.constdim:0})
@@ -562,5 +566,6 @@ class BoundaryCoupling(object):
                         f.write(b'\n0 // average value')
                     else:
                         f.write('\n0 // average value')
-            print('Wrote',N,'scalars to',fpath,'at',str(tstamp))
+            if self.verbose: 
+                print('Wrote',N,'scalars to',fpath,'at',str(tstamp))
 

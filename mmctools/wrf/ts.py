@@ -253,7 +253,7 @@ class Toof(object):
         assert np.count_nonzero([idx is not None for idx in [i,j,k]])==1, \
                 'Specify i, j, or k'
         if allpts:
-            print('WARNING: current implementation of allpts is likely to result in extreme memory usage and may crash')
+            print('WARNING: Current implementation of allpts can result in extreme memory usage')
         # interpolate to selected lat/lon
         selected_x, selected_y, selected_lat, selected_lon = \
                 self._select_boundary_latlon(i,j,k,allpts)
