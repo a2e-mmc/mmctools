@@ -260,13 +260,18 @@ class Toof(object):
         if self.verbose:
             print('selected lat:',selected_lat)
             print('selected lon:',selected_lon)
+        # get all selected profiles
         dslist = self._get_datasets_at_locations(
                 selected_x,selected_y,selected_lat,selected_lon)
         # combine all interpolated profiles
         boundarydata = self._create_dataset_from_list(i,j,k,allpts,dslist)
+        if boundarydata.chunks:
+            from dask.diagnostics import ProgressBar
+            with ProgressBar():
+                boundarydata = boundarydata.compute()
         return boundarydata
 
-    def _get_datasets_at_locations(self,selected_x, selected_y, selected_lat, selected_lon):
+    def _get_datasets_at_locations(self, selected_x, selected_y, selected_lat, selected_lon):
         dslist = []
         for x,y,lat,lon in zip(selected_x, selected_y, selected_lat, selected_lon):
             ds = self.interp_to_latlon((lat,lon))
@@ -283,10 +288,11 @@ class Toof(object):
             mydim = 'y'
             idx = j
         if ((i is not None) or (j is not None)) and allpts:
-            # if allpts, interpolate side boundary profiles to exact domain heights
+            # lateral boundaries: if allpts, interpolate side boundary
+            # profiles to exact domain heights
             ds = ds.interp(height=self.domain.z)
         elif k is not None:
-            # if horizontal boundary, interpolate to constant z
+            # horizontal boundaries: interpolate to constant z
             if self.verbose:
                 print('interpolating to',self.domain.z[k])
             ds = ds.interp(height=self.domain.z[k])
