@@ -1382,42 +1382,32 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
         if specified_heights is not None:
             if len(specified_heights) == 1:
                 print("One height")
-                #print(ds.dims)                                                                                                   
-                #print(ds.coords)                                                                                                 
-                ds_subset['u'] = ds['SLICES_U'].sel( SLICES_Z = specified_heights ) 
-
-                ds_subset['v'] = ds['SLICES_V'].sel( SLICES_Z = specified_heights )
-
-                ds_subset['w'] = ds['SLICES_W'].sel( SLICES_Z = specified_heights )
-
-                ds_subset['T'] = ds['SLICES_T'].sel( SLICES_Z = specified_heights )
+                #print(ds.dims)
+                #print(ds.coords)
+                ds_subset['u'] = ds['SLICES_U'].sel(SLICES_Z=specified_heights)
+                ds_subset['v'] = ds['SLICES_V'].sel(SLICES_Z=specified_heights)
+                ds_subset['w'] = ds['SLICES_W'].sel(SLICES_Z=specified_heights)
+                ds_subset['T'] = ds['SLICES_T'].sel(SLICES_Z=specified_heights)
             else:
                 print("Multiple heights")
-                ds_subset['u'] = ds['SLICES_U'].sel( SLICES_Z = specified_heights )
-
-                ds_subset['v'] = ds['SLICES_V'].sel( SLICES_Z = specified_heights )
-
-                ds_subset['w'] = ds['SLICES_W'].sel( SLICES_Z = specified_heights )
-
-                ds_subset['T'] = ds['SLICES_T'].sel( SLICES_Z = specified_heights )
+                ds_subset['u'] = ds['SLICES_U'].sel(SLICES_Z=specified_heights)
+                ds_subset['v'] = ds['SLICES_V'].sel(SLICES_Z=specified_heights)
+                ds_subset['w'] = ds['SLICES_W'].sel(SLICES_Z=specified_heights)
+                ds_subset['T'] = ds['SLICES_T'].sel(SLICES_Z=specified_heights)
         else:
-
             ds_subset['u'] = ds['SLICES_U']
-
             ds_subset['v'] = ds['SLICES_V']
-
             ds_subset['w'] = ds['SLICES_W']
-
             ds_subset['T'] = ds['SLICES_T']
+
         print('Calculating derived data variables, wspd, wdir...')
-        #print( (ds_subset['u'].ufuncs.square()).values )                                                                         
-        ds_subset['wspd'] = xr.DataArray(np.sqrt(ds_subset['u'].values**2 + ds_subset['v'].values**2),
-                                     dims=dim_keys)
-        ds_subset['wdir'] = xr.DataArray(180. + np.arctan2(ds_subset['u'].values,ds_subset['v'].values)*180./np.pi,
-                                     dims=dim_keys)
-
-
-
+        #print((ds_subset['u'].ufuncs.square()).values)
+        ds_subset['wspd'] = xr.DataArray(
+                np.sqrt(ds_subset['u'].values**2 + ds_subset['v'].values**2),
+                dims=dim_keys)
+        ds_subset['wdir'] = xr.DataArray(
+                180. + np.arctan2(ds_subset['u'].values,ds_subset['v'].values)*180./np.pi,
+                dims=dim_keys)
 
     if do_surf_vars:
         print('Extracting 2-D variables (UST, HFX, QFX, SST, SSTSK)')
@@ -1429,24 +1419,15 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
     else:
         print("Skipping 2-D variables")
 
-
-
-    # assign rename coord variable for time, and assign ccordinates                                                               
-
+    # assign rename coord variable for time, and assign coordinates
     if specified_heights is None:
         ds_subset = ds_subset.assign_coords(z=ds_subset['SLICES_Z'])
     ds_subset = ds_subset.assign_coords(y=ds_subset['y'])
     ds_subset = ds_subset.assign_coords(x=ds_subset['x'])
-
-
-
     print(ds_subset.dims)
     ds_subset = ds_subset.rename_dims(dims_dict)
 
     return ds_subset
-
-
-
 
 
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
