@@ -1304,37 +1304,38 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,
     return ds_subset
 
 
-
 def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
-                               specified_heights = None,
-                               do_slice_vars = True,
-                               do_surf_vars = False,
-                               vlist = None  ):
-    """                                                                                                                           
-    Construct an a2e-mmc standard, xarrays-based, data structure from a                                                           
-    series of WRF slice outpput fies                                                                                              
-                                                                                                                                  
-    Note: Base state theta= 300.0 K is assumed by convention in WRF,                                                              
-        this function follow this convention.                                                                                     
-                                                                                                                                  
-    Usage                                                                                                                         
-    ====                                                                                                                          
-    wrfpath : string                                                                                                              
-        The path to directory containing wrfout files to be processed                                                             
-    wrf_file_filter : string-glob expression                                                                                      
-        A string-glob expression to filter a set of 4-dimensional WRF                                                             
-        output files.                                                                                                             
-    specified_heights : list-like, optional                                                                                        
-        If not None, then a list of static heights to which all data                                                              
-        variables should be     interpolated. Note that this significantly                                                        
-        increases the data read time.                                                                                             
-    do_slice_vars: Logical (default True), optional                                                                               
-       If true, then the slice variables (SLICES_U, SLICES_V, SLICES_W, SLICES_T) are read for the specified height               
-       (or for all heights if 'specified_heights = None')                                                                          
-    do_surf_vars: Logical (default False), optional                                                                               
-       If true, then the surface variables (UST, HFX, QFX, SST, SSTK) will be added to the file                                   
-    vlist: List-like, default None (optional).                                                                                    
-       If not none, then do_slice_vars and do_surf_vars set to False, and only variables in the list 'vlist' are read             
+                               specified_heights=None,
+                               do_slice_vars=True,
+                               do_surf_vars=False,
+                               vlist=None):
+    """
+    Construct an a2e-mmc standard, xarrays-based, data structure from a
+    series of WRF slice output files
+
+    Note: Base state theta= 300.0 K is assumed by convention in WRF,
+          and this function follows this convention.                                                                                     
+    Usage
+    ====
+    wrfpath : string
+        The path to directory containing wrfout files to be processed
+    wrf_file_filter : string-glob expression
+        A string-glob expression to filter a set of 4-dimensional WRF
+        output files.
+    specified_heights : list-like, optional
+        If not None, then a list of static heights to which all data
+        variables should be interpolated. Note that this significantly
+        increases the data read time.
+    do_slice_vars: Logical (default True), optional
+       If true, then the slice variables (SLICES_U, SLICES_V, SLICES_W,
+       SLICES_T) are read for the specified height (or for all heights
+       if 'specified_heights = None')
+    do_surf_vars: Logical (default False), optional
+       If true, then the surface variables (UST, HFX, QFX, SST, SSTK)
+       will be added to the file
+    vlist: List-like, default None (optional)
+       If not none, then do_slice_vars and do_surf_vars set to False,
+       and only variables in the list 'vlist' are read
     """
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K                                                                        
     dims_dict = {
