@@ -1334,7 +1334,7 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
        If true, then the surface variables (UST, HFX, QFX, SST, SSTK)
        will be added to the file
     vlist: List-like, default None (optional)
-       If not none, then do_slice_vars and do_surf_vars set to False,
+       If not none, then set do_slice_vars and do_surf_vars to False,
        and only variables in the list 'vlist' are read
     """
     TH0 = 300.0 #WRF convention base-state theta = 300.0 K                                                                        
@@ -1366,10 +1366,8 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
     ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
     ds_subset['x'] = xr.DataArray(xcoord, dims='west_east')
 
-
-
     if vlist not None:
-	print("Vlist not nne, setting do_slice_vars andd do_surf_vars to False")
+	print("vlist not None, setting do_slice_vars and do_surf_vars to False")
 	print("Does not support specified_heights argument, grabing all available heights")
 	do_slice_vars = False
         do_surf_vars = False
@@ -1377,7 +1375,6 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
         for vv in vlist:
             print(vv)
             ds_subset[vv] = ds[vv]
-
 
     if do_slice_vars:
         print("Doing slice variables")
