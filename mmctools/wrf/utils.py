@@ -60,6 +60,8 @@ ts_header = [
     'UST',    # u* from M-O 
 ]
 
+TH0 = 300.0 # [K] base-state potential temperature by WRF convention
+
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
     and xarray
@@ -370,7 +372,7 @@ class Tower():
                     datadict[varn] = ((tsdata[:,1:] + tsdata[:,:-1]) / 2).ravel()
                 elif varn == 'th':
                     # theta is a special case
-                    #assert np.all(tsdata[:,-1] == 300), 'Unexpected nonzero value for theta'
+                    #assert np.all(tsdata[:,-1] == TH0), 'Unexpected nonzero value for theta'
                     # drop the trailing 0 for already unstaggered quantities
                     datadict[varn] = tsdata[:,:-1].ravel()
                 else:
@@ -564,7 +566,7 @@ class Tower():
                     tsdata = getattr(self,varn)
                     #if varn == 'th':
                     #    # theta is a special case
-                    #    assert np.all(tsdata[:,-1] == 300)
+                    #    assert np.all(tsdata[:,-1] == TH0)
                     #elif not varn == 'ww':
                     #    # if w has already been destaggered by wrf
                     #    assert np.all(tsdata[:,-1] == 0)
@@ -744,7 +746,7 @@ def add_surface_plane(var,plane=None):
 
 def extract_column_from_wrfdata(fpath, coords,
                                 Ztop=2000., Vres=5.0,
-                                T0=300.,
+                                T0=TH0,
                                 spatial_filter='interpolate',L_filter=0.0,
                                 additional_fields=[],
                                 verbose=False,
@@ -1189,7 +1191,6 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,
         dimension to facilitate and expedite xarray operations
     """
     import wrf as wrfpy
-    TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
         'Time':'datetime',
         'bottom_top':'nz',
@@ -1337,7 +1338,6 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
        If not none, then set do_slice_vars and do_surf_vars to False,
        and only variables in the list 'vlist' are read
     """
-    TH0 = 300.0 #WRF convention base-state theta = 300.0 K                                                                        
     dims_dict = {
         'Time':'datetime',
         'num_slices':'nz_slice',
@@ -1431,7 +1431,6 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
 
 
 def test(blerg):
-    TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     print(TH0)
 
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
