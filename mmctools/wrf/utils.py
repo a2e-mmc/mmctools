@@ -60,6 +60,8 @@ ts_header = [
     'UST',    # u* from M-O 
 ]
 
+TH0 = 300.0 # [K] base-state potential temperature by WRF convention
+
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
     and xarray
@@ -370,7 +372,7 @@ class Tower():
                     datadict[varn] = ((tsdata[:,1:] + tsdata[:,:-1]) / 2).ravel()
                 elif varn == 'th':
                     # theta is a special case
-                    #assert np.all(tsdata[:,-1] == 300), 'Unexpected nonzero value for theta'
+                    #assert np.all(tsdata[:,-1] == TH0), 'Unexpected nonzero value for theta'
                     # drop the trailing 0 for already unstaggered quantities
                     datadict[varn] = tsdata[:,:-1].ravel()
                 else:
@@ -564,7 +566,7 @@ class Tower():
                     tsdata = getattr(self,varn)
                     #if varn == 'th':
                     #    # theta is a special case
-                    #    assert np.all(tsdata[:,-1] == 300)
+                    #    assert np.all(tsdata[:,-1] == TH0)
                     #elif not varn == 'ww':
                     #    # if w has already been destaggered by wrf
                     #    assert np.all(tsdata[:,-1] == 0)
@@ -744,7 +746,7 @@ def add_surface_plane(var,plane=None):
 
 def extract_column_from_wrfdata(fpath, coords,
                                 Ztop=2000., Vres=5.0,
-                                T0=300.,
+                                T0=TH0,
                                 spatial_filter='interpolate',L_filter=0.0,
                                 additional_fields=[],
                                 verbose=False,
@@ -1189,7 +1191,6 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,
         dimension to facilitate and expedite xarray operations
     """
     import wrf as wrfpy
-    TH0 = 300.0 #WRF convention base-state theta = 300.0 K
     dims_dict = {
         'Time':'datetime',
         'bottom_top':'nz',
@@ -1304,39 +1305,39 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,
     return ds_subset
 
 
-
 def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
-                               specified_height = None,
-                               do_slice_vars = True,
-                               do_surf_vars = False,
-                               vlist = None  ):
-    """                                                                                                                           
-    Construct an a2e-mmc standard, xarrays-based, data structure from a                                                           
-    series of WRF slice outpput fies                                                                                              
-                                                                                                                                  
-    Note: Base state theta= 300.0 K is assumed by convention in WRF,                                                              
-        this function follow this convention.                                                                                     
-                                                                                                                                  
-    Usage                                                                                                                         
-    ====                                                                                                                          
-    wrfpath : string                                                                                                              
-        The path to directory containing wrfout files to be processed                                                             
-    wrf_file_filter : string-glob expression                                                                                      
-        A string-glob expression to filter a set of 4-dimensional WRF                                                             
-        output files.                                                                                                             
-    specified_height : list-like, optional                                                                                        
-        If not None, then a list of static heights to which all data                                                              
-        variables should be     interpolated. Note that this significantly                                                        
-        increases the data read time.                                                                                             
-    do_slice_vars: Logical (default True), optional                                                                               
-       If true, then the slice variables (SLICES_U, SLICES_V, SLICES_W, SLICES_T) are read for the specified height               
-       (or for all heights if 'specified_height = None')                                                                          
-    do_surf_vars: Logical (default False), optional                                                                               
-       If true, then the surface variables (UST, HFX, QFX, SST, SSTK) will be added to the file                                   
-    vlist: List-like, default None (optional).                                                                                    
-       If not none, then do_slice_vars and do_surf_vars set to False, and only variables in the list 'vlist' are read             
+                               specified_heights=None,
+                               do_slice_vars=True,
+                               do_surf_vars=False,
+                               vlist=None):
     """
-    TH0 = 300.0 #WRF convention base-state theta = 300.0 K                                                                        
+    Construct an a2e-mmc standard, xarrays-based, data structure from a
+    series of WRF slice output files
+
+    Note: Base state theta= 300.0 K is assumed by convention in WRF,
+          and this function follows this convention.                                                                                     
+    Usage
+    ====
+    wrfpath : string
+        The path to directory containing wrfout files to be processed
+    wrf_file_filter : string-glob expression
+        A string-glob expression to filter a set of 4-dimensional WRF
+        output files.
+    specified_heights : list-like, optional
+        If not None, then a list of static heights to which all data
+        variables should be interpolated. Note that this significantly
+        increases the data read time.
+    do_slice_vars: Logical (default True), optional
+       If true, then the slice variables (SLICES_U, SLICES_V, SLICES_W,
+       SLICES_T) are read for the specified height (or for all heights
+       if 'specified_heights = None')
+    do_surf_vars: Logical (default False), optional
+       If true, then the surface variables (UST, HFX, QFX, SST, SSTK)
+       will be added to the file
+    vlist: List-like, default None (optional)
+       If not none, then set do_slice_vars and do_surf_vars to False,
+       and only variables in the list 'vlist' are read
+    """
     dims_dict = {
         'Time':'datetime',
         'num_slices':'nz_slice',
@@ -1360,66 +1361,53 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
     print('Establishing coordinate variables, x,y,z, zSurface...')
     ycoord = ds.DY * (0.5 + np.arange(ds.dims['south_north']))
     xcoord = ds.DX * (0.5 + np.arange(ds.dims['west_east']))
-    ds_subset['z'] = xr.DataArray(specified_height, dims='num_slices')
+    ds_subset['z'] = xr.DataArray(specified_heights, dims='num_slices')
 
     ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
     ds_subset['x'] = xr.DataArray(xcoord, dims='west_east')
 
-
-
-    if vlist not None:
-	print("Vlist not nne, setting do_slice_vars andd do_surf_vars to False")
-	print("Does not support specified_height argument, grabing all available heights")
-	do_slice_vars = False
+    if vlist is not None:
+        print("vlist not None, setting do_slice_vars and do_surf_vars to False")
+        print("Does not support specified_heights argument, grabing all available heights")
+        do_slice_vars = False
         do_surf_vars = False
         print("Extracting variables")
         for vv in vlist:
             print(vv)
             ds_subset[vv] = ds[vv]
 
-
     if do_slice_vars:
         print("Doing slice variables")
         print('Grabbing u, v, w, T')
-        if specified_height is not None:
-            if len(specified_height) == 1:
+        if specified_heights is not None:
+            if len(specified_heights) == 1:
                 print("One height")
-                #print(ds.dims)                                                                                                   
-                #print(ds.coords)                                                                                                 
-                ds_subset['u'] = ds['SLICES_U'].sel( SLICES_Z = specified_height )
-
-                ds_subset['v'] = ds['SLICES_V'].sel( SLICES_Z = specified_height )
-
-                ds_subset['w'] = ds['SLICES_W'].sel( SLICES_Z = specified_height )
-
-                ds_subset['T'] = ds['SLICES_T'].sel( SLICES_Z = specified_height )
+                #print(ds.dims)
+                #print(ds.coords)
+                ds_subset['u'] = ds['SLICES_U'].sel(SLICES_Z=specified_heights)
+                ds_subset['v'] = ds['SLICES_V'].sel(SLICES_Z=specified_heights)
+                ds_subset['w'] = ds['SLICES_W'].sel(SLICES_Z=specified_heights)
+                ds_subset['T'] = ds['SLICES_T'].sel(SLICES_Z=specified_heights)
             else:
                 print("Multiple heights")
-                ds_subset['u'] = ds['SLICES_U'].sel( SLICES_Z = specified_height )
-
-                ds_subset['v'] = ds['SLICES_V'].sel( SLICES_Z = specified_height )
-
-                ds_subset['w'] = ds['SLICES_W'].sel( SLICES_Z = specified_height )
-
-                ds_subset['T'] = ds['SLICES_T'].sel( SLICES_Z = specified_height )
+                ds_subset['u'] = ds['SLICES_U'].sel(SLICES_Z=specified_heights)
+                ds_subset['v'] = ds['SLICES_V'].sel(SLICES_Z=specified_heights)
+                ds_subset['w'] = ds['SLICES_W'].sel(SLICES_Z=specified_heights)
+                ds_subset['T'] = ds['SLICES_T'].sel(SLICES_Z=specified_heights)
         else:
-
             ds_subset['u'] = ds['SLICES_U']
-
             ds_subset['v'] = ds['SLICES_V']
-
             ds_subset['w'] = ds['SLICES_W']
-
             ds_subset['T'] = ds['SLICES_T']
+
         print('Calculating derived data variables, wspd, wdir...')
-        #print( (ds_subset['u'].ufuncs.square()).values )                                                                         
-        ds_subset['wspd'] = xr.DataArray(np.sqrt(ds_subset['u'].values**2 + ds_subset['v'].values**2),
-                                     dims=dim_keys)
-        ds_subset['wdir'] = xr.DataArray(180. + np.arctan2(ds_subset['u'].values,ds_subset['v'].values)*180./np.pi,
-                                     dims=dim_keys)
-
-
-
+        #print((ds_subset['u'].ufuncs.square()).values)
+        ds_subset['wspd'] = xr.DataArray(
+                np.sqrt(ds_subset['u'].values**2 + ds_subset['v'].values**2),
+                dims=dim_keys)
+        ds_subset['wdir'] = xr.DataArray(
+                180. + np.arctan2(ds_subset['u'].values,ds_subset['v'].values)*180./np.pi,
+                dims=dim_keys)
 
     if do_surf_vars:
         print('Extracting 2-D variables (UST, HFX, QFX, SST, SSTSK)')
@@ -1431,24 +1419,15 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
     else:
         print("Skipping 2-D variables")
 
-
-
-    # assign rename coord variable for time, and assign ccordinates                                                               
-
-    if specified_height is None:
+    # assign rename coord variable for time, and assign coordinates
+    if specified_heights is None:
         ds_subset = ds_subset.assign_coords(z=ds_subset['SLICES_Z'])
     ds_subset = ds_subset.assign_coords(y=ds_subset['y'])
     ds_subset = ds_subset.assign_coords(x=ds_subset['x'])
-
-
-
     print(ds_subset.dims)
     ds_subset = ds_subset.rename_dims(dims_dict)
 
     return ds_subset
-
-
-
 
 
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
