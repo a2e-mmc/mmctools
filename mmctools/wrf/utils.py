@@ -1366,10 +1366,10 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
     ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
     ds_subset['x'] = xr.DataArray(xcoord, dims='west_east')
 
-    if vlist not None:
-	print("vlist not None, setting do_slice_vars and do_surf_vars to False")
-	print("Does not support specified_heights argument, grabing all available heights")
-	do_slice_vars = False
+    if vlist is not None:
+        print("vlist not None, setting do_slice_vars and do_surf_vars to False")
+        print("Does not support specified_heights argument, grabing all available heights")
+        do_slice_vars = False
         do_surf_vars = False
         print("Extracting variables")
         for vv in vlist:
@@ -1429,6 +1429,10 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
 
     return ds_subset
 
+
+def test(blerg):
+    TH0 = 300.0 #WRF convention base-state theta = 300.0 K
+    print(TH0)
 
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
     """
