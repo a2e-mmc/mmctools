@@ -1430,9 +1430,6 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
     return ds_subset
 
 
-def test(blerg):
-    print(TH0)
-
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
     """
     Write a list of lat/lon or i/j locations to a tslist file that is
