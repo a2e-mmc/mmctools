@@ -1306,7 +1306,7 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,
 
 
 def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
-                               specified_height = None,
+                               specified_heights = None,
                                do_slice_vars = True,
                                do_surf_vars = False,
                                vlist = None  ):
@@ -1324,13 +1324,13 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
     wrf_file_filter : string-glob expression                                                                                      
         A string-glob expression to filter a set of 4-dimensional WRF                                                             
         output files.                                                                                                             
-    specified_height : list-like, optional                                                                                        
+    specified_heights : list-like, optional                                                                                        
         If not None, then a list of static heights to which all data                                                              
         variables should be     interpolated. Note that this significantly                                                        
         increases the data read time.                                                                                             
     do_slice_vars: Logical (default True), optional                                                                               
        If true, then the slice variables (SLICES_U, SLICES_V, SLICES_W, SLICES_T) are read for the specified height               
-       (or for all heights if 'specified_height = None')                                                                          
+       (or for all heights if 'specified_heights = None')                                                                          
     do_surf_vars: Logical (default False), optional                                                                               
        If true, then the surface variables (UST, HFX, QFX, SST, SSTK) will be added to the file                                   
     vlist: List-like, default None (optional).                                                                                    
@@ -1360,7 +1360,7 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
     print('Establishing coordinate variables, x,y,z, zSurface...')
     ycoord = ds.DY * (0.5 + np.arange(ds.dims['south_north']))
     xcoord = ds.DX * (0.5 + np.arange(ds.dims['west_east']))
-    ds_subset['z'] = xr.DataArray(specified_height, dims='num_slices')
+    ds_subset['z'] = xr.DataArray(specified_heights, dims='num_slices')
 
     ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
     ds_subset['x'] = xr.DataArray(xcoord, dims='west_east')
@@ -1369,7 +1369,7 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
 
     if vlist not None:
 	print("Vlist not nne, setting do_slice_vars andd do_surf_vars to False")
-	print("Does not support specified_height argument, grabing all available heights")
+	print("Does not support specified_heights argument, grabing all available heights")
 	do_slice_vars = False
         do_surf_vars = False
         print("Extracting variables")
@@ -1381,27 +1381,27 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
     if do_slice_vars:
         print("Doing slice variables")
         print('Grabbing u, v, w, T')
-        if specified_height is not None:
-            if len(specified_height) == 1:
+        if specified_heights is not None:
+            if len(specified_heights) == 1:
                 print("One height")
                 #print(ds.dims)                                                                                                   
                 #print(ds.coords)                                                                                                 
-                ds_subset['u'] = ds['SLICES_U'].sel( SLICES_Z = specified_height )
+                ds_subset['u'] = ds['SLICES_U'].sel( SLICES_Z = specified_heights ) 
 
-                ds_subset['v'] = ds['SLICES_V'].sel( SLICES_Z = specified_height )
+                ds_subset['v'] = ds['SLICES_V'].sel( SLICES_Z = specified_heights )
 
-                ds_subset['w'] = ds['SLICES_W'].sel( SLICES_Z = specified_height )
+                ds_subset['w'] = ds['SLICES_W'].sel( SLICES_Z = specified_heights )
 
-                ds_subset['T'] = ds['SLICES_T'].sel( SLICES_Z = specified_height )
+                ds_subset['T'] = ds['SLICES_T'].sel( SLICES_Z = specified_heights )
             else:
                 print("Multiple heights")
-                ds_subset['u'] = ds['SLICES_U'].sel( SLICES_Z = specified_height )
+                ds_subset['u'] = ds['SLICES_U'].sel( SLICES_Z = specified_heights )
 
-                ds_subset['v'] = ds['SLICES_V'].sel( SLICES_Z = specified_height )
+                ds_subset['v'] = ds['SLICES_V'].sel( SLICES_Z = specified_heights )
 
-                ds_subset['w'] = ds['SLICES_W'].sel( SLICES_Z = specified_height )
+                ds_subset['w'] = ds['SLICES_W'].sel( SLICES_Z = specified_heights )
 
-                ds_subset['T'] = ds['SLICES_T'].sel( SLICES_Z = specified_height )
+                ds_subset['T'] = ds['SLICES_T'].sel( SLICES_Z = specified_heights )
         else:
 
             ds_subset['u'] = ds['SLICES_U']
@@ -1435,7 +1435,7 @@ def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
 
     # assign rename coord variable for time, and assign ccordinates                                                               
 
-    if specified_height is None:
+    if specified_heights is None:
         ds_subset = ds_subset.assign_coords(z=ds_subset['SLICES_Z'])
     ds_subset = ds_subset.assign_coords(y=ds_subset['y'])
     ds_subset = ds_subset.assign_coords(x=ds_subset['x'])
