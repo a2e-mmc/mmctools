@@ -250,10 +250,15 @@ class CDSDataset(object):
 
     def __init__(self):
         if not os.path.isfile(self.api_rc):
-            print('WARNING: '+self.api_rc+' not found')
-            print('Go to https://cds.climate.copernicus.eu/api-how-to for more information')
-        import cdsapi
-        self.client = cdsapi.Client()
+            raise FileNotFoundError(f"""Expected CDS API key in {self.api_rc}
+Go to https://cds.climate.copernicus.eu/api-how-to for more information""")
+        try:
+            import cdsapi
+        except ImportError:
+            raise ModuleNotFoundError("""Need CDS API client
+Run `conda install -c conda-forge cdsapi`""")
+        else:
+            self.client = cdsapi.Client()
 
     def download(self,datetimes,product,prefix=None,
                  variables=[],
