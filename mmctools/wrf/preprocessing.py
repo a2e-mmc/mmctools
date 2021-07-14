@@ -263,7 +263,8 @@ Run `conda install -c conda-forge cdsapi`""")
     def download(self,datetimes,product,prefix=None,
                  variables=[],
                  area=[],
-                 pressure_levels=None):
+                 pressure_levels=None,
+                 combine_request=False):
         """Download data at specified datetimes.
 
         Usage
@@ -283,6 +284,11 @@ Run `conda install -c conda-forge cdsapi`""")
             North/west/south/east lat/long limits
         pressure_levels : list, optional
             List of pressure levels
+        combine_request : bool, optional
+            Aggregate requested dates into lists of years, months, days,
+            and hours--note that this may return additional time steps
+            because the request selects all permutations of
+            year/month/day/hour; should be False for WRF WPS
         """
         if prefix is None:
             prefix = os.path.join('.',product)
@@ -297,14 +303,23 @@ Run `conda install -c conda-forge cdsapi`""")
         if pressure_levels is not None:
             req['pressure_level'] = pressure_levels
             print('Requesting',len(pressure_levels),'pressure levels')
-        for datetime in datetimes:
-            req['year'] = datetime.strftime('%Y')
-            req['month'] = datetime.strftime('%m')
-            req['day'] = datetime.strftime('%d')
-            req['time'] = datetime.strftime('%H:%M')
-            target = datetime.strftime('{:s}_%Y_%m_%d_%H.grib'.format(prefix))
-            #print(datetime,req,target)
+        if combine_request:
+            print('Combining all datetimes into a single request')
+            req['year'] = sorted(list(set([datetime.strftime('%Y') for datetime in datetimes])))
+            req['month'] = sorted(list(set([datetime.strftime('%m') for datetime in datetimes])))
+            req['day'] = sorted(list(set([datetime.strftime('%d') for datetime in datetimes])))
+            req['time'] = sorted(list(set([datetime.strftime('%H:%M') for datetime in datetimes])))
+            target = datetimes[0].strftime('{:s}_from_%Y_%m_%d_%H.grib'.format(prefix))
             self.client.retrieve(product, req, target)
+        else:
+            for datetime in datetimes:
+                req['year'] = datetime.strftime('%Y')
+                req['month'] = datetime.strftime('%m')
+                req['day'] = datetime.strftime('%d')
+                req['time'] = datetime.strftime('%H:%M')
+                target = datetime.strftime('{:s}_%Y_%m_%d_%H.grib'.format(prefix))
+                #print(datetime,req,target)
+                self.client.retrieve(product, req, target)
 
     
 class ERA5(CDSDataset):
@@ -324,7 +339,7 @@ class ERA5(CDSDataset):
     Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=74764925
     """
 
-    def download(self,datetimes,path=None,bounds={}):
+    def download(self,datetimes,path=None,bounds={},combine_request=False):
         """Download data at specified datetimes.
 
         Descriptions:
@@ -344,6 +359,11 @@ class ERA5(CDSDataset):
             includes all of US and Central America, most of Alaska 
             and Canada (up to 60deg latitude), and parts of South 
             America that lie north of the equator.
+        combine_request : bool, optional
+            Aggregate requested dates into lists of years, months, days,
+            and hours--note that this may return additional time steps
+            because the request selects all permutations of
+            year/month/day/hour; should be False for WRF WPS
         """
         if path is None:
             path = '.'
@@ -376,7 +396,8 @@ class ERA5(CDSDataset):
                 '600','650','700','750','775','800','825','850','875','900',
                 '925','950','975','1000'
             ],
-            area=area
+            area=area,
+            combine_request=combine_request,
         )
         super().download(
             datetimes,
@@ -402,7 +423,8 @@ class ERA5(CDSDataset):
                 'volumetric_soil_water_layer_1','volumetric_soil_water_layer_2',
                 'volumetric_soil_water_layer_3','volumetric_soil_water_layer_4'
             ],
-            area=area
+            area=area,
+            combine_request=combine_request,
         )
 
 
