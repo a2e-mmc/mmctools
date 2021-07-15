@@ -82,8 +82,18 @@ df = read_dir(dpath, file_filter='*_w*', reader=profiler)
 
 ## Installation
 
-To install, run `pip install -e mmctools` after cloning the repository (or `pip install -e .` from inside a2e-mmc/mmctools).
+The recommended approach is to first create a new conda environment:
+```
+conda create -n mmc python=3.7
+conda activate mmc
+conda install -y -c conda-forge jupyterlab matplotlib scipy xarray dask pyarrow gdal rasterio elevation pyyaml netcdf4 wrf-python cdsapi cfgrib
+```
 
+Then create an "editable" installation of the mmctools repository:
+```
+cd /path/to/a2e-mmc/mmctools
+pip install -e .`
+```
 
 ## Code Development Principles
 
