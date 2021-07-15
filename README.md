@@ -103,7 +103,7 @@ Note: All packages after `xarray` are optional:
 Then create an "editable" installation of the mmctools repository:
 ```
 cd /path/to/a2e-mmc/mmctools
-pip install -e .`
+pip install -e .
 ```
 
 ## Code Development Principles
