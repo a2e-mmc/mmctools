@@ -88,6 +88,17 @@ conda create -n mmc python=3.7
 conda activate mmc
 conda install -y -c conda-forge jupyterlab matplotlib scipy xarray dask pyarrow gdal rasterio elevation pyyaml netcdf4 wrf-python cdsapi cfgrib
 ```
+Note: All packages after `xarray` are optional:
+- `dask` makes netcdf data processing more efficient
+- `pyarrow` is a dependency for the "feather" data format, an *extremely* efficient
+  way to save dataframe data (in terms file I/O time and file size)
+- `gdal`, `rasterio`, and `elevation` are required for processing terrain data
+- `netcdf4` and `wrf-python` are for the NCAR-provided WRF utilities, which are
+  useful for interpolating and slicing data
+- `cdsapi` is needed for `wrf.preprocessing` to retrieve Copernicus ERA5
+  reanalysis data
+- `cfgrib` enables xarray to load grib files
+
 
 Then create an "editable" installation of the mmctools repository:
 ```
