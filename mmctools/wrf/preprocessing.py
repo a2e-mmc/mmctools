@@ -339,7 +339,49 @@ class ERA5(CDSDataset):
     Ref: https://confluence.ecmwf.int/pages/viewpage.action?pageId=74764925
     """
 
-    def download(self,datetimes,path=None,bounds={},combine_request=False):
+    default_single_level_vars = [
+        '10m_u_component_of_wind','10m_v_component_of_wind',
+        '2m_dewpoint_temperature','2m_temperature',
+        'convective_snowfall','convective_snowfall_rate_water_equivalent',
+        'ice_temperature_layer_1','ice_temperature_layer_2',
+        'ice_temperature_layer_3','ice_temperature_layer_4',
+        'land_sea_mask','large_scale_snowfall',
+        'large_scale_snowfall_rate_water_equivalent',
+        'maximum_2m_temperature_since_previous_post_processing',
+        'mean_sea_level_pressure',
+        'minimum_2m_temperature_since_previous_post_processing',
+        'sea_ice_cover','sea_surface_temperature','skin_temperature',
+        'snow_albedo','snow_density','snow_depth','snow_evaporation',
+        'snowfall','snowmelt','soil_temperature_level_1',
+        'soil_temperature_level_2','soil_temperature_level_3',
+        'soil_temperature_level_4','soil_type','surface_pressure',
+        'temperature_of_snow_layer','total_column_snow_water',
+        'volumetric_soil_water_layer_1','volumetric_soil_water_layer_2',
+        'volumetric_soil_water_layer_3','volumetric_soil_water_layer_4'
+    ]
+
+    default_pressure_level_vars = [
+        'divergence','fraction_of_cloud_cover','geopotential',
+        'ozone_mass_mixing_ratio','potential_vorticity',
+        'relative_humidity','specific_cloud_ice_water_content',
+        'specific_cloud_liquid_water_content','specific_humidity',
+        'specific_rain_water_content','specific_snow_water_content',
+        'temperature','u_component_of_wind','v_component_of_wind',
+        'vertical_velocity','vorticity'
+    ]
+
+    default_pressure_levels = [
+        '1','2','3','5','7','10','20','30','50','70','100','125','150',
+        '175','200','225','250','300','350','400','450','500','550',
+        '600','650','700','750','775','800','825','850','875','900',
+        '925','950','975','1000'
+    ]
+
+    def download(self,datetimes,path=None,
+                 pressure_level_vars='default', pressure_levels='default',
+                 single_level_vars='default',
+                 bounds={},
+                 combine_request=False):
         """Download data at specified datetimes.
 
         Descriptions:
@@ -359,6 +401,15 @@ class ERA5(CDSDataset):
             includes all of US and Central America, most of Alaska 
             and Canada (up to 60deg latitude), and parts of South 
             America that lie north of the equator.
+        pressure_level_vars : list, optional
+            Variables to retrieve at the specified pressure levels; if
+            set to 'default', then use `default_pressure_level_vars`
+        pressure_levels : list, optional
+            Pressure levels from which 4D data are constructed; if set
+            to 'default', then use `default_pressure_levels`
+        single_level_vars : list, optional
+            Variables to retrieve at the specified pressure levels; if
+            set to 'default', then use `default_single_level_vars`
         combine_request : bool, optional
             Aggregate requested dates into lists of years, months, days,
             and hours--note that this may return additional time steps
@@ -374,58 +425,35 @@ class ERA5(CDSDataset):
         S_bound = bounds.get('S', 0)
         W_bound = bounds.get('W', -169)
         E_bound = bounds.get('E', -47)
+
+        if single_level_vars == 'default':
+            single_level_vars = self.default_single_level_vars
+        if pressure_level_vars == 'default':
+            pressure_level_vars = self.default_pressure_level_vars
+        if pressure_levels == 'default':
+            pressure_levels = self.default_pressure_levels
             
         area = [N_bound, W_bound, S_bound, E_bound]
             
-        super().download(
-            datetimes,
-            'reanalysis-era5-pressure-levels',
-            prefix=os.path.join(path,'era5_pressure'),
-            variables=[
-                'divergence','fraction_of_cloud_cover','geopotential',
-                'ozone_mass_mixing_ratio','potential_vorticity',
-                'relative_humidity','specific_cloud_ice_water_content',
-                'specific_cloud_liquid_water_content','specific_humidity',
-                'specific_rain_water_content','specific_snow_water_content',
-                'temperature','u_component_of_wind','v_component_of_wind',
-                'vertical_velocity','vorticity'
-            ],
-            pressure_levels=[
-                '1','2','3','5','7','10','20','30','50','70','100','125','150',
-                '175','200','225','250','300','350','400','450','500','550',
-                '600','650','700','750','775','800','825','850','875','900',
-                '925','950','975','1000'
-            ],
-            area=area,
-            combine_request=combine_request,
-        )
-        super().download(
-            datetimes,
-            'reanalysis-era5-single-levels',
-            prefix=os.path.join(path,'era5_surface'),
-            variables=[
-                '10m_u_component_of_wind','10m_v_component_of_wind',
-                '2m_dewpoint_temperature','2m_temperature',
-                'convective_snowfall','convective_snowfall_rate_water_equivalent',
-                'ice_temperature_layer_1','ice_temperature_layer_2',
-                'ice_temperature_layer_3','ice_temperature_layer_4',
-                'land_sea_mask','large_scale_snowfall',
-                'large_scale_snowfall_rate_water_equivalent',
-                'maximum_2m_temperature_since_previous_post_processing',
-                'mean_sea_level_pressure',
-                'minimum_2m_temperature_since_previous_post_processing',
-                'sea_ice_cover','sea_surface_temperature','skin_temperature',
-                'snow_albedo','snow_density','snow_depth','snow_evaporation',
-                'snowfall','snowmelt','soil_temperature_level_1',
-                'soil_temperature_level_2','soil_temperature_level_3',
-                'soil_temperature_level_4','soil_type','surface_pressure',
-                'temperature_of_snow_layer','total_column_snow_water',
-                'volumetric_soil_water_layer_1','volumetric_soil_water_layer_2',
-                'volumetric_soil_water_layer_3','volumetric_soil_water_layer_4'
-            ],
-            area=area,
-            combine_request=combine_request,
-        )
+        if pressure_level_vars:
+            super().download(
+                datetimes,
+                'reanalysis-era5-pressure-levels',
+                prefix=os.path.join(path,'era5_pressure'),
+                variables=pressure_level_vars,
+                pressure_levels=pressure_levels,
+                area=area,
+                combine_request=combine_request,
+            )
+        if single_level_vars:
+            super().download(
+                datetimes,
+                'reanalysis-era5-single-levels',
+                prefix=os.path.join(path,'era5_surface'),
+                variables=single_level_vars,
+                area=area,
+                combine_request=combine_request,
+            )
 
 
 class SetupWRF():
