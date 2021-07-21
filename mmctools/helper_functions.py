@@ -1323,7 +1323,7 @@ def calcTRI(hgt,window=None,footprint=None):
     return tri
 
 
-def calcVRM(hgt,window=None,footprint=None,slope_zscale=1.0,return_slope=False):
+def calcVRM(hgt,res,window=None,footprint=None,fill_depressions=True,return_slope_aspect=False):
     '''
     Vector Ruggedness Measure
     Sappington, J. M., Longshore, K. M., & Thompson, D. B. (2007). 
@@ -1333,6 +1333,9 @@ def calcVRM(hgt,window=None,footprint=None,slope_zscale=1.0,return_slope=False):
     
     hgt : array
         Array of heights over which TRI will be calculated
+    res : int or float
+        Resolution of the underlying hgt array. Should be constant in x and y
+        Needed for proper slope calculation
     window : int
         Length of window in x and y direction. Must be odd.
     '''
@@ -1353,18 +1356,22 @@ def calcVRM(hgt,window=None,footprint=None,slope_zscale=1.0,return_slope=False):
     assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
     ny,nx = np.shape(hgt)
 
+    # Determine scale based on resolution of hgt array
+    zscale = 1/res
+
     # Get slope and aspect:
     hgt_rd = rd.rdarray(hgt, no_data=-9999)
-    rd.FillDepressions(hgt_rd, in_place=True)
-    slope  = rd.TerrainAttribute(hgt_rd, attrib='slope_riserun', zscale=slope_zscale)
+    if fill_depressions:
+        rd.FillDepressions(hgt_rd, in_place=True)
+    slope  = rd.TerrainAttribute(hgt_rd, attrib='slope_degrees',zscale=zscale)
     aspect = rd.TerrainAttribute(hgt_rd, attrib='aspect')
     
     # Calculate vectors:
     vrm = np.zeros((ny,nx))
-    rugz   = np.cos(slope*np.pi/180.0)
-    rugdxy = np.sin(slope*np.pi/180.0)
-    rugx   = rugdxy*np.cos(aspect*np.pi/180.0)
-    rugy   = rugdxy*np.sin(aspect*np.pi/180.0)
+    rugz   = np.cos(np.deg2rad(slope))
+    rugdxy = np.sin(np.deg2rad(slope))
+    rugx   = rugdxy*np.cos(np.deg2rad(aspect))
+    rugy   = rugdxy*np.sin(np.deg2rad(aspect))
 
     def vrm_filt(x):
         return(sum(x)**2)
@@ -1384,7 +1391,8 @@ def calcVRM(hgt,window=None,footprint=None,slope_zscale=1.0,return_slope=False):
     else:
         num_points = float(window**2)
     vrm = 1.0 - np.sqrt(vrmX + vrmY + vrmZ)/num_points
-    if return_slope:
-        return vrm,slope
+    if return_slope_aspect:
+        return vrm,slope,aspect
     else:
         return vrm
+
