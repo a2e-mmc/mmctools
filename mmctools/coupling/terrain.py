@@ -520,6 +520,7 @@ def calcTRI(hgt,window=None,footprint=None):
     window : int
         Length of window in x and y direction. Must be odd.
     '''
+    import xarray as xr
     from scipy.ndimage.filters import generic_filter
 
     # Window setup:
@@ -566,6 +567,7 @@ def calcVRM(hgt,res,window=None,footprint=None,fill_depressions=True,return_slop
         Length of window in x and y direction. Must be odd.
     '''
     import richdem as rd
+    import xarray as xr
     from scipy.ndimage.filters import generic_filter
 
     # Window setup:
