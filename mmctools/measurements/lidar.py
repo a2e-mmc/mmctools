@@ -8,11 +8,15 @@ import pandas as pd
 import xarray as xr
 
 class LidarData(object):
-    def __init__(self,df,verbose=True):
+    def __init__(self,df,range=None,azimuth=None,elevation=None,verbose=True):
         """Lidar data described by range, azimuth, and elevation"""
         self.verbose = verbose
         self.df = df
+        self.specified_range = range
+        self.specified_azimuth = azimuth
+        self.specified_elevation = elevation
         self._check_coords()
+        self._to_xyz()
 
     def _check_coords(self):
         if all([coord in self.df.index.names
@@ -21,10 +25,20 @@ class LidarData(object):
             if self.verbose: print('3D volumetric scan loaded')
         elif 'range' not in self.df.index.names:
             if self.verbose: print('Vertical scan loaded')
+            if self.specified_range is None:
+                print('`range` not specified, x/y/z will be invalid')
+                self.specified_range = 1
         elif 'azimuth' not in self.df.index.names:
             if self.verbose: print('RHI scan loaded')
+            if self.specified_azimuth is None:
+                print('`azimuth` not specified, x/y/z may be invalid')
+                self.specified_azimuth = 0.0
         elif 'elevation' not in self.df.index.names:
             if self.verbose: print('PPI scan loaded')
+            if self.specified_elevation is None:
+                if self.verbose:
+                    print('`elevation` not specified, assuming el=0')
+                self.specified_elevation = 0.0
         else:
             raise IndexError('Unexpected index levels in dataframe: '+str(self.df.index.names))
 
@@ -34,6 +48,26 @@ class LidarData(object):
         else:
             self.range_gate_size = dr
         self.rmax = self.df.index.levels[0][-1] + self.range_gate_size
+
+    def _to_xyz(self):
+        try:
+            r  = self.df.index.get_level_values('range')
+        except KeyError:
+            r = self.specified_range
+        try:
+            az = np.radians(270 - self.df.index.get_level_values('azimuth'))
+        except KeyError:
+            az = np.radians(self.specified_azimuth)
+        try:
+            el = np.radians(self.df.index.get_level_values('elevation'))
+        except KeyError:
+            el = np.radians(self.specified_elevation)
+        if not hasattr(self,'x'):
+            self.x = r * np.cos(az) * np.cos(el)
+        if not hasattr(self,'y'):
+            self.y = r * np.sin(az) * np.cos(el)
+        if not hasattr(self,'z'):
+            self.z = r * np.sin(el)
 
     @property 
     def r(self):
@@ -111,13 +145,13 @@ class Perdigao(LidarData):
 
     def __init__(self,
                  fpath,
-                 range_gate='Range gates',
-                 azimuth='Azimuth angle',
-                 elevation='Elevation angle',
+                 range_gate_name='Range gates',
+                 azimuth_name='Azimuth angle',
+                 elevation_name='Elevation angle',
                  range_gate_size=30.,
                  **kwargs):
         self.range_gate_size = range_gate_size
-        df = self._load(fpath,range_gate,azimuth,elevation)
+        df = self._load(fpath,range_gate_name,azimuth_name,elevation_name)
         super().__init__(df, **kwargs)
 
     def _load(self,fpath,range_gate,azimuth,elevation):
@@ -135,5 +169,5 @@ class Perdigao(LidarData):
         })
         df['range'] *= self.range_gate_size
         df = df.set_index(['range','azimuth','elevation']).sort_index()
-        return df
+        return df.xs(10.5,level='elevation')
 
