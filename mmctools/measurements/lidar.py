@@ -47,6 +47,64 @@ class LidarData(object):
     def el(self):
         return self.df.index.levels[2]
 
+    # slicers
+    def get(r=None, az=None, el=None):
+        if r is not None:
+            return get_range(r)
+        elif az is not None:
+            return get_azimuth(az)
+        elif el is not None:
+            return get_elevation(el)
+
+    def get_range(self, r):
+        rs = self.df.index.levels[0]
+        if r < 0:
+            raise ValueError('Invalid range, r < 0')
+        elif r >= self.rmax:
+            raise ValueError(f'Invalid range, r >= {self.rmax}')
+        if r not in rs:
+            try:
+                idx = np.where(r < rs)[0][0] - 1
+            except IndexError:
+                idx = len(rs) - 1
+                r0 = self.df.index.levels[0][idx]
+                r1 = self.rmax
+            else:
+                r0 = self.df.index.levels[0][idx]
+                r1 = self.df.index.levels[0][idx+1]
+            assert (r >= r0) & (r < r1)
+        else:
+            idx = list(rs).index(r)
+            r0 = r
+            r1 = r + self.range_gate_size
+        if self.verbose:
+            print(f'getting range gate {idx} between {r0} and {r1}')
+        return self.df.xs(r0, level='range')
+    
+    def get_azimuth(self, az):
+        azs = self.df.index.levels[1]
+        if az < azs[0]:
+            raise ValueError(f'Invalid range, az < {azs[0]}')
+        elif az > azs[-1]:
+            raise ValueError(f'Invalid range, az > {azs[-1]}')
+        if az not in azs:
+            az = azs[np.argmin(np.abs(az - azs))]
+            if self.verbose:
+                print(f'getting nearest azimuth={az} deg')
+        return self.df.xs(az, level='azimuth')
+
+    def get_elevation(self, el):
+        els = self.df.index.levels[2]
+        if el < els[0]:
+            raise ValueError(f'Invalid range, el < {els[0]}')
+        elif el > els[-1]:
+            raise ValueError(f'Invalid range, el > {els[-1]}')
+        if el not in els:
+            el = els[np.argmin(np.abs(el - els))]
+            if self.verbose:
+                print(f'getting nearest elevation={el} deg')
+        return self.df.xs(el, level='elevation')
+
 
 class Perdigao(LidarData):
     """Galion scanning lidar"""
