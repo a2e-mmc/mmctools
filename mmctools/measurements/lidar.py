@@ -48,13 +48,13 @@ class LidarData(object):
         return self.df.index.levels[2]
 
     # slicers
-    def get(r=None, az=None, el=None):
+    def get(self, r=None, az=None, el=None):
         if r is not None:
-            return get_range(r)
+            return self.get_range(r)
         elif az is not None:
-            return get_azimuth(az)
+            return self.get_azimuth(az)
         elif el is not None:
-            return get_elevation(el)
+            return self.get_elevation(el)
 
     def get_range(self, r):
         rs = self.df.index.levels[0]
