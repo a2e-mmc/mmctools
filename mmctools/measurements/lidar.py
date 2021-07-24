@@ -23,6 +23,12 @@ class LidarData(object):
                 for coord in ['range','azimuth','elevation']
                ]):
             if self.verbose: print('3D volumetric scan loaded')
+            if self.specified_range is not None:
+                print('Ignoring specified range')
+            if self.specified_azimuth is not None:
+                print('Ignoring specified azimuth')
+            if self.specified_elevation is not None:
+                print('Ignoring specified elevation')
         elif 'range' not in self.df.index.names:
             if self.verbose: print('Vertical scan loaded')
             if self.specified_range is None:
@@ -169,5 +175,5 @@ class Perdigao(LidarData):
         })
         df['range'] *= self.range_gate_size
         df = df.set_index(['range','azimuth','elevation']).sort_index()
-        return df.xs(10.5,level='elevation')
+        return df
 
