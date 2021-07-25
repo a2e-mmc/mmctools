@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+
 def calc_xyz(df,range=None,azimuth=None,elevation=0.0):
     try:
         r  = df.index.get_level_values('range')
@@ -17,7 +18,7 @@ def calc_xyz(df,range=None,azimuth=None,elevation=0.0):
         az = np.radians(270 - df.index.get_level_values('azimuth'))
     except ValueError:
         assert (range is not None), 'need to specify constant value for `azimuth`'
-        az = np.radians(azimuth)
+        az = np.radians(270 - azimuth)
     try:
         el = np.radians(df.index.get_level_values('elevation'))
     except ValueError:
