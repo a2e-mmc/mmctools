@@ -24,12 +24,14 @@ def calc_xyz(df,range=None,azimuth=None,elevation=0.0,
         el = np.radians(df.index.get_level_values('elevation'))
     except ValueError:
         el = np.radians(elevation)
-    x = r * np.cos(az)
-    y = r * np.sin(az)
-    if not small_elevation_angles:
-        x *= np.cos(el)
-        y *= np.cos(el)
-    z = r * np.sin(el)
+    if small_elevation_angles:
+        x = r * np.cos(az)
+        y = r * np.sin(az)
+        z = r * el
+    else:
+        x = r * np.cos(az)* np.cos(el)
+        y = r * np.sin(az)* np.cos(el)
+        z = r * np.sin(el)
     return x,y,z
 
 
