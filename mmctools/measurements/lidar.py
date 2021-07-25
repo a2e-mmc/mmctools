@@ -101,7 +101,7 @@ class LidarData(object):
             r1 = r + self.range_gate_size
         if self.verbose:
             print(f'getting range gate {idx} between {r0} and {r1}')
-        return self.df.xs(r0, level='range')
+        return self.df.xs(r0, level='range'), (r0+r1)/2
     
     def get_azimuth(self, az):
         azs = self.df.index.levels[1]
