@@ -87,16 +87,16 @@ class LidarData(object):
             return self.get_elevation(el)
 
     def get_range(self, r):
-        rs = self.df.index.levels[0]
+        rarray = self.df.index.levels[0]
         if r < 0:
             raise ValueError('Invalid range, r < 0')
         elif r >= self.rmax:
             raise ValueError(f'Invalid range, r >= {self.rmax}')
-        if r not in rs:
+        if r not in rarray:
             try:
-                idx = np.where(r < rs)[0][0] - 1
+                idx = np.where(r < rarray)[0][0] - 1
             except IndexError:
-                idx = len(rs) - 1
+                idx = len(rarray) - 1
                 r0 = self.df.index.levels[0][idx]
                 r1 = self.rmax
             else:
@@ -104,7 +104,7 @@ class LidarData(object):
                 r1 = self.df.index.levels[0][idx+1]
             assert (r >= r0) & (r < r1)
         else:
-            idx = list(rs).index(r)
+            idx = list(rarray).index(r)
             r0 = r
             r1 = r + self.range_gate_size
         if self.verbose:
@@ -112,25 +112,25 @@ class LidarData(object):
         return self.df.xs(r0, level='range'), (r0+r1)/2
     
     def get_azimuth(self, az):
-        azs = self.df.index.levels[1]
-        if az < azs[0]:
-            raise ValueError(f'Invalid range, az < {azs[0]}')
-        elif az > azs[-1]:
-            raise ValueError(f'Invalid range, az > {azs[-1]}')
-        if az not in azs:
-            az = azs[np.argmin(np.abs(az - azs))]
+        azarray = self.df.index.levels[1]
+        if az < azarray[0]:
+            raise ValueError(f'Invalid range, az < {azarray[0]}')
+        elif az > azarray[-1]:
+            raise ValueError(f'Invalid range, az > {azarray[-1]}')
+        if az not in azarray:
+            az = azarray[np.argmin(np.abs(az - azarray))]
             if self.verbose:
                 print(f'getting nearest azimuth={az} deg')
         return self.df.xs(az, level='azimuth')
 
     def get_elevation(self, el):
-        els = self.df.index.levels[2]
-        if el < els[0]:
-            raise ValueError(f'Invalid range, el < {els[0]}')
-        elif el > els[-1]:
-            raise ValueError(f'Invalid range, el > {els[-1]}')
-        if el not in els:
-            el = els[np.argmin(np.abs(el - els))]
+        elarray = self.df.index.levels[2]
+        if el < elarray[0]:
+            raise ValueError(f'Invalid range, el < {elarray[0]}')
+        elif el > elarray[-1]:
+            raise ValueError(f'Invalid range, el > {elarray[-1]}')
+        if el not in elarray:
+            el = elarray[np.argmin(np.abs(el - elarray))]
             if self.verbose:
                 print(f'getting nearest elevation={el} deg')
         return self.df.xs(el, level='elevation')
