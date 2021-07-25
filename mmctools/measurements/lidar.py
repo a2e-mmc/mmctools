@@ -38,6 +38,8 @@ class LidarData(object):
         """Lidar data described by range, azimuth, and elevation"""
         self.verbose = verbose
         self.df = df
+        self.RHI = False
+        self.PPI = False
         self._check_coords()
 
     def _check_coords(self):
@@ -49,8 +51,10 @@ class LidarData(object):
             if self.verbose: print('Vertical scan loaded')
         elif 'azimuth' not in self.df.index.names:
             if self.verbose: print('RHI scan loaded')
+            self.RHI = True
         elif 'elevation' not in self.df.index.names:
             if self.verbose: print('PPI scan loaded')
+            self.PPI = True
         else:
             raise IndexError('Unexpected index levels in dataframe: '+str(self.df.index.names))
 
