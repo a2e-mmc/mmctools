@@ -15,10 +15,10 @@ def calc_xyz(df,range=None,azimuth=None,elevation=0.0):
         assert (range is not None), 'need to specify constant value for `range`'
         r = range
     try:
-        az = np.radians(270 - df.index.get_level_values('azimuth'))
+        az = np.radians(90 - df.index.get_level_values('azimuth'))
     except ValueError:
         assert (range is not None), 'need to specify constant value for `azimuth`'
-        az = np.radians(270 - azimuth)
+        az = np.radians(90 - azimuth)
     try:
         el = np.radians(df.index.get_level_values('elevation'))
     except ValueError:
