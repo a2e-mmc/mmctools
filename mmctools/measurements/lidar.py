@@ -136,34 +136,41 @@ class LidarData(object):
         return self.df.xs(el, level='elevation')
 
 
-class Perdigao(LidarData):
-    """Galion scanning lidar"""
+class GalionCornellPerdigao(LidarData):
+    """Data from Galion scanning lidar deployed by Cornell University
+    at the Perdigao field campaign
 
-    def __init__(self,
-                 fpath,
-                 range_gate_name='Range gates',
-                 azimuth_name='Azimuth angle',
-                 elevation_name='Elevation angle',
-                 range_gate_size=30.,
-                 **kwargs):
-        self.range_gate_size = range_gate_size
-        df = self._load(fpath,range_gate_name,azimuth_name,elevation_name)
+    Tested on data retrieved from the UCAR Earth Observing Laboratory
+    data archive (https://data.eol.ucar.edu/dataset/536.036) retrieved
+    on 2021-07-24.
+    """
+
+    def __init__(self,fpath,load_opts={},**kwargs):
+        df = self._load(fpath,**load_opts)
         super().__init__(df, **kwargs)
 
-    def _load(self,fpath,range_gate,azimuth,elevation):
-        """Process a single scan in netcdf format"""
+    def _load(self,
+              fpath,
+              minimum_range=0.,
+              range_gate_size=30.,
+              range_gate_name='Range gates',
+              azimuth_name='Azimuth angle',
+              elevation_name='Elevation angle'):
+        """Process a single scan in netcdf format
+
+        Notes:
+        - Range gates are stored as integers
+        - Not all (r,az,el) data points are available
+        """
         ds = xr.open_dataset(fpath)
         assert (len(ds.dims)==1) and ('y' in ds.dims)
-        r = np.unique(ds[range_gate]) * self.range_gate_size
-        az = np.unique(ds[azimuth])
-        el = np.unique(ds[elevation])
         df = ds.to_dataframe()
         df = df.rename(columns={
             'Range gates': 'range',
             'Azimuth angle': 'azimuth',
             'Elevation angle': 'elevation',
         })
-        df['range'] *= self.range_gate_size
+        df['range'] = minimum_range + df['range']*range_gate_size
         df = df.set_index(['range','azimuth','elevation']).sort_index()
         return df
 
