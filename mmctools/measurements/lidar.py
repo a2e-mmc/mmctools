@@ -40,9 +40,10 @@ class LidarData(object):
         self.df = df
         self.RHI = False
         self.PPI = False
-        self._check_coords()
+        self._check_data()
 
-    def _check_coords(self):
+    def _check_data(self):
+        # check coordinates
         if all([coord in self.df.index.names
                 for coord in ['range','azimuth','elevation']
                ]):
@@ -57,13 +58,15 @@ class LidarData(object):
             self.PPI = True
         else:
             raise IndexError('Unexpected index levels in dataframe: '+str(self.df.index.names))
-
-        dr = self.df.index.levels[0][1] - self.df.index.levels[0][0]
+        # check ranges
+        rarray = self.df.index.levels[0]
+        dr = rarray[1] - rarray[0]
         if hasattr(self, 'range_gate_size'):
             assert self.range_gate_size == dr
         else:
             self.range_gate_size = dr
-        self.rmax = self.df.index.levels[0][-1] + self.range_gate_size
+        self.rmin = rarray[0] - self.range_gate_size/2
+        self.rmax = rarray[-1] + self.range_gate_size/2
 
     @property 
     def r(self):
@@ -79,39 +82,51 @@ class LidarData(object):
 
     # slicers
     def get(self, r=None, az=None, el=None):
+        """Wrapper for get_range, get_azimuth, and get_elevation()"""
         if r is not None:
             return self.get_range(r)
         elif az is not None:
             return self.get_azimuth(az)
         elif el is not None:
             return self.get_elevation(el)
+        else:
+            print('Specify r, az, or el')
 
     def get_range(self, r):
-        rarray = self.df.index.levels[0]
-        if r < 0:
-            raise ValueError('Invalid range, r < 0')
+        """Get range gate containing request range
+
+        Returns a copy of a multiindex dataframe with (r,az,el) indices
+        where r is center of the range gate.
+        """
+        rarray = self.df.index.levels[0] # center of each range gate
+        if r < self.rmin:
+            raise ValueError(f'Invalid range, r < {self.rmin}')
         elif r >= self.rmax:
             raise ValueError(f'Invalid range, r >= {self.rmax}')
         if r not in rarray:
-            try:
-                idx = np.where(r < rarray)[0][0] - 1
-            except IndexError:
-                idx = len(rarray) - 1
-                r0 = self.df.index.levels[0][idx]
-                r1 = self.rmax
-            else:
-                r0 = self.df.index.levels[0][idx]
-                r1 = self.df.index.levels[0][idx+1]
-            assert (r >= r0) & (r < r1)
+            right_edges = rarray + self.range_gate_size/2
+            idx = np.where(r < right_edges)[0][0]
+            rsel = rarray[idx]
+            r0 = rsel - self.range_gate_size/2
+            r1 = rsel + self.range_gate_size/2
+            assert (r >= r0) & (r < r1), f'{r} is not between {r0} and {r1}'
+            if self.verbose:
+                print(f'getting nearest range gate {idx} between {r0} and {r1}')
         else:
+            rsel = r
             idx = list(rarray).index(r)
-            r0 = r
-            r1 = r + self.range_gate_size
-        if self.verbose:
-            print(f'getting range gate {idx} between {r0} and {r1}')
-        return self.df.xs(r0, level='range'), (r0+r1)/2
+            r0 = r - self.range_gate_size/2
+            r1 = r + self.range_gate_size/2
+            if self.verbose:
+                print(f'getting range gate {idx} between {r0} and {r1}')
+        #return self.df.xs(rsel, level='range')
+        return self.df.loc[(rsel,slice(None),slice(None)),:]
     
     def get_azimuth(self, az):
+        """Get requested azimuth (i.e., an RHI slice)
+
+        Returns a copy of a multiindex dataframe with (r,el) indices.
+        """
         azarray = self.df.index.levels[1]
         if az < azarray[0]:
             raise ValueError(f'Invalid range, az < {azarray[0]}')
@@ -124,6 +139,10 @@ class LidarData(object):
         return self.df.xs(az, level='azimuth')
 
     def get_elevation(self, el):
+        """Get requested elevation (i.e., a PPI slice)
+
+        Returns a copy of a multiindex dataframe with (r,az) indices.
+        """
         elarray = self.df.index.levels[2]
         if el < elarray[0]:
             raise ValueError(f'Invalid range, el < {elarray[0]}')
@@ -171,6 +190,7 @@ class GalionCornellPerdigao(LidarData):
             'Elevation angle': 'elevation',
         })
         df['range'] = minimum_range + df['range']*range_gate_size
+        df['range'] += range_gate_size/2 # shift to center of range gate
         df = df.set_index(['range','azimuth','elevation']).sort_index()
         return df
 
