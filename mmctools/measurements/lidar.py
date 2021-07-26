@@ -17,12 +17,12 @@ def calc_xyz(df,range=None,azimuth=None,elevation=0.0,
         r = range
     try:
         az = np.radians(90 - df.index.get_level_values('azimuth'))
-    except ValueError:
+    except KeyError:
         assert (range is not None), 'need to specify constant value for `azimuth`'
         az = np.radians(90 - azimuth)
     try:
         el = np.radians(df.index.get_level_values('elevation'))
-    except ValueError:
+    except KeyError:
         el = np.radians(elevation)
     if small_elevation_angles:
         x = r * np.cos(az)
@@ -187,11 +187,33 @@ class GalionCornellPerdigao(LidarData):
         assert (len(ds.dims)==1) and ('y' in ds.dims)
         df = ds.to_dataframe()
         df = df.rename(columns={
-            'Range gates': 'range',
-            'Azimuth angle': 'azimuth',
-            'Elevation angle': 'elevation',
+            range_gate_name: 'range',
+            azimuth_name: 'azimuth',
+            elevation_name: 'elevation',
         })
         df['range'] = minimum_range + df['range']*range_gate_size
+        df['range'] += range_gate_size/2 # shift to center of range gate
+        df = df.set_index(['range','azimuth','elevation']).sort_index()
+        return df
+
+
+class GalionCornellPEIWEE(LidarData):
+    """Data from Galion scanning lidar deployed by Cornell University
+    at the Prince Edward Island Wind Energy Experiment
+    """
+
+    def __init__(self,fpath,load_opts={},**kwargs):
+        df = self._load(fpath,**load_opts)
+        super().__init__(df, **kwargs)
+
+    def _load(self,
+              fpath,
+              minimum_range=0.,
+              range_gate_size=30.):
+        """Process a single scan in netcdf format
+        """
+        df = pd.read_csv(fpath)
+        df['range'] = minimum_range + df['range_gate']*range_gate_size
         df['range'] += range_gate_size/2 # shift to center of range gate
         df = df.set_index(['range','azimuth','elevation']).sort_index()
         return df
