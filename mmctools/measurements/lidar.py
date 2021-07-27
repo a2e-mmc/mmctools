@@ -10,6 +10,21 @@ import xarray as xr
 
 def calc_xyz(df,range=None,azimuth=None,elevation=0.0,
              small_elevation_angles=False):
+    """Transform scan data with range (range gate center), azimuth, and
+    elevation indices to Cartesian x,y,z coordinates
+
+    Parameters
+    ----------
+    range : optional
+        Needed for vertical scan data without a range coordinate
+    azimuth : optional
+        Needed for RHI scan data without an azimuth coordinate
+    elevation : optional
+        Needed for PPI scan data without an elevation coordinate
+    small_elevation_angles : optional
+        Invoke small angle approximation, i.e., cos(x)~1 and sin(x)~x
+    """
+
     try:
         r  = df.index.get_level_values('range')
     except KeyError:
