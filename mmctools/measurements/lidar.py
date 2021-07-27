@@ -16,11 +16,11 @@ def calc_xyz(df,range=None,azimuth=None,elevation=0.0,
     Parameters
     ----------
     range : optional
-        Needed for vertical scan data without a range coordinate
+        Needed for vertical scan data without a range coordinate [m]
     azimuth : optional
-        Needed for RHI scan data without an azimuth coordinate
+        Needed for RHI scan data without an azimuth coordinate [deg]
     elevation : optional
-        Needed for PPI scan data without an elevation coordinate
+        Needed for PPI scan data without an elevation coordinate [deg]
     small_elevation_angles : optional
         Invoke small angle approximation, i.e., cos(x)~1 and sin(x)~x
     """
