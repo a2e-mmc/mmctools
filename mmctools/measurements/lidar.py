@@ -227,7 +227,10 @@ class GalionCornellPEIWEE(LidarData):
               range_gate_size=30.):
         """Process a single scan in netcdf format
         """
-        df = pd.read_csv(fpath)
+        if isinstance(fpath, pd.DataFrame):
+            df = fpath.copy()
+        else:
+            df = pd.read_csv(fpath)
         df['range'] = minimum_range + df['range_gate']*range_gate_size
         df['range'] += range_gate_size/2 # shift to center of range gate
         df = df.set_index(['range','azimuth','elevation']).sort_index()
