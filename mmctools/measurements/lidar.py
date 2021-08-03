@@ -217,9 +217,15 @@ class GalionCornellPEIWEE(LidarData):
     at the Prince Edward Island Wind Energy Experiment
     """
 
-    def __init__(self,fpath,load_opts={},**kwargs):
+    def __init__(self,fpath,load_opts={},
+                 range_gates=None,
+                 ranges=None,
+                 intensity_range=(None,None),
+                 **kwargs):
         df = self._load(fpath,**load_opts)
         super().__init__(df, **kwargs)
+        self._filter_by_range(range_gates=range_gates, ranges=ranges)
+        self._filter_by_intensity(*intensity_range)
 
     def _load(self,
               fpath,
@@ -235,4 +241,31 @@ class GalionCornellPEIWEE(LidarData):
         df['range'] += range_gate_size/2 # shift to center of range gate
         df = df.set_index(['range','azimuth','elevation']).sort_index()
         return df
+
+    def _filter_by_range(self,range_gates=None,ranges=None):
+        assert range_gates or ranges, 'Specify range_gates or ranges'
+        allranges = self.df.index.get_level_values('range')
+        if range_gates:
+            assert isinstance(range_gates, (tuple,list)), \
+                    'Specify range_gates as (min_gate, max_gate)'
+            if range_gates[0] is not None:
+                minrange = allranges[range_gates[0]]
+                self.df.loc[allranges <= minrange,:] = np.nan
+            if range_gates[1] is not None:
+                maxrange = allranges[range_gates[1]]
+                self.df.loc[allranges >= maxrange,:] = np.nan
+        elif ranges:
+            assert isinstance(ranges, (tuple,list)), \
+                    'Specify ranges as (min_range, max_range)'
+            if ranges[0] is not None:
+                self.df.loc[allranges < ranges[0],:] = np.nan
+            if ranges[1] is not None:
+                self.df.loc[allranges > ranges[1],:] = np.nan
+
+    def _filter_by_intensity(self,min_intensity,max_intensity):
+        if min_intensity is not None:
+            self.df.loc[self.df['intensity']<min_intensity, :] = np.nan
+        if max_intensity is not None:
+            self.df.loc[self.df['intensity']>max_intensity, :] = np.nan
+
 
