@@ -50,6 +50,44 @@ def calc_xyz(df,range=None,azimuth=None,elevation=0.0,
     return x,y,z
 
 
+def estimate_mean_wind(doppler,elevation=None):
+    """Estimate mean wind speed and direction given an arc scan
+
+    Parameters
+    ----------
+    doppler : pd.DataFrame or pd.Series
+        Radial velocity with range, azimuth, and (optionally) elevation
+        indices; if a single elevation cannot be inferred from the data,
+        `elevation` must be specified
+    elevation : float, optional
+        Scan elevation angle [deg]
+    """
+    try:
+        el = doppler.index.get_level_values('elevation')
+    except KeyError:
+        assert (elevation is not None), 'PPI scan, need to specify elevation'
+        el = elevation
+    else:
+        assert np.all(el == el[0])
+    el = np.radians(el)
+    az = np.radians(doppler.index.get_level_values('azimuth'))
+    comp1 = np.cos(el)*np.sin(az)
+    comp2 = np.cos(el)*np.cos(az)
+    missingvals = doppler.isna()
+    if np.any(missingvals):
+        comp1 = comp1[~missingvals]
+        comp2 = comp2[~missingvals]
+        doppler = doppler.copy()
+        doppler = doppler.loc[~missingvals]
+    LHS = np.stack([comp1, comp2], axis=-1)
+    from sklearn.linear_model import LinearRegression
+    reg = LinearRegression(fit_intercept=False).fit(LHS, doppler)
+    U0,V0 = reg.coef_
+    Vmag = np.sqrt(U0**2 + V0**2)
+    beta = 180. + np.degrees(np.arctan2(U0,V0)) # wind dir follows meteorological convention
+    return Vmag, beta
+
+
 class LidarData(object):
     def __init__(self,df,verbose=True):
         """Lidar data described by range, azimuth, and elevation"""
