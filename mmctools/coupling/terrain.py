@@ -704,3 +704,50 @@ def calcSxmean (xx, yy, zagl, A, dmax, method='nearest', verbose=False):
     return Sxmean
 
 
+def calcSb (xx, yy, zagl,  A,  sepdist=60):
+    '''
+    Sb is a measure of upwind slope break and can be used to delineate zones of
+    possible flow separation. This function follows the definition of Sx0 from 
+    the reference listed below and uses 1000m separation.
+    
+    Winstral, A., Marks D. "Simulating wind fields and snow redistribution using
+        terrain-based parameters to model snow accumulation and melt over a semi-
+        arid mountain catchment" Hydrol. Process. 16, 3585–3603 (2002)
+    
+    Usage
+    =====
+    xx, yy : array
+        meshgrid arrays of the region extent coordinates.
+    zagl: array
+        Elevation map of the region
+    A: float
+        Wind direction (deg, wind direction convention)
+    sepdist : float, default 60
+        Separation between between two regional Sx calculations.
+        Suggested value: 60 m.
+    '''
+    
+    from scipy import interpolate
+        
+    # local Sx
+    Sx1 = calcSx(xx, yy, zagl, A, dmax=sepdist)
+    
+    # outlying Sx. Computing it at (xo, yo), and not at (xi, yi)
+    xxo = xx - sepdist*np.cos(np.deg2rad(270-A))
+    yyo = yy - sepdist*np.sin(np.deg2rad(270-A))
+    points = np.array( (xx.flatten(), yy.flatten()) ).T
+    values = zagl.flatten()
+    zaglo = interpolate.griddata( points, values, (xxo,yyo), method='linear' )
+    Sx0 = calcSx(xxo, yyo, zaglo, A, dmax=1000)
+
+    Sb = Sx1 - Sx0
+    
+    return Sb
+
+def calcSbmean (xx, yy, zagl, A, sepdist):
+    
+    Asweep = np.linspace(A-15, A+15, 7)%360
+    Sbmean = np.mean([calcSb(xx, yy, zagl, a, sepdist) for a in Asweep ], axis=0)
+    
+    return Sbmean
+
