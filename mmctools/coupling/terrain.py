@@ -624,3 +624,83 @@ def calcVRM(hgt,res,window=None,footprint=None,fill_depressions=True,return_slop
     else:
         return vrm
 
+
+def calcSx (xx, yy, zagl,  A, dmax, method='nearest', propagateNaN=False, verbose=False):
+    '''
+    Sx is a measure of topographic shelter or exposure relative to a particular
+    wind direction. Calculates a whole map for all points (xi, yi) in the domain.
+    For each (xi, yi) pair, it uses all v points (xv, yv) upwind of (xi, yi) in 
+    the A wind direction, up to dmax.
+    
+    Winstral, A., Marks D. "Simulating wind fields and snow redistribution using
+        terrain-based parameters to model snow accumulation and melt over a semi-
+        arid mountain catchment" Hydrol. Process. 16, 3585–3603 (2002)
+    
+    Usage
+    =====
+    xx, yy : array
+        meshgrid arrays of the region extent coordinates.
+    zagl: array
+        Elevation map of the region
+    A: float
+        Wind direction (deg, wind direction convention)
+    dmax: float
+        Upwind extent of the search
+    method: string
+        griddata interpolation method. Options are 'nearest', 'linear', 'cubic'.
+        Function is slow if not `nearest`.
+    propagateNaN: bool
+        If method != nearest, upwind posititions that lie outside the domain bounds receive NaN
+    '''
+    
+    from scipy import interpolate
+    
+    # create empty output Sx array
+    Sx = np.empty(np.shape(zagl));  Sx[:,:] = np.nan
+    
+    # get resolution (assumes uniform resolution)
+    res = xx[1,0] - xx[0,0]
+    npoints = 1+int(dmax/res)
+    if dmax < res:
+        raise ValueError('dmax needs to be larger or equal to the resolution of the grid')
+    
+    # change angle notation
+    ang = np.deg2rad(270-A)
+    
+    # array for interpolation using griddata
+    points = np.array( (xx.flatten(), yy.flatten()) ).T
+    values = zagl.flatten()
+    
+    for i, xi in enumerate(xx[:,0]):
+        print(f'Processing row {i+1}/{len(xx)}    ', end='\r')
+        for j, yi in enumerate(yy[0,:]):
+            
+            # limits of the line where Sx will be calculated on (minus bc it's upwind)
+            xf = xi - dmax*np.cos(ang)
+            yf = yi - dmax*np.sin(ang)
+            xline = np.around(np.linspace(xi, xf, num=npoints), decimals=4)
+            yline = np.around(np.linspace(yi, yf, num=npoints), decimals=4)
+
+            # interpolate points upstream (xi, yi) along angle ang
+            elev = interpolate.griddata( points, values, (xline,yline), method=method )
+
+            # elevation of (xi, yi), for convenience
+            elevi = elev[0]
+
+            if propagateNaN:
+                Sx[i,j] = np.amax(np.rad2deg( np.arctan( (elev[1:] - elevi)/(((xline[1:]-xi)**2 + (yline[1:]-yi)**2)**0.5) ) ))
+            else:
+                Sx[i,j] = np.nanmax(np.rad2deg( np.arctan( (elev[1:] - elevi)/(((xline[1:]-xi)**2 + (yline[1:]-yi)**2)**0.5) ) ))
+
+            if verbose: print(f'Max angle is {Sx:.4f} degrees')
+
+    return Sx
+
+def calcSxmean (xx, yy, zagl, A, dmax, method='nearest', verbose=False):
+    
+    Asweep = np.linspace(A-15, A+15, 7)%360
+    Sxmean = np.mean([calcSx(xx, yy, zagl, a, dmax, method, verbose=verbose) for a in Asweep ], axis=0)
+    
+    return Sxmean
+
+
