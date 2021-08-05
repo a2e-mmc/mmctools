@@ -751,3 +751,27 @@ def calcSbmean (xx, yy, zagl, A, sepdist):
     
     return Sbmean
 
+
+def calcTPI (xx, yy, zagl, r):
+    '''
+    Topographic Position Index
+    
+    Reu, J, et al. Application of the topographic position index to heterogeneous
+        landscapes. Geomorphology, 186, 39-49 (2013)
+    '''
+    from scipy.signal import convolve2d
+    
+    # get resolution (assumes uniform resolution)
+    res = xx[1,0] - xx[0,0]
+    rpoints = int(r/res)
+    if r < res:
+        raise ValueError('Averaging radium needs to be larger the resolution of the grid')
+        
+    y,x = np.ogrid[-rpoints:rpoints+1, -rpoints:rpoints+1]
+    kernel = x**2+y**2 <= rpoints**2
+    
+    zaglmean = convolve2d(zagl, kernel*1, mode='same', boundary='fill', fillvalue=0)
+    zaglmean = zaglmean/np.sum(kernel*1)
+
+    return zagl - zaglmean
+
