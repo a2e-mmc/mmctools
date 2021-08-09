@@ -625,7 +625,7 @@ def calcVRM(hgt,res,window=None,footprint=None,fill_depressions=True,return_slop
         return vrm
 
 
-def calcSx (xx, yy, zagl,  A, dmax, method='nearest', propagateNaN=False, verbose=False):
+def calcSx(xx, yy, zagl, A, dmax, method='nearest', propagateNaN=False, verbose=False):
     '''
     Sx is a measure of topographic shelter or exposure relative to a particular
     wind direction. Calculates a whole map for all points (xi, yi) in the domain.
@@ -650,7 +650,7 @@ def calcSx (xx, yy, zagl,  A, dmax, method='nearest', propagateNaN=False, verbos
         griddata interpolation method. Options are 'nearest', 'linear', 'cubic'.
         Function is slow if not `nearest`.
     propagateNaN: bool
-        If method != nearest, upwind posititions that lie outside the domain bounds receive NaN
+        If method != nearest, upwind positions that lie outside the domain bounds receive NaN
     '''
     
     from scipy import interpolate
@@ -696,7 +696,7 @@ def calcSx (xx, yy, zagl,  A, dmax, method='nearest', propagateNaN=False, verbos
 
     return Sx
 
-def calcSxmean (xx, yy, zagl, A, dmax, method='nearest', verbose=False):
+def calcSxmean(xx, yy, zagl, A, dmax, method='nearest', verbose=False):
     
     Asweep = np.linspace(A-15, A+15, 7)%360
     Sxmean = np.mean([calcSx(xx, yy, zagl, a, dmax, method, verbose=verbose) for a in Asweep ], axis=0)
@@ -704,7 +704,7 @@ def calcSxmean (xx, yy, zagl, A, dmax, method='nearest', verbose=False):
     return Sxmean
 
 
-def calcSb (xx, yy, zagl,  A,  sepdist=60):
+def calcSb(xx, yy, zagl, A, sepdist=60):
     '''
     Sb is a measure of upwind slope break and can be used to delineate zones of
     possible flow separation. This function follows the definition of Sx0 from 
@@ -744,7 +744,7 @@ def calcSb (xx, yy, zagl,  A,  sepdist=60):
     
     return Sb
 
-def calcSbmean (xx, yy, zagl, A, sepdist):
+def calcSbmean(xx, yy, zagl, A, sepdist):
     
     Asweep = np.linspace(A-15, A+15, 7)%360
     Sbmean = np.mean([calcSb(xx, yy, zagl, a, sepdist) for a in Asweep ], axis=0)
@@ -752,7 +752,7 @@ def calcSbmean (xx, yy, zagl, A, sepdist):
     return Sbmean
 
 
-def calcTPI (xx, yy, zagl, r):
+def calcTPI(xx, yy, zagl, r):
     '''
     Topographic Position Index
     
