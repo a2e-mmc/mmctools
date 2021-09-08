@@ -241,6 +241,12 @@ class Toof(object):
         finterp = coef00*f00 + coef10*f10 + coef01*f01 + coef11*f11
         finterp = finterp / ((wrflon[i+1,j] - wrflon[i,j]) * (wrflat[i,j+1] - wrflat[i,j]))
         finterp = finterp.assign_coords({'lon':tgtlon,'lat':tgtlat})
+        # fix height coordinate if needed
+        if 'height' not in finterp.coords:
+            if 'z' in finterp.coords:
+                finterp = finterp.rename_vars({'z':'height'})
+            else:
+                print('WARNING: no z or height coordinate found')
         return finterp
 
 
