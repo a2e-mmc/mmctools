@@ -750,7 +750,7 @@ def extract_column_from_wrfdata(fpath, coords,
                                 spatial_filter='interpolate',L_filter=0.0,
                                 additional_fields=[],
                                 verbose=False,
-                               ):
+                                **kwargs):
     """
     Extract a column of time-height data for a specific site from a
     4-dimensional WRF output file
@@ -786,7 +786,7 @@ def extract_column_from_wrfdata(fpath, coords,
             'Spatial filtering type "'+spatial_filter+'" not recognised'
 
     # Load WRF data
-    ds = xr.open_dataset(fpath)
+    ds = xr.open_dataset(fpath,**kwargs)
     tdim, zdim, ydim, xdim = get_wrf_dims(ds)
     
     
