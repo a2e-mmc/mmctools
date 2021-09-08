@@ -390,8 +390,13 @@ class BoundaryCoupling(object):
         # Only handle a single boundary plane at a time; boundaries
         # should be aligned with the Cartesian axes
         constdims = [dim for dim in self.ds.dims if self.ds.dims[dim]==1]
-        assert (len(constdims) == 1), 'more than one constant dim'
-        constdim = constdims[0]
+        if len(constdims) > 0:
+            assert (len(constdims) == 1), 'more than one constant dim'
+            constdim = constdims[0]
+        else:
+            nodimcoords = [coord for coord in self.ds.coords if len(self.ds.coords[coord].dims)==0]
+            assert (len(nodimcoords) == 1), 'more than one selected dim'
+            constdim = nodimcoords[0]
         print('Input is a {:s}-boundary at {:g}'.format(constdim,
                                                         float(self.ds.coords[constdim])))
         self.constdim = constdim
@@ -484,7 +489,11 @@ class BoundaryCoupling(object):
             print('Wrote',N,'points to',fpath)
 
     def _write_boundary_vector(self,fname,components,binary=False,gzip=False):
-        ds = self.ds.isel({self.constdim:0})
+        if self.constdim in self.ds.dims:
+            assert self.ds.dims[self.constdim] == 1
+            ds = self.ds.isel({self.constdim:0})
+        else:
+            ds = self.ds
         # add missing dimensions, if any
         for dim in self.bndry_dims:
             for var in components:
@@ -531,7 +540,11 @@ class BoundaryCoupling(object):
                 print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
 
     def _write_boundary_scalar(self,fname,var,binary=False,gzip=False):
-        ds = self.ds.isel({self.constdim:0})
+        if self.constdim in self.ds.dims:
+            assert self.ds.dims[self.constdim] == 1
+            ds = self.ds.isel({self.constdim:0})
+        else:
+            ds = self.ds
         # add missing dimensions, if any
         for dim in self.bndry_dims:
             if dim not in ds[var].dims:
