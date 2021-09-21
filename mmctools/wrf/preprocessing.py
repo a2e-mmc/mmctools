@@ -1553,3 +1553,178 @@ class OverwriteSST():
             print('File exists... replacing')
             os.remove(new_file)
         new.to_netcdf(new_file)
+
+class create_eta_levels():
+    '''
+    Generate a list of eta levels for WRF simulations. Core of the eta level code
+    comes from Tim Juliano of NCAR. Alternatively, the user can provide a list of
+    eta levels and use the smooth_eta_levels feature.
+    
+    Usage:
+    =====
+    levels : list or array
+        The list of levels you want to convert to eta levels
+    surface_temp : float
+        average temperature at the surface
+    pres_top : float
+        pressure at the top of the domain
+    height_top : float
+        height of the top of the domain
+    p0 :float
+        reference pressure / pressure at the surface
+    n_total_levels : int
+        number of total levels. If levels does not reach the model
+        top, then this needs to be specified so that the code 
+        knows how many more levels to generate
+    fill_to_top : boolean
+        if len(levels) != n_total_levels then this tells the code
+        to fill to the top or not
+    smooth_eta : boolean
+        If true, this will use a spline interpolation on the d(eta)
+        levels and re-normalize between 1.0 and 0.0 so that there
+        is a smooth transition between the specified levels and the
+        filled levels.
+                             
+    Examples:
+    1. Levels specified to the model top:
+
+    eta_levels = generate_eta_levels(levels=np.arange(0,4000.1,20.0),
+                                     pres_top=62500.0,
+                                     surface_temp=290.0,
+                                     height_top=4000,
+                                     n_total_levels=201,
+                                     smooth_eta=False
+                                     )
+                                     
+    
+    2. Only specify lower levels and let the program fill the rest (no smoothing):
+
+    eta_levels = generate_eta_levels(levels=np.linspace(0,1000,50),
+                                     pres_top=10000.0,
+                                     surface_temp=282.72,
+                                     height_top=16229.028,
+                                     n_total_levels=88,
+                                     smooth_eta=False
+                                     )
+
+    3. Smooth the eta levels so there are no harsh jumps in d(eta):
+    
+    eta_levels = generate_eta_levels(levels=np.linspace(0,1000,50),
+                                     pres_top=10000.0,
+                                     surface_temp=282.72,
+                                     height_top=16229.028,
+                                     n_total_levels=88,
+                                     smooth_eta=True
+                                     )
+
+    '''
+    
+    def __init__(self, levels=None,
+                 eta_levels=None,
+                 surface_temp=290,
+                 pres_top=None,
+                 height_top=14417.41,
+                 p0=100000.0,
+                 fill_to_top=True,
+                 n_total_levels=None):
+    
+        if eta_levels is not None:
+            self.eta_levels = eta_levels
+        else:
+            if (levels is None) or ((type(levels) is not list) and (type(levels) is not np.array) and (type(levels) is not np.ndarray)):
+                print('Please specify levels in list or array')
+                return
+            else:        
+                if not (all((isinstance(z, float) or isinstance(z, int) or isinstance(z, np.int64)) for z in levels)):
+                    print('Levels must be of type float or integer')
+                    return
+                if type(levels) is list:
+                    levels = np.asarray(levels)
+
+            self.levels = levels
+
+            if n_total_levels < len(self.levels):
+                print('Setting n_total_levels to be len(levels).')
+                n_total_levels = len(levels)
+
+            pressure = self._pressure_calc(surface_temp,height_top,p0)
+            if pres_top is None:
+                pres_top = pressure[-1]
+
+            self.eta_levels = self._eta_level_calc(pressure,pres_top,height_top,p0,n_total_levels,fill_to_top)
+        
+
+    def _pressure_calc(self,surface_temp,
+                       height_top,
+                       p0,
+                       pres_calc_option=1):
+        gas_constant_dry_air = 287.06
+        gravity = 9.80665
+        M = 0.0289644
+        universal_gas_constant = 8.3144598
+
+        if pres_calc_option == 1:
+            pressure = p0*np.exp((-gravity*self.levels)/gas_constant_dry_air/surface_temp)
+        elif pres_calc_option == 2:
+            pressure = p0*np.exp((-gravity*M*self.levels/(universal_gas_constant*surface_temp)))
+        else:
+            print('pres_calc_option = {} is not a valid option. Please select 1 or 2'.format(pres_calc_option))
+
+        return(pressure)
+    
+    def _eta_level_calc(self,pressure,
+                        pres_top,
+                        height_top,
+                        p0,
+                        n_total_levels,
+                        fill_to_top):
+        
+        eta_levels = np.zeros(n_total_levels)
+
+        eta_levels[:len(self.levels)] = (pressure-pres_top)/(p0-pres_top)
+
+        if np.max(self.levels) < height_top:
+            if (n_total_levels is None) or (n_total_levels <= len(self.levels)):
+                print('Insufficient number of levels to reach model top.')
+                print('Height top: {}, top of specified levels: {}, number of levels: {}'.format(
+                                height_top,self.levels[-1],n_total_levels))
+                print('Must specify n_total_levels to complete eta_levels to model top')
+                return
+            remaining_levels = n_total_levels - len(self.levels)
+
+            eta_levels_top = np.zeros(remaining_levels+2)
+            z_scale = 0.4
+            for k in range(1,remaining_levels+2):
+                kind = k-1
+                eta_levels_top[kind] = (np.exp(-(k-1)/float(n_total_levels)/z_scale) - np.exp(-1./z_scale))/ (1.-np.exp(-1./z_scale))
+            eta_levels_top -= eta_levels_top[-2]
+            eta_levels_top = eta_levels_top[:-1]
+            eta_levels_top /= np.max(eta_levels_top)
+            eta_levels_top *= eta_levels[len(self.levels)-1]
+
+            eta_levels[len(self.levels):] = eta_levels_top[1:]
+            
+        return(eta_levels)
+    
+    def smooth_eta_levels(self,
+                          smooth_fact=7e-4,
+                          smooth_degree=2):
+        
+        eta_levels = self.eta_levels
+        deta_x = np.arange(0,len(eta_levels)-1)
+        deta = eta_levels[1:] - eta_levels[:-1]
+        
+        spl = UnivariateSpline(deta_x,deta,k=smooth_degree)
+
+        spl.set_smoothing_factor(smooth_fact)
+        deta_x = np.arange(0,len(eta_levels)-1)
+        new_deta = spl(deta_x)
+
+
+        final_eta_levels = np.ones(len(new_deta)+1)
+        for ee,eta in enumerate(final_eta_levels[1:]):
+            final_eta_levels[ee+1] = 1 + sum(new_deta[:ee+1])
+        final_eta_levels -= min(final_eta_levels)
+        final_eta_levels /= max(final_eta_levels)
+        
+        return(final_eta_levels)
