@@ -1554,7 +1554,7 @@ class OverwriteSST():
             os.remove(new_file)
         new.to_netcdf(new_file)
 
-class create_eta_levels():
+class CreateEtaLevels():
     '''
     Generate a list of eta levels for WRF simulations. Core of the eta level code
     comes from Tim Juliano of NCAR. Alternatively, the user can provide a list of
