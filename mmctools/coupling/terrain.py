@@ -506,3 +506,272 @@ def calc_slope(x,y,z):
     rise_run = np.sqrt(dz_dx**2 + dz_dy**2)
     slope[1:-1,1:-1] = np.degrees(np.arctan(rise_run))
     return slope
+
+
+def calcTRI(hgt,window=None,footprint=None):
+    '''
+    Terrain Ruggedness Index
+    Riley, S. J., DeGloria, S. D., & Elliot, R. (1999). Index that 
+        quantifies topographic heterogeneity. intermountain Journal 
+        of sciences, 5(1-4), 23-27.
+    
+    hgt : array
+        Array of heights over which TRI will be calculated
+    window : int
+        Length of window in x and y direction. Must be odd.
+    '''
+    import xarray as xr
+    from scipy.ndimage.filters import generic_filter
+
+    # Window setup:
+    if footprint is not None:
+        assert window is None, 'Must specify either window or footprint'
+        window = np.shape(footprint)[0]
+    
+    assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
+    Hwindow = int(np.floor(window/2))
+    
+    # Type and dimension check:
+    if isinstance(hgt,(xr.Dataset,xr.DataArray,xr.Variable)):
+        hgt = hgt.data    
+    assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
+    
+    ny,nx = np.shape(hgt)
+    
+    def tri_filt(x):
+        middle_ind = int(len(x)/2)
+        return((sum((x - x[middle_ind])**2.0))**0.5)
+    
+    if footprint is None:
+        tri = generic_filter(hgt,tri_filt, size = (window,window))
+    else:
+        tri = generic_filter(hgt,tri_filt, footprint=footprint)
+    
+    return tri
+
+
+def calcVRM(hgt,res,window=None,footprint=None,fill_depressions=True,return_slope_aspect=False):
+    '''
+    Vector Ruggedness Measure
+    Sappington, J. M., Longshore, K. M., & Thompson, D. B. (2007). 
+        Quantifying landscape ruggedness for animal habitat analysis: 
+        a case study using bighorn sheep in the Mojave Desert. The 
+        Journal of wildlife management, 71(5), 1419-1426.
+    
+    hgt : array
+        Array of heights over which TRI will be calculated
+    res : int or float
+        Resolution of the underlying hgt array. Should be constant in x and y
+        Needed for proper slope calculation
+    window : int
+        Length of window in x and y direction. Must be odd.
+    '''
+    import richdem as rd
+    import xarray as xr
+    from scipy.ndimage.filters import generic_filter
+
+    # Window setup:
+    if footprint is not None:
+        assert window is None, 'Must specify either window or footprint'
+        window = np.shape(footprint)[0]
+        
+    assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
+    Hwndw = int(np.floor(window/2))
+
+    # Type and dimension check:
+    if isinstance(hgt,(xr.Dataset,xr.DataArray,xr.Variable)):
+        hgt = hgt.data    
+    assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
+    ny,nx = np.shape(hgt)
+
+    # Determine scale based on resolution of hgt array
+    zscale = 1/res
+
+    # Get slope and aspect:
+    hgt_rd = rd.rdarray(hgt, no_data=-9999)
+    if fill_depressions:
+        rd.FillDepressions(hgt_rd, in_place=True)
+    slope  = rd.TerrainAttribute(hgt_rd, attrib='slope_degrees',zscale=zscale)
+    aspect = rd.TerrainAttribute(hgt_rd, attrib='aspect')
+    
+    # Calculate vectors:
+    vrm = np.zeros((ny,nx))
+    rugz   = np.cos(np.deg2rad(slope))
+    rugdxy = np.sin(np.deg2rad(slope))
+    rugx   = rugdxy*np.cos(np.deg2rad(aspect))
+    rugy   = rugdxy*np.sin(np.deg2rad(aspect))
+
+    def vrm_filt(x):
+        return(sum(x)**2)
+
+    if footprint is None:
+        vrmX = generic_filter(rugx,vrm_filt, size = (window,window))
+        vrmY = generic_filter(rugy,vrm_filt, size = (window,window))
+        vrmZ = generic_filter(rugz,vrm_filt, size = (window,window))
+    else:
+        vrmX = generic_filter(rugx,vrm_filt, footprint=footprint)
+        vrmY = generic_filter(rugy,vrm_filt, footprint=footprint)
+        vrmZ = generic_filter(rugz,vrm_filt, footprint=footprint)    
+
+
+    if footprint is not None:
+        num_points = len(footprint[footprint != 0.0])
+    else:
+        num_points = float(window**2)
+    vrm = 1.0 - np.sqrt(vrmX + vrmY + vrmZ)/num_points
+    if return_slope_aspect:
+        return vrm,slope,aspect
+    else:
+        return vrm
+
+
+def calcSx(xx, yy, zagl, A, dmax, method='nearest', propagateNaN=False, verbose=False):
+    '''
+    Sx is a measure of topographic shelter or exposure relative to a particular
+    wind direction. Calculates a whole map for all points (xi, yi) in the domain.
+    For each (xi, yi) pair, it uses all v points (xv, yv) upwind of (xi, yi) in 
+    the A wind direction, up to dmax.
+    
+    Winstral, A., Marks D. "Simulating wind fields and snow redistribution using
+        terrain-based parameters to model snow accumulation and melt over a semi-
+        arid mountain catchment" Hydrol. Process. 16, 3585–3603 (2002)
+    
+    Usage
+    =====
+    xx, yy : array
+        meshgrid arrays of the region extent coordinates.
+    zagl: array
+        Elevation map of the region
+    A: float
+        Wind direction (deg, wind direction convention)
+    dmax: float
+        Upwind extent of the search
+    method: string
+        griddata interpolation method. Options are 'nearest', 'linear', 'cubic'.
+        Function is slow if not `nearest`.
+    propagateNaN: bool
+        If method != nearest, upwind positions that lie outside the domain bounds receive NaN
+    '''
+    
+    from scipy import interpolate
+    
+    # create empty output Sx array
+    Sx = np.empty(np.shape(zagl));  Sx[:,:] = np.nan
+    
+    # get resolution (assumes uniform resolution)
+    res = xx[1,0] - xx[0,0]
+    npoints = 1+int(dmax/res)
+    if dmax < res:
+        raise ValueError('dmax needs to be larger or equal to the resolution of the grid')
+    
+    # change angle notation
+    ang = np.deg2rad(270-A)
+    
+    # array for interpolation using griddata
+    points = np.array( (xx.flatten(), yy.flatten()) ).T
+    values = zagl.flatten()
+    
+    for i, xi in enumerate(xx[:,0]):
+        print(f'Processing row {i+1}/{len(xx)}    ', end='\r')
+        for j, yi in enumerate(yy[0,:]):
+            
+            # limits of the line where Sx will be calculated on (minus bc it's upwind)
+            xf = xi - dmax*np.cos(ang)
+            yf = yi - dmax*np.sin(ang)
+            xline = np.around(np.linspace(xi, xf, num=npoints), decimals=4)
+            yline = np.around(np.linspace(yi, yf, num=npoints), decimals=4)
+
+            # interpolate points upstream (xi, yi) along angle ang
+            elev = interpolate.griddata( points, values, (xline,yline), method=method )
+
+            # elevation of (xi, yi), for convenience
+            elevi = elev[0]
+
+            if propagateNaN:
+                Sx[i,j] = np.amax(np.rad2deg( np.arctan( (elev[1:] - elevi)/(((xline[1:]-xi)**2 + (yline[1:]-yi)**2)**0.5) ) ))
+            else:
+                Sx[i,j] = np.nanmax(np.rad2deg( np.arctan( (elev[1:] - elevi)/(((xline[1:]-xi)**2 + (yline[1:]-yi)**2)**0.5) ) ))
+
+            if verbose: print(f'Max angle is {Sx:.4f} degrees')
+
+    return Sx
+
+def calcSxmean(xx, yy, zagl, A, dmax, method='nearest', verbose=False):
+    
+    Asweep = np.linspace(A-15, A+15, 7)%360
+    Sxmean = np.mean([calcSx(xx, yy, zagl, a, dmax, method, verbose=verbose) for a in Asweep ], axis=0)
+    
+    return Sxmean
+
+
+def calcSb(xx, yy, zagl, A, sepdist=60):
+    '''
+    Sb is a measure of upwind slope break and can be used to delineate zones of
+    possible flow separation. This function follows the definition of Sx0 from 
+    the reference listed below and uses 1000m separation.
+    
+    Winstral, A., Marks D. "Simulating wind fields and snow redistribution using
+        terrain-based parameters to model snow accumulation and melt over a semi-
+        arid mountain catchment" Hydrol. Process. 16, 3585–3603 (2002)
+    
+    Usage
+    =====
+    xx, yy : array
+        meshgrid arrays of the region extent coordinates.
+    zagl: array
+        Elevation map of the region
+    A: float
+        Wind direction (deg, wind direction convention)
+    sepdist : float, default 60
+        Separation between between two regional Sx calculations.
+        Suggested value: 60 m.
+    '''
+    
+    from scipy import interpolate
+        
+    # local Sx
+    Sx1 = calcSx(xx, yy, zagl, A, dmax=sepdist)
+    
+    # outlying Sx. Computing it at (xo, yo), and not at (xi, yi)
+    xxo = xx - sepdist*np.cos(np.deg2rad(270-A))
+    yyo = yy - sepdist*np.sin(np.deg2rad(270-A))
+    points = np.array( (xx.flatten(), yy.flatten()) ).T
+    values = zagl.flatten()
+    zaglo = interpolate.griddata( points, values, (xxo,yyo), method='linear' )
+    Sx0 = calcSx(xxo, yyo, zaglo, A, dmax=1000)
+
+    Sb = Sx1 - Sx0
+    
+    return Sb
+
+def calcSbmean(xx, yy, zagl, A, sepdist):
+    
+    Asweep = np.linspace(A-15, A+15, 7)%360
+    Sbmean = np.mean([calcSb(xx, yy, zagl, a, sepdist) for a in Asweep ], axis=0)
+    
+    return Sbmean
+
+
+def calcTPI(xx, yy, zagl, r):
+    '''
+    Topographic Position Index
+    
+    Reu, J, et al. Application of the topographic position index to heterogeneous
+        landscapes. Geomorphology, 186, 39-49 (2013)
+    '''
+    from scipy.signal import convolve2d
+    
+    # get resolution (assumes uniform resolution)
+    res = xx[1,0] - xx[0,0]
+    rpoints = int(r/res)
+    if r < res:
+        raise ValueError('Averaging radium needs to be larger the resolution of the grid')
+        
+    y,x = np.ogrid[-rpoints:rpoints+1, -rpoints:rpoints+1]
+    kernel = x**2+y**2 <= rpoints**2
+    
+    zaglmean = convolve2d(zagl, kernel*1, mode='same', boundary='fill', fillvalue=0)
+    zaglmean = zaglmean/np.sum(kernel*1)
+
+    return zagl - zaglmean
+

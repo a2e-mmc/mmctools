@@ -1102,8 +1102,8 @@ def calc_spectra(data,
     ==========
     data : xr.Dataset, xr.DataArray, or pd.dataframe
         The data that spectra should be calculated over
-    var_oi : str
-        Variable of interest - what variable should PSD be computed from.
+    var_oi : str, or list
+        Variable(s) of interest - what variable(s) should PSD be computed from.
     spectra_dim : str
         Name of the dimension that the variable spans for spectra to be 
         computed. E.g., if you want time spectra, this should be something like
@@ -1245,10 +1245,11 @@ def calc_spectra(data,
                 assert len(dim_list) == 1, 'There are too many dimensions... drop one of {}'.format(dim_list)
                 assert len(spec_dat[dim_list[0]].data) == 1, 'Not sure how to parse this dimension, {}, reduce to 1 or remove'.format(dim_list)
                 spec_dat = spec_dat.squeeze()
-            for varn in list(spec_dat.variables.keys()):
-                if (varn != var_oi) and (varn != spectra_dim):
-                    spec_dat = spec_dat.drop(varn)
-            
+            varsToDrop = set(spec_dat.variables.keys()) \
+                       - set([spectra_dim] if type(spectra_dim) is str else spectra_dim) \
+                       - set([var_oi] if type(var_oi) is str else var_oi)
+            spec_dat = spec_dat.drop(list(varsToDrop))
+
             spec_dat_df = spec_dat[var_oi].to_dataframe()
             
             psd = power_spectral_density(spec_dat_df,
@@ -1258,7 +1259,7 @@ def calc_spectra(data,
                                          tstart=tstart,interval=interval)
             psd = psd.to_xarray()
             if avg_dim is not None:
-                psd = psd.assign_coords({average_dim:1})
+                psd = psd.assign_coords(**{average_dim:1})
                 psd[average_dim] = avg_dim.data            
                 psd = psd.expand_dims(average_dim)
 
@@ -1270,7 +1271,7 @@ def calc_spectra(data,
                 psd_level = psd
                 
         if level_dim is not None:
-            psd_level = psd_level.assign_coords({level_dim:1})
+            psd_level = psd_level.assign_coords(**{level_dim:1})
             psd_level[level_dim] = lvl#.data            
             psd_level = psd_level.expand_dims(level_dim)
 
@@ -1279,7 +1280,6 @@ def calc_spectra(data,
         else:
             psd_f = psd_level.combine_first(psd_f)
     return(psd_f)
-
 
 def calcTRI(hgt,window=None,footprint=None):
     '''

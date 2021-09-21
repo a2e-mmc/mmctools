@@ -1,6 +1,20 @@
+# Copyright 2019 NREL
+
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy of the
+# License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 """
 Library of standardized plotting functions for basic plot formats
+
+Written by Dries Allaerts (dries.allaerts@nrel.gov)
 """
+
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -16,36 +30,36 @@ from scipy.signal import welch
 fieldlabels_default_units = {
     'wspd': r'Wind speed [m/s]',
     'wdir': r'Wind direction [$^\circ$]',
-    'u': r'u [m/s]',
-    'v': r'v [m/s]',
-    'w': r'Vertical wind speed [m/s]',
-    'theta': r'$\theta$ [K]',
+    'u': r'u [m/s]', 'Ux': r'$u$ [m/s]',
+    'v': r'v [m/s]', 'Uy': r'$v$ [m/s]',
+    'w': r'Vertical wind speed [m/s]', 'Uz': r'Vertical wind speed [m/s]',
+    'theta': r'$\theta$ [K]', 'T': r'$\theta$ [K]',
     'thetav': r'$\theta_v$ [K]',
-    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
+    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUxx': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUyy': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUzz': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUxy': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUxz': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUyz': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$', 'TUz': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
     'TI': r'TI $[-]$',
     'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
 }
 fieldlabels_superscript_units = {
     'wspd': r'Wind speed [m s$^{-1}$]',
     'wdir': r'Wind direction [$^\circ$]',
-    'u': r'u [m s$^{-1}$]',
-    'v': r'v [m s$^{-1}$]',
-    'w': r'Vertical wind speed [m s$^{-1}$]',
-    'theta': r'$\theta$ [K]',
+    'u': r'u [m s$^{-1}$]', 'Ux': r'$u$ [m s$^{-1}$]',
+    'v': r'v [m s$^{-1}$]', 'Uy': r'$v$ [m s$^{-1}$]',
+    'w': r'Vertical wind speed [m s$^{-1}$]',    'Uz': r'Vertical wind speed [m s$^{-1}$]',
+    'theta': r'$\theta$ [K]', 'T': r'$\theta$ [K]',
     'thetav': r'$\theta_v$ [K]',
-    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{K m s^{-1}}]$',
+    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUxx': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUyy': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUzz': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUxy': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUxz': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUyz': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{K m s^{-1}}]$', 'TUz': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{K m s^{-1}}]$',
     'TI': r'TI $[-]$',
     'TKE': r'TKE $[\mathrm{m^2 s^{-2}}]$',
 }
@@ -75,8 +89,8 @@ standard_spectrumlabels = spectrumlabels_default_units
 
 # Supported dimensions and associated names
 dimension_names = {
-    'time':      ['datetime','time','Time'],
-    'height':    ['height','heights','z'],
+    'time':      ['datetime','time','Time','t'],
+    'height':    ['height','heights','z','zagl'],
     'frequency': ['frequency','f',]
 }
 
@@ -1868,6 +1882,31 @@ def _align_labels(fig,ax,nrows,ncols):
         fig.align_ylabels(ax[c::ncols])
 
 
+def reference_lines(x_range, y_start, slopes, line_type='log'):
+    '''
+    This will generate an array of y-values over a specified x-range for
+    the provided slopes. All lines will start from the specified
+    location. For now, this is only assumed useful for log-log plots.
+    x_range : array
+        values over which to plot the lines (requires 2 or more values)
+    y_start : float
+        where the lines will start in y
+    slopes : float or array
+        the slopes to be plotted (can be 1 or several)
+    '''
+    if type(slopes)==float:
+        y_range = np.asarray(x_range)**slopes
+        shift = y_start/y_range[0]
+        y_range = y_range*shift
+    elif isinstance(slopes,(list,np.ndarray)):
+        y_range = np.zeros((np.shape(x_range)[0],np.shape(slopes)[0]))
+        for ss,slope in enumerate(slopes):
+            y_range[:,ss] = np.asarray(x_range)**slope
+            shift = y_start/y_range[0,ss]
+            y_range[:,ss] = y_range[:,ss]*shift
+    return(y_range)
+
+
 class TaylorDiagram(object):
     """
     Taylor diagram.
@@ -2111,4 +2150,5 @@ class TaylorDiagram(object):
         Set the title for the axes
         """
         self._ax.set_title(label, **kwargs)
+
 
