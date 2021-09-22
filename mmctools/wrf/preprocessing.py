@@ -6,6 +6,7 @@ import pandas as pd
 import glob
 import xarray as xr
 from mmctools.helper_functions import get_nc_file_times
+from scipy.interpolate import UnivariateSpline
 
 def prompt(s):
     if sys.version_info[0] < 3:
@@ -1728,3 +1729,19 @@ class CreateEtaLevels():
         final_eta_levels /= max(final_eta_levels)
         
         return(final_eta_levels)
+    
+    
+    def print_eta_levels(self,ncols=4):
+        count = 0
+        line = ''
+        print('{} levels'.format(len(self.eta_levels)))
+        for kk,eta in enumerate(self.eta_levels):
+            line += '{0:6.5f}, '.format(eta)
+            count+=1
+            if count == ncols:
+                #line += '\n'
+                print(line)
+                count = 0
+                line = ''
+        if line != '':
+            print(line)
