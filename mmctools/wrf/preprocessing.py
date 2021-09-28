@@ -1593,8 +1593,7 @@ class CreateEtaLevels():
                                      pres_top=62500.0,
                                      surface_temp=290.0,
                                      height_top=4000,
-                                     n_total_levels=201,
-                                     smooth_eta=False
+                                     n_total_levels=201
                                      )
                                      
     
@@ -1604,8 +1603,7 @@ class CreateEtaLevels():
                                      pres_top=10000.0,
                                      surface_temp=282.72,
                                      height_top=16229.028,
-                                     n_total_levels=88,
-                                     smooth_eta=False
+                                     n_total_levels=88
                                      )
 
     3. Smooth the eta levels so there are no harsh jumps in d(eta):
@@ -1614,21 +1612,29 @@ class CreateEtaLevels():
                                      pres_top=10000.0,
                                      surface_temp=282.72,
                                      height_top=16229.028,
-                                     n_total_levels=88,
-                                     smooth_eta=True
+                                     n_total_levels=88
                                      )
 
     '''
     
+    gas_constant_dry_air = 287.06
+    gravity = 9.80665
+    M = 0.0289644
+    universal_gas_constant = 8.3144598    
+
     def __init__(self, levels=None,
                  eta_levels=None,
                  surface_temp=290,
                  pres_top=None,
-                 height_top=14417.41,
+                 height_top=None,
                  p0=100000.0,
                  fill_to_top=True,
                  n_total_levels=None):
     
+        self.p0 = p0
+        self.pres_top = pres_top
+        self.surface_temp = surface_temp
+        
         if eta_levels is not None:
             self.eta_levels = eta_levels
         else:
@@ -1644,53 +1650,50 @@ class CreateEtaLevels():
 
             self.levels = levels
 
-            if n_total_levels < len(self.levels):
-                print('Setting n_total_levels to be len(levels).')
+            if n_total_levels is not None:
+                if n_total_levels < len(self.levels):
+                    print('Setting n_total_levels to be len(levels).')
+                    n_total_levels = len(levels)
+            else:
                 n_total_levels = len(levels)
 
-            pressure = self._pressure_calc(surface_temp,height_top,p0)
+            pressure = self._pressure_calc()
+            
             if pres_top is None:
-                pres_top = pressure[-1]
+                self.pres_top = pressure[-1]
+            
 
-            self.eta_levels = self._eta_level_calc(pressure,pres_top,height_top,p0,n_total_levels,fill_to_top)
+            self.eta_levels = self._eta_level_calc(pressure,
+                                                   height_top,
+                                                   n_total_levels,
+                                                   fill_to_top)
         
+            self.estimated_heights = self._estimate_heights()
+            
+    def _pressure_calc(self):
 
-    def _pressure_calc(self,surface_temp,
-                       height_top,
-                       p0,
-                       pres_calc_option=1):
-        gas_constant_dry_air = 287.06
-        gravity = 9.80665
-        M = 0.0289644
-        universal_gas_constant = 8.3144598
-
-        if pres_calc_option == 1:
-            pressure = p0*np.exp((-gravity*self.levels)/gas_constant_dry_air/surface_temp)
-        elif pres_calc_option == 2:
-            pressure = p0*np.exp((-gravity*M*self.levels/(universal_gas_constant*surface_temp)))
-        else:
-            print('pres_calc_option = {} is not a valid option. Please select 1 or 2'.format(pres_calc_option))
-
-        return(pressure)
+        return(self.p0*np.exp((-self.gravity*self.levels)/self.gas_constant_dry_air/self.surface_temp))
     
-    def _eta_level_calc(self,pressure,
-                        pres_top,
+    def _eta_level_calc(self,
+                        pressure,
                         height_top,
-                        p0,
                         n_total_levels,
                         fill_to_top):
         
+        if height_top is None:
+            height_top = (self.gas_constant_dry_air*self.surface_temp/self.gravity)*np.log((self.p0/self.pres_top))
+
         eta_levels = np.zeros(n_total_levels)
 
-        eta_levels[:len(self.levels)] = (pressure-pres_top)/(p0-pres_top)
+        eta_levels[:len(self.levels)] = (pressure-self.pres_top)/(self.p0-self.pres_top)
 
-        if np.max(self.levels) < height_top:
+        if float(np.max(self.levels)) < float(height_top):
             if (n_total_levels is None) or (n_total_levels <= len(self.levels)):
                 print('Insufficient number of levels to reach model top.')
                 print('Height top: {}, top of specified levels: {}, number of levels: {}'.format(
                                 height_top,self.levels[-1],n_total_levels))
-                print('Must specify n_total_levels to complete eta_levels to model top')
-                return
+                raise ValueError ('Must specify n_total_levels to complete eta_levels to model top')
+                
             remaining_levels = n_total_levels - len(self.levels)
 
             eta_levels_top = np.zeros(remaining_levels+2)
@@ -1706,6 +1709,12 @@ class CreateEtaLevels():
             eta_levels[len(self.levels):] = eta_levels_top[1:]
             
         return(eta_levels)
+    
+    def _estimate_heights(self):
+        
+        pressure = self.eta_levels*(self.p0-self.pres_top) + self.pres_top
+        return((self.gas_constant_dry_air*self.surface_temp/self.gravity)*np.log((self.p0/pressure)))
+        
     
     def smooth_eta_levels(self,
                           smooth_fact=7e-4,
@@ -1730,6 +1739,7 @@ class CreateEtaLevels():
         
         self.original_eta_levels = self.eta_levels
         self.eta_levels = final_eta_levels
+        self.estimated_heights = self._estimate_heights()
         return(self)
     
     
