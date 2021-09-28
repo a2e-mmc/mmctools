@@ -1886,7 +1886,10 @@ class TaylorDiagram(object):
                  corrticks=[0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1],
                  minorcorrticks=None,
                  stdevticks=None,
-                 labelsize=None):
+                 labelsize=None,
+                 labelcoraxis=True,
+                 labelstdaxis=True,
+                 extend_length=np.pi):
         """
         Set up Taylor diagram axes, i.e. single quadrant polar
         plot, using `mpl_toolkits.axisartist.floating_axes`.
@@ -1916,6 +1919,10 @@ class TaylorDiagram(object):
             integer input) or FixedLocator (with list-like input)
         labelsize: int or str, optional
             Font size (e.g., 16 or 'x-large') for all axes labels
+        labelaxis: bool, optional
+            Show axis labels or not (useful for array of plots)
+        extend_length: float, optional
+            Extend to a specified radian (default = pi)
         """
 
         from matplotlib.projections import PolarAxes
@@ -1934,7 +1941,7 @@ class TaylorDiagram(object):
             rlocs = np.array(sorted(list(corrticks) + list(minorcorrticks)))
         if extend:
             # Diagram extended to negative correlations
-            self.tmax = np.pi
+            self.tmax = extend_length
             rlocs = np.concatenate((-rlocs[:0:-1], rlocs))
         else:
             # Diagram limited to positive correlations
@@ -1983,14 +1990,22 @@ class TaylorDiagram(object):
         ax.axis["top"].toggle(ticklabels=True, label=True)
         ax.axis["top"].major_ticklabels.set_axis_direction("top")
         ax.axis["top"].label.set_axis_direction("top")
-        ax.axis["top"].label.set_text("Correlation")
+        if labelcoraxis:
+            ax.axis["top"].label.set_text("Correlation")
+        else:
+            ax.axis["top"].label.set_text('')
+            
 
         # - "x" axis
         ax.axis["left"].set_axis_direction("bottom")
-        if normalize:
-            ax.axis["left"].label.set_text("Normalized standard deviation")
+        if labelstdaxis:
+            if normalize:
+                left_axis_str = "Normalized standard deviation"
+            else:
+                left_axis_str = "Standard deviation"
         else:
-            ax.axis["left"].label.set_text("Standard deviation")
+            left_axis_str = ''
+        ax.axis["left"].label.set_text(left_axis_str)
 
         # - "y" axis
         ax.axis["right"].set_axis_direction("top")    # "Y-axis"
