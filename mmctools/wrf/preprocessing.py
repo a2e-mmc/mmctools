@@ -1624,7 +1624,7 @@ class CreateEtaLevels():
 
     def __init__(self, levels=None,
                  eta_levels=None,
-                 surface_temp=290,
+                 surface_temp=None,
                  pres_top=None,
                  height_top=None,
                  p0=100000.0,
@@ -1739,7 +1739,8 @@ class CreateEtaLevels():
         
         self.original_eta_levels = self.eta_levels
         self.eta_levels = final_eta_levels
-        self.estimated_heights = self._estimate_heights()
+        if self.pres_top is not None:
+            self.estimated_heights = self._estimate_heights()
         return(self)
     
     
