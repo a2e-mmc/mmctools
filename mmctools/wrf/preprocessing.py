@@ -429,7 +429,7 @@ class SetupWRF():
             interval_seconds = 3600
             met_lvls  = 38
             download_freq = '1h'
-        elif icbc_type == 'FNL':
+        elif 'FNL' in icbc_type:
             met_lvls  = 34
         elif icbc_type == 'NARR':
             met_lvls  = 30
@@ -459,8 +459,10 @@ class SetupWRF():
                 missing_options = True
                 
         if not missing_options:
-            if 'usgs' in self.setup_dict['geogrid_args']:
+            if 'usgs+' in self.setup_dict['geogrid_args']:
                 land_cat = 24
+            elif 'usgs_lakes+' in self.setup_dict['geogrid_args']:
+                land_cat = 28
             else:
                 land_cat = 21
             namelist_defaults = {
@@ -501,6 +503,7 @@ class SetupWRF():
                            'dampcoef' : 0.2,
                               'khdif' : 0,
                               'kvdif' : 0,
+                              'smdiv' : 0.1,
                     'non_hydrostatic' : '.true.',
                       'moist_adv_opt' : 1,
                      'scalar_adv_opt' : 1,
@@ -509,12 +512,15 @@ class SetupWRF():
                     'v_mom_adv_order' : 3,
                     'h_sca_adv_order' : 5,
                     'v_sca_adv_order' : 3,
+                            'gwd_opt' : 0,
                      'spec_bdy_width' : 5,
                           'spec_zone' : 1,
                          'relax_zone' : 4,
                 'nio_tasks_per_group' : 0,
                          'nio_groups' : 1,
                          'sst_update' : 1,
+                           'sst_skin' : 0,
+                   'sf_ocean_physics' : 0,
             }
 
             namelist_opts = namelist_defaults
@@ -654,15 +660,17 @@ class SetupWRF():
         end_second_str = "{0:>5},".format(end_date.second)*num_doms
         
         parent_ids,grid_ids,dx_str,radt_str = '','','',''
+        full_pgr = self.namelist_opts['parent_grid_ratio'].copy()
         for pp,pgr in enumerate(self.namelist_opts['parent_grid_ratio']):
+            full_pgr[pp] = np.prod(self.namelist_opts['parent_grid_ratio'][:pp+1])
             grid_ids += '{0:>5},'.format(str(pp+1))
             if pp == 0:
                 pid = 1
             else:
                 pid = pp
             parent_ids += '{0:>5},'.format(str(pid))
-            dx_str += '{0:>5},'.format(str(int(self.namelist_opts['dxy']/np.prod(self.namelist_opts['parent_grid_ratio'][:(pp+1)]))))
-            radt = self.namelist_opts['radt']/pgr
+            dx_str += '{0:>5},'.format(str(int(self.namelist_opts['dxy']/full_pgr[pp])))
+            radt = self.namelist_opts['radt']/full_pgr[pp]
             if radt < 1: radt = 1
             radt_str += '{0:>5},'.format(str(int(radt)))
 
@@ -724,6 +732,7 @@ class SetupWRF():
         damp_str    = self._get_nl_str(num_doms,self.namelist_opts['dampcoef'])
         khdif_str   = self._get_nl_str(num_doms,self.namelist_opts['khdif'])
         kvdif_str   = self._get_nl_str(num_doms,self.namelist_opts['kvdif'])
+        smdiv_str   = self._get_nl_str(num_doms,self.namelist_opts['smdiv'])
         nonhyd_str  = self._get_nl_str(num_doms,self.namelist_opts['non_hydrostatic'])
         moist_str   = self._get_nl_str(num_doms,self.namelist_opts['moist_adv_opt'])
         scalar_str  = self._get_nl_str(num_doms,self.namelist_opts['scalar_adv_opt'])
@@ -732,6 +741,9 @@ class SetupWRF():
         vmom_str    = self._get_nl_str(num_doms,self.namelist_opts['v_mom_adv_order'])
         hsca_str    = self._get_nl_str(num_doms,self.namelist_opts['h_sca_adv_order'])
         vsca_str    = self._get_nl_str(num_doms,self.namelist_opts['v_sca_adv_order'])
+        gwd_str     = self._get_nl_str(num_doms,self.namelist_opts['gwd_opt'])
+        if 'shalwater_rough' in self.namelist_opts:
+            shalwater_rough_str    = self._get_nl_str(num_doms,self.namelist_opts['shalwater_rough'])
         
         specified = ['.false.']*num_doms
         nested    = ['.true.']*num_doms
@@ -795,6 +807,10 @@ class SetupWRF():
         f.write(" e_vert                    =  {}\n".format("{0:>5},".format(self.namelist_opts['num_eta_levels'])*num_doms))
         if 'eta_levels' in self.namelist_opts.keys():
             f.write(" eta_levels  = {},\n".format(self.namelist_opts['eta_levels']))
+        if 'dzbot' in self.namelist_opts.keys():
+            f.write(" dzbot                     = {},\n".format(self.namelist_opts['dzbot']))
+        if 'dzstretch_s' in self.namelist_opts.keys():
+            f.write(" dzstretch_s               = {},\n".format(self.namelist_opts['dzstretch_s']))
         f.write(" p_top_requested           = {},\n".format(self.namelist_opts['p_top_requested']))
         f.write(" num_metgrid_levels        = {},\n".format(self.namelist_opts['num_metgrid_levels']))
         f.write(" num_metgrid_soil_levels   = {},\n".format(self.namelist_opts['num_metgrid_soil_levels']))
@@ -808,6 +824,9 @@ class SetupWRF():
         f.write(" parent_time_step_ratio    = {}\n".format(parent_time_ratios))
         f.write(" feedback                  = {},\n".format(self.namelist_opts['feedback']))
         f.write(" smooth_option             = {},\n".format(self.namelist_opts['smooth_option']))
+        if ('nproc_x' in self.namelist_opts.keys()) and ('nproc_y' in self.namelist_opts.keys()):
+            f.write(" nproc_x                   = {},\n".format(self.namelist_opts['nproc_x']))
+            f.write(" nproc_y                   = {},\n".format(self.namelist_opts['nproc_y']))
         f.write(" /\n")
         f.write("\n")
         f.write("&physics\n")
@@ -829,10 +848,40 @@ class SetupWRF():
         f.write(" num_land_cat              = {}, \n".format(self.namelist_opts['num_land_cat']))
         f.write(" sf_urban_physics          = {}\n".format(urb_str))
         f.write(" sst_update                = {}, \n".format(self.namelist_opts['sst_update']))
+        f.write(" sst_skin                  = {}, \n".format(self.namelist_opts['sst_skin']))
+        f.write(" sf_ocean_physics          = {}, \n".format(self.namelist_opts['sf_ocean_physics']))
+        
+        if 'shalwater_rough' in self.namelist_opts:
+            f.write(" shalwater_rough            = {} \n".format(shalwater_rough_str))
+        if 'shalwater_depth' in self.namelist_opts:
+            f.write(" shalwater_depth            = {}, \n".format(self.namelist_opts['shalwater_depth']))
         f.write(" /\n")
+        
         f.write("\n")
         f.write("&fdda\n")
+        if 'fdda_dict' in self.namelist_opts:
+            f.write("grid_fdda                           = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['grid_fdda'])))
+            f.write('gfdda_inname                        = "{}",\n'.format(self.namelist_opts['fdda_dict']['gfdda_inname']))
+            f.write("gfdda_interval_m                    = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['gfdda_interval_m'])))
+            f.write("io_form_gfdda                       = {},\n".format(self.namelist_opts['fdda_dict']['io_form_gfdda']))
+            f.write("if_no_pbl_nudging_uv                = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_no_pbl_nudging_uv'])))
+            f.write("if_no_pbl_nudging_t                 = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_no_pbl_nudging_t'])))
+            f.write("if_no_pbl_nudging_ph                = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_no_pbl_nudging_ph'])))
+            f.write("if_zfac_uv                          = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_zfac_uv'])))
+            f.write("k_zfac_uv                           = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['k_zfac_uv'])))
+            f.write("if_zfac_t                           = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_zfac_t'])))
+            f.write("k_zfac_t                            = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['k_zfac_t'])))
+            f.write("if_zfac_ph                          = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_zfac_ph'])))
+            f.write("k_zfac_ph                           = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['k_zfac_ph'])))
+            f.write("guv                                 = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['guv'])))
+            f.write("gt                                  = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['gt'])))
+            f.write("gph                                 = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['gph'])))
+            f.write("if_ramping                          = {},\n".format(self.namelist_opts['fdda_dict']['if_ramping']))
+            f.write("dtramp_min                          = {},\n".format(self.namelist_opts['fdda_dict']['dtramp_min']))
+            f.write("xwavenum                            = {},\n".format(self.namelist_opts['fdda_dict']['xwavenum']))
+            f.write("ywavenum                            = {},\n".format(self.namelist_opts['fdda_dict']['ywavenum']))
         f.write("/\n")
+
         f.write("\n")
         f.write("&dynamics\n")
         if 'hybrid_opt' in self.namelist_opts:
@@ -851,6 +900,8 @@ class SetupWRF():
         f.write(" dampcoef                  = {}\n".format(damp_str))
         f.write(" khdif                     = {}\n".format(khdif_str))
         f.write(" kvdif                     = {}\n".format(kvdif_str))
+        if 'smdiv' in self.namelist_opts:
+            f.write(" smdiv                     = {}\n".format(smdiv_str))
         f.write(" non_hydrostatic           = {}\n".format(nonhyd_str))
         f.write(" moist_adv_opt             = {}\n".format(moist_str))
         f.write(" scalar_adv_opt            = {}\n".format(scalar_str))
@@ -859,6 +910,7 @@ class SetupWRF():
         f.write(" v_mom_adv_order           = {}\n".format(vmom_str))
         f.write(" h_sca_adv_order           = {}\n".format(hsca_str))
         f.write(" v_sca_adv_order           = {}\n".format(vsca_str))
+        f.write(" gwd_opt                   = {}\n".format(gwd_str))
         f.write(" /\n")
         f.write(" \n")
         f.write("&bdy_control\n")
@@ -886,7 +938,7 @@ class SetupWRF():
         icbc_type = self.namelist_opts['icbc_type'].upper()
         if icbc_type == 'ERAI':
             icbc = ERAInterim()
-        elif icbc_type == 'FNL':
+        elif 'FNL' in icbc_type:
             icbc = FNL()
         elif icbc_type == 'MERRA2':
             print('Cannot download MERRA2 yet... please download manually and put in the IC/BC dir:')
@@ -919,7 +971,10 @@ class SetupWRF():
             if hpc == 'cheyenne':
                 f = open('{}submit_{}.sh'.format(self.run_dir,executable),'w')
                 f.write("#!/bin/bash\n")
+                case_str = self.run_dir.split('/')[-3].split('_')[0]
                 run_str = '{0}{1}'.format(self.icbc_dict['type'],
+                                         (self.setup_dict['start_date'].split(' ')[0]).replace('-',''))
+                run_str = '{0}{1}'.format(case_str,
                                          (self.setup_dict['start_date'].split(' ')[0]).replace('-',''))
                 f.write("#PBS -N {} \n".format(run_str))
                 f.write("#PBS -A {}\n".format(submission_dict['account_key']))
@@ -930,9 +985,9 @@ class SetupWRF():
                 f.write("#PBS -M {}\n".format(submission_dict['user_email']))
                 f.write("### Select 2 nodes with 36 CPUs each for a total of 72 MPI processes\n")
                 if executable == 'wps':
-                    f.write("#PBS -l select=1:ncpus=1:mpiprocs=1\n".format(submission_dict['nodes']))
+                    f.write("#PBS -l select=1:ncpus=1:mpiprocs=1\n")
                 else:
-                    f.write("#PBS -l select={0:02d}:ncpus=36:mpiprocs=36\n".format(submission_dict['nodes']))
+                    f.write("#PBS -l select={0:02d}:ncpus=36:mpiprocs=36\n".format(submission_dict['nodes'][executable]))
                 f.write("date_start=`date`\n")
                 f.write("echo $date_start\n")
                 f.write("module list\n")
@@ -944,7 +999,7 @@ class SetupWRF():
                     elif icbc_type == 'ERAI':
                         icbc_head = 'ei.oper*'
                         icbc_vtable = 'ERA-interim.pl'
-                    elif icbc_type == 'FNL':
+                    elif 'FNL' in icbc_type:
                         icbc_head = 'fnl_*'
                         icbc_vtable = 'GFS'
                     elif icbc_type == 'MERRA2':
@@ -1051,6 +1106,11 @@ class SetupWRF():
     def create_tslist_file(self,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
         fname = '{}tslist'.format(self.run_dir)
         write_tslist_file(fname,lat=lat,lon=lon,i=i,j=j,twr_names=twr_names,twr_abbr=twr_abbr)
+        
+    def link_metem_files(self,met_em_dir):
+        # Link WPS and WRF files / executables
+        met_files = glob.glob('{}/*'.format(met_em_dir))
+        self._link_files(met_files,self.run_dir)
 
             
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
@@ -1148,6 +1208,46 @@ sst_dict = {
           'sst_dx' : 5.5, # km
     },
     
+    'NAVO' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 10.0, # km
+    },
+    
+    'OSPO' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 5.5, # km
+    },
+    
+    'NCEI' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 27.75, # km
+    },
+    
+    'CMC' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 11.1, # km
+    },
+    
+    'G1SST' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 1.0, # km
+    },
+    
     'MUR' : {
         'time_dim' : 'time',
          'lat_dim' : 'lat',
@@ -1185,6 +1285,10 @@ icbc_dict = {
     'ERA5' : {
         'sst_name' : 'SST',
     },
+    
+    'MERRA2' : {
+        'sst_name' : 'SKINTEMP',
+    },
 }
 
 
@@ -1206,7 +1310,8 @@ class OverwriteSST():
     fill_missing   = boolean; fill missing values in SST data with SKINTEMP
     
     '''
-
+    import warnings
+    warnings.filterwarnings("ignore", category=RuntimeWarning)
     def __init__(self,
                  met_type,
                  overwrite_type,
@@ -1214,7 +1319,8 @@ class OverwriteSST():
                  sst_directory,
                  out_directory,
                  smooth_opt=False,
-                 fill_missing=False):
+                 fill_missing=False,
+                 skip_finished=True):
         
         self.met_type   = met_type
         self.overwrite  = overwrite_type
@@ -1223,6 +1329,7 @@ class OverwriteSST():
         self.out_dir    = out_directory
         self.smooth_opt = smooth_opt
         self.fill_opt   = fill_missing
+        self.skip_finished = skip_finished
         
         if overwrite_type == 'FILL': fill_missing=True
         
@@ -1230,27 +1337,45 @@ class OverwriteSST():
             self.smooth_str = 'smooth'
         else:
             self.smooth_str = 'raw'
-
-        self.out_dir += '{}/'.format(self.smooth_str)
         
+        if (self.smooth_str == 'raw') and fill_missing:
+            self.smooth_str += '-filled'
+            
+        self.out_dir += '{}/'.format(self.smooth_str)
+        if not os.path.exists(self.out_dir):
+            os.mkdir(self.out_dir)
+            
         # Get met_em_files 
         self.met_em_files = sorted(glob.glob('{}met_em.d0*'.format(self.met_dir)))
+        print(self.met_em_files)
+        
         
         # Get SST data info (if not doing fill or tskin)
         if (overwrite_type.upper() != 'FILL') and (overwrite_type.upper() != 'TSKIN'):
             self._get_sst_info()
 
         # Overwrite the met_em SST data:
-        for mm,met_file in enumerate(self.met_em_files):
-            self._get_new_sst(met_file)
-            # If filling missing values with SKINTEMP:
-            if fill_missing:
-                self._fill_missing(met_file)
-            self.new_sst = np.nan_to_num(self.new_sst)
-            # Write to new file:
-            self._write_new_file(met_file)
+        for mm,met_file in enumerate(self.met_em_files[:]):
+            self._check_file_exists(met_file)
+            if self.exists and self.skip_finished:
+                    print('{} exists... skipping'.format(self.new_file))
+            else:
+                print(self.new_file)
+                self._get_new_sst(met_file)
+                # If filling missing values with SKINTEMP:
+                if fill_missing:
+                    self._fill_missing(met_file)
+                self.new_sst = np.nan_to_num(self.new_sst)
+                # Write to new file:
+                self._write_new_file(met_file)
             
 
+    def _check_file_exists(self,met_file):
+        f_name = met_file.split('/')[-1]
+        self.new_file = self.out_dir + f_name
+        self.exists = os.path.exists(self.new_file)
+            
+            
     def _get_sst_info(self):
         
         if self.overwrite == 'MODIS':
@@ -1290,14 +1415,20 @@ class OverwriteSST():
         self.sst_file_times = sst_file_times
         
         sst = xr.open_dataset(sst_file_times[list(sst_file_times.keys())[0]])
-        self.sst_lat = sst[sst_dict[self.overwrite]['lat_dim']]
-        self.sst_lon = sst[sst_dict[self.overwrite]['lon_dim']]
+        sst_lat = sst[sst_dict[self.overwrite]['lat_dim']]
+        sst_lon = sst[sst_dict[self.overwrite]['lon_dim']]
+        
+        self.sst_lat = sst_lat
+        self.sst_lon = sst_lon
+        
+        
 
 
     
     def _get_new_sst(self,met_file):
-        met = xr.open_dataset(met_file)
+        import matplotlib.pyplot as plt
 
+        met = xr.open_dataset(met_file)
         met_time = pd.to_datetime(met.Times.data[0].decode().replace('_',' '))
         met_lat = np.squeeze(met.XLAT_M)
         met_lon = np.squeeze(met.XLONG_M)
@@ -1322,16 +1453,18 @@ class OverwriteSST():
             before_ds = xr.open_dataset(self.sst_file_times[sst_neighbors[0]])
             after_ds  = xr.open_dataset(self.sst_file_times[sst_neighbors[1]])
 
-            min_lon = np.max([np.nanmin(met_lon)-1,-180])
-            max_lon = np.min([np.nanmax(met_lon)+1,180])
-            
             if (self.overwrite == 'MODIS') or (self.overwrite == 'GOES16'):
                 min_lat = np.min([np.nanmax(met_lat)+1,90])
                 max_lat = np.max([np.nanmin(met_lat)-1,-90])
             else:
+                before_ds = before_ds.sortby('lat')
+                after_ds = after_ds.sortby('lat')
                 min_lat = np.max([np.nanmin(met_lat)-1,-90])
                 max_lat = np.min([np.nanmax(met_lat)+1,90])
 
+            min_lon = np.max([np.nanmin(met_lon)-1,-180])
+            max_lon = np.min([np.nanmax(met_lon)+1,180])
+            
             before_ds = before_ds.sel({sst_dict[self.overwrite]['lat_dim']:slice(min_lat,max_lat),
                                       sst_dict[self.overwrite]['lon_dim']:slice(min_lon,max_lon)})
             after_ds  = after_ds.sel({sst_dict[self.overwrite]['lat_dim']:slice(min_lat,max_lat),
@@ -1354,53 +1487,56 @@ class OverwriteSST():
 
             sst_lat = self.sst_lat.data
             sst_lon = self.sst_lon.data
-
+            
             for jj in met.south_north:
                 for ii in met.west_east:
                     if met_landmask[jj,ii] == 0.0:
-                        dist_lat = abs(sst_lat - float(met_lat[jj,ii]))
-                        dist_lon = abs(sst_lon - float(met_lon[jj,ii]))
+                        within_lat = (np.nanmin(sst_lat) <= met_lat[jj,ii] <= np.nanmax(sst_lat))
+                        within_lon = (np.nanmin(sst_lon) <= met_lon[jj,ii] <= np.nanmax(sst_lon))
+                        if within_lat and within_lon:
+                            dist_lat = abs(sst_lat - float(met_lat[jj,ii]))
+                            dist_lon = abs(sst_lon - float(met_lon[jj,ii]))
+                            
+                            lat_ind = np.where(dist_lat==np.min(dist_lat))[0]
+                            lon_ind = np.where(dist_lon==np.min(dist_lon))[0]
 
-                        lat_ind = np.where(dist_lat==np.min(dist_lat))[0]
-                        lon_ind = np.where(dist_lon==np.min(dist_lon))[0]
+                            if (len(lat_ind) > 1) and (len(lon_ind) > 1):
+                                lat_s = sst_lat[lat_ind[0] - window]
+                                lat_e = sst_lat[lat_ind[1] + window]
+                                lon_s = sst_lon[lon_ind[0] - window]
+                                lon_e = sst_lon[lon_ind[1] + window]
 
-                        if (len(lat_ind) > 1) and (len(lon_ind) > 1):
-                            lat_s = sst_lat[lat_ind[0] - window]
-                            lat_e = sst_lat[lat_ind[1] + window]
-                            lon_s = sst_lon[lon_ind[0] - window]
-                            lon_e = sst_lon[lon_ind[1] + window]
-
-                        elif (len(lat_ind) > 1) and (len(lon_ind) == 1):
-                            lat_s = sst_lat[lat_ind[0] - window]
-                            lat_e = sst_lat[lat_ind[1] + window]
-                            lon_s = sst_lon[lon_ind[0] - window]
-                            lon_e = sst_lon[lon_ind[0] + window]
-
-                        elif (len(lat_ind) == 1) and (len(lon_ind) > 1):
-                            lat_s = sst_lat[lat_ind[0] - window]
-                            lat_e = sst_lat[lat_ind[0] + window]
-                            lon_s = sst_lon[lon_ind[0] - window]
-                            lon_e = sst_lon[lon_ind[1] + window]
-
-                        else:
-                            lat_s = sst_lat[lat_ind[0] - window]
-                            lat_e = sst_lat[lat_ind[0] + window]
-                            lon_s = sst_lon[lon_ind[0] - window]
-                            try:
+                            elif (len(lat_ind) > 1) and (len(lon_ind) == 1):
+                                lat_s = sst_lat[lat_ind[0] - window]
+                                lat_e = sst_lat[lat_ind[1] + window]
+                                lon_s = sst_lon[lon_ind[0] - window]
                                 lon_e = sst_lon[lon_ind[0] + window]
-                            except IndexError:
-                                lon_e = len(sst_lon)
 
-                        sst_before_val = before_sst.sel({
-                                            sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
-                                            sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+                            elif (len(lat_ind) == 1) and (len(lon_ind) > 1):
+                                lat_s = sst_lat[lat_ind[0] - window]
+                                lat_e = sst_lat[lat_ind[0] + window]
+                                lon_s = sst_lon[lon_ind[0] - window]
+                                lon_e = sst_lon[lon_ind[1] + window]
 
-                        sst_after_val  = after_sst.sel({
-                                            sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
-                                            sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+                            else:
+                                lat_s = sst_lat[lat_ind[0] - window]
+                                lat_e = sst_lat[lat_ind[0] + window]
+                                lon_s = sst_lon[lon_ind[0] - window]
+                                try:
+                                    lon_e = sst_lon[lon_ind[0] + window]
+                                except IndexError:
+                                    lon_e = len(sst_lon)
 
-                        new_sst[jj,ii] = sst_before_val*sst_weights[0] + sst_after_val*sst_weights[1]
-                        
+                            sst_before_val = before_sst.sel({
+                                                sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
+                                                sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+
+                            sst_after_val  = after_sst.sel({
+                                                sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
+                                                sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+
+                            new_sst[jj,ii] = sst_before_val*sst_weights[0] + sst_after_val*sst_weights[1]
+                            
         else:
             if (self.overwrite.upper() == 'TSKIN'):
                 new_sst = met_sst.data.copy()
@@ -1408,8 +1544,8 @@ class OverwriteSST():
                 new_sst[np.where(met_landmask==0.0)] = tsk[np.where(met_landmask==0.0)]
             elif (self.overwrite.upper() == 'FILL'):
                 new_sst = np.squeeze(met[icbc_dict[self.met_type]['sst_name']]).data
+
         self.new_sst = new_sst
-            
 
     def _get_closest_files(self,met_time):
         sst_times = np.asarray(list(self.sst_file_times.keys()))
@@ -1423,7 +1559,6 @@ class OverwriteSST():
             time_dist[dt] = abs(stime - met_time)
 
         closest_time = sst_times[np.where(time_dist == np.min(time_dist))]
-
         if len(closest_time) == 1:
             if closest_time == met_time:
                 sst_before = closest_time[0]
@@ -1440,10 +1575,10 @@ class OverwriteSST():
                     got_before = True
                 else:
                     sst_after = closest_time
+                    if closest_ind <= 1: closest_ind += 1
                     next_closest_times = sst_times[:closest_ind-1]
                     next_closest_dist  = time_dist[:closest_ind-1]
                     got_after = True
-
                 next_closest_time = next_closest_times[np.where(next_closest_dist == np.min(next_closest_dist))][0]
 
                 if got_before:
@@ -1487,14 +1622,9 @@ class OverwriteSST():
         
     def _write_new_file(self,met_file):
         f_name = met_file.split('/')[-1]
-        new_file = self.out_dir + f_name
-        print(new_file)
         new = xr.open_dataset(met_file)
-        new.SST.data = np.expand_dims(self.new_sst,axis=0)
+        new[icbc_dict[self.met_type]['sst_name']].data = np.expand_dims(self.new_sst,axis=0)
         new.attrs['source']   = '{}'.format(self.overwrite)
         new.attrs['smoothed'] = '{}'.format(self.smooth_opt)
         new.attrs['filled']   = '{}'.format(self.fill_opt)
-        if os.path.exists(new_file):
-            print('File exists... replacing')
-            os.remove(new_file)
-        new.to_netcdf(new_file)
+        new.to_netcdf(self.new_file)
