@@ -1599,7 +1599,7 @@ class CreateEtaLevels():
     
     2. Only specify lower levels and let the program fill the rest (no smoothing):
 
-    eta_levels = generate_eta_levels(levels=np.linspace(0,1000,50),
+    eta_levels = generate_eta_levels(levels=np.linspace(0,1000,51),
                                      pres_top=10000.0,
                                      surface_temp=282.72,
                                      height_top=16229.028,
@@ -1613,7 +1613,7 @@ class CreateEtaLevels():
                                      surface_temp=282.72,
                                      height_top=16229.028,
                                      n_total_levels=88
-                                     )
+                                     ).smooth_eta_levels(smooth_fact=9e-4)
 
     '''
     
