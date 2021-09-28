@@ -295,7 +295,7 @@ def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
 
     # Determine sampling rate and samples per window
     dts = np.diff(timevalues.unique())/timescale
-    dt  = dts[0]
+    dt  = np.nanmean(dts)
 
     if type(window_type) is str:
         nperseg = int( pd.to_timedelta(window_size)/pd.to_timedelta(dt,'s') )
@@ -1068,9 +1068,8 @@ def get_nc_file_times(f_dir,
                     f_time.append(datetime(time_start.year, time_start.month, time_start.day) + timedelta(seconds=int(nc_time)))
             else:
                 f_time = ncf[time_dim].data
-
         for ft in f_time:
-            ft = pd.to_datetime(ft)
+            ft = pd.to_datetime(str(ft))
             file_times[ft] = fname
     return (file_times)
 
@@ -1248,7 +1247,6 @@ def calc_spectra(data,
             for varn in list(spec_dat.variables.keys()):
                 if (varn != var_oi) and (varn != spectra_dim):
                     spec_dat = spec_dat.drop(varn)
-            
             spec_dat_df = spec_dat[var_oi].to_dataframe()
             
             psd = power_spectral_density(spec_dat_df,
