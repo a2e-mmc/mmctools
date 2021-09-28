@@ -1728,7 +1728,9 @@ class CreateEtaLevels():
         final_eta_levels -= min(final_eta_levels)
         final_eta_levels /= max(final_eta_levels)
         
-        return(final_eta_levels)
+        self.original_eta_levels = self.eta_levels
+        self.eta_levels = final_eta_levels
+        return(self)
     
     
     def print_eta_levels(self,ncols=4):
