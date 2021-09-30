@@ -1620,7 +1620,9 @@ class CreateEtaLevels():
     gas_constant_dry_air = 287.06
     gravity = 9.80665
     M = 0.0289644
-    universal_gas_constant = 8.3144598    
+    universal_gas_constant = 8.3144598
+    
+    deta_limit = -0.035
 
     def __init__(self, levels=None,
                  eta_levels=None,
@@ -1629,7 +1631,9 @@ class CreateEtaLevels():
                  height_top=None,
                  p0=100000.0,
                  fill_to_top=True,
-                 n_total_levels=None):
+                 n_total_levels=None,
+                 transition_zone=None,
+                 min_transition_deta=None):
     
         self.p0 = p0
         self.pres_top = pres_top
@@ -1654,6 +1658,8 @@ class CreateEtaLevels():
                 if n_total_levels < len(self.levels):
                     print('Setting n_total_levels to be len(levels).')
                     n_total_levels = len(levels)
+            elif transition_zone is not None:
+                n_total_levels = len(levels) + transition_zone
             else:
                 n_total_levels = len(levels)
 
@@ -1666,7 +1672,9 @@ class CreateEtaLevels():
             self.eta_levels = self._eta_level_calc(pressure,
                                                    height_top,
                                                    n_total_levels,
-                                                   fill_to_top)
+                                                   fill_to_top,
+                                                   transition_zone,
+                                                   min_transition_deta)
         
             self.estimated_heights = self._estimate_heights()
             
@@ -1678,37 +1686,162 @@ class CreateEtaLevels():
                         pressure,
                         height_top,
                         n_total_levels,
-                        fill_to_top):
+                        fill_to_top,
+                        transition_zone,
+                        min_transition_deta):
         
         if height_top is None:
             height_top = (self.gas_constant_dry_air*self.surface_temp/self.gravity)*np.log((self.p0/self.pres_top))
 
-        eta_levels = np.zeros(n_total_levels)
+        eta_levels = (pressure-self.pres_top)/(self.p0-self.pres_top)
 
-        eta_levels[:len(self.levels)] = (pressure-self.pres_top)/(self.p0-self.pres_top)
-
+        reached_model_top = False
         if float(np.max(self.levels)) < float(height_top):
+            if transition_zone is not None:
+                if (len(self.levels)+transition_zone) > n_total_levels:
+                    print('Transition zone makes this larger than n_total_levels')
+                    print('Setting n_total_levels to len(levels) + transition_zone')
+                    n_total_levels = len(self.levels)+transition_zone
+                
+                transition = np.zeros(transition_zone)
+                for tt,tran in enumerate(range(1,transition_zone+1)):
+                    overlaying_slope = 0.002 # slope applied to cos curve
+                    cos_tail = 0.3 # How much of the cos curve should continue (0.3 = 30%)
+                    cos_squeeze = 0.9 # How much of the cos curve should be squeezed (1 = none, 0.9 = a little toward the beginning)
+                    transition[tt] = (1.0 + np.cos((tran*((tran/((1-cos_tail)*transition_zone))**cos_squeeze)/transition_zone)*np.pi)) - tt*overlaying_slope
+
+                transition -= np.min(transition)
+                transition /= np.max(transition)
+                max_transition_deta = eta_levels[len(self.levels)-1] - eta_levels[len(self.levels)-2]
+
+
+                orig_eta_levels = eta_levels
+                orig_transition = transition.copy()
+
+                top_lvl_threshold = 0.001
+                if min_transition_deta is not None:
+
+                    eta_levels,error = self._calc_transition(eta_levels,
+                                                             transition,
+                                                             max_transition_deta,
+                                                             min_transition_deta)
+                    
+                    if error > top_lvl_threshold:
+                        iterate_for_transition = True
+                        print('Specified min_transition_deta resulted in bad levels...')
+                        eta_levels = orig_eta_levels.copy()
+                    else:
+                        iterate_for_transition = False
+                else:
+                    iterate_for_transition = True
+                    min_transition_deta = -0.02
+                    
+                if iterate_for_transition:
+                    print('Iterating to find reasonable levels.')
+                    error = 1.0
+                    count = 0
+                    max_iterations = 100
+                    while ((np.abs(error) > top_lvl_threshold) and (count <= max_iterations)) and (min_transition_deta > self.deta_limit):
+                        eta_levels = orig_eta_levels.copy()
+                        transition = orig_transition.copy()
+                        
+                        eta_levels,error = self._calc_transition(eta_levels,
+                                                                 transition,
+                                                                 max_transition_deta,
+                                                                 min_transition_deta,
+                                                                 top_lvl_threshold)
+                        if error > 0.0:
+                            min_transition_deta -= 0.001
+                        else:
+                            min_transition_deta += 0.0001
+                        count+=1
+                        if min_transition_deta < self.deta_limit:
+                            print('min_transition_deta of {} exceeds reasonable limit for d(eta), {}'.format(
+                                    min_transition_deta, self.deta_limit))
+                            #raise ValueError ('Could not find a reasonable min_transition_deta - try adding more levels')
+                            min_transition_deta = self.deta_limit
+                            count = max_iterations + 1
+                    
+                    
+                    if (count > max_iterations) and len(eta_levels) >= n_total_levels:
+                        raise ValueError ('Not enough levels to reach the top')
+                    else:
+                        if error <= top_lvl_threshold:
+                            eta_levels -= np.min(eta_levels)
+                            eta_levels /= np.max(eta_levels)
+                    
+
+                if np.min(eta_levels) < 0.0:
+                    eta_levels -= np.min(eta_levels)
+                    eta_levels /= np.max(eta_levels)
+                    reached_model_top = True
+                
             if (n_total_levels is None) or (n_total_levels <= len(self.levels)):
                 print('Insufficient number of levels to reach model top.')
                 print('Height top: {}, top of specified levels: {}, number of levels: {}'.format(
                                 height_top,self.levels[-1],n_total_levels))
                 raise ValueError ('Must specify n_total_levels to complete eta_levels to model top')
                 
-            remaining_levels = n_total_levels - len(self.levels)
+            remaining_levels = n_total_levels - len(eta_levels)
 
-            eta_levels_top = np.zeros(remaining_levels+2)
-            z_scale = 0.4
-            for k in range(1,remaining_levels+2):
-                kind = k-1
-                eta_levels_top[kind] = (np.exp(-(k-1)/float(n_total_levels)/z_scale) - np.exp(-1./z_scale))/ (1.-np.exp(-1./z_scale))
-            eta_levels_top -= eta_levels_top[-2]
-            eta_levels_top = eta_levels_top[:-1]
-            eta_levels_top /= np.max(eta_levels_top)
-            eta_levels_top *= eta_levels[len(self.levels)-1]
+            if remaining_levels > 0:
+                if not reached_model_top:
+                    print('Filling to top...')
+                    import matplotlib.pyplot as plt
+                    plt.plot(eta_levels)
+                    plt.show()
+                    plt.plot(eta_levels[1:]-eta_levels[:-1])
+                    plt.show()
+                    eta_levels_top = np.zeros(remaining_levels+2)
+                    z_scale = 0.4
+                    for k in range(1,remaining_levels+2):
+                        kind =  k - 1
+                        eta_levels_top[kind] = (np.exp(-(k-1)/float(n_total_levels)/z_scale) - np.exp(-1./z_scale))/ (1.-np.exp(-1./z_scale))
+                        #eta_levels_top[kind] = (np.exp(-(k-1)/float(remaining_levels)/z_scale) - np.exp(-1./z_scale))/ (1.-np.exp(-1./z_scale))
+                        
+                    eta_levels_top = eta_levels_top[:-1]
+                    print(eta_levels_top)
 
-            eta_levels[len(self.levels):] = eta_levels_top[1:]
-            
+                    eta_levels_top -= np.min(eta_levels_top)
+                    eta_levels_top /= np.max(eta_levels_top)
+
+                    eta_levels_top *= eta_levels[-1]
+                    print(eta_levels_top)
+
+                    eta_levels_top = list(eta_levels_top)
+                    eta_levels = list(eta_levels)
+                    
+                    eta_levels += eta_levels_top[1:]
+                    eta_levels = np.array(eta_levels)
+                else:
+                    print('Specified levels + transition zone reached model top.')
+                    print('Setting n_total_levels to len(levels) + transition_zone')
+                    n_total_levels = len(self.levels)+transition_zone
+
+
+            if np.min(eta_levels) != 0.0:
+                print('Insufficient number of levels to reach model top.')
+                raise ValueError ('Lower the model top, increase number of levels, or increase the deta_lim')
+
         return(eta_levels)
+    
+    def _calc_transition(self,eta_levels,
+                         transition,
+                         max_transition_deta,
+                         min_transition_deta,
+                         top_lvl_threshold=None):        
+        
+        transition *= (max_transition_deta - min_transition_deta)
+        transition += min_transition_deta
+
+        eta_levels = list(eta_levels)
+        for tt,tran in enumerate(transition):
+            tind = len(self.levels) + tt
+            eta_levels += list([eta_levels[tind-1] + tran])
+        eta_levels = np.array(eta_levels)
+        
+        error = eta_levels[-1]
+        return (eta_levels,error)
     
     def _estimate_heights(self):
         
