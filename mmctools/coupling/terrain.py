@@ -625,7 +625,81 @@ def calcVRM(hgt,res,window=None,footprint=None,fill_depressions=True,return_slop
         return vrm
 
 
-def calcSx(xx, yy, zagl, A, dmax, method='nearest', propagateNaN=False, verbose=False):
+def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
+    '''
+    Sx is a measure of topographic shelter or exposure relative to a particular
+    wind direction. Calculates a whole map for all points (xi, yi) in the domain.
+    For each (xi, yi) pair, it uses all v points (xv, yv) upwind of (xi, yi) in 
+    the A wind direction, up to dmax.
+    
+    Winstral, A., Marks D. "Simulating wind fields and snow redistribution using
+        terrain-based parameters to model snow accumulation and melt over a semi-
+        arid mountain catchment" Hydrol. Process. 16, 3585–3603 (2002)
+    
+    Usage
+    =====
+    xx, yy : array
+        meshgrid arrays of the region extent coordinates.
+    zagl: array
+        Elevation map of the region
+    A: float
+        Wind direction (deg, wind direction convention)
+    dmax: float
+        Upwind extent of the search
+    method: string
+        griddata interpolation method. Options are 'nearest', 'linear', 'cubic'.
+        Recommended linear or cubic.
+    '''
+
+    from scipy import interpolate
+
+    # get resolution (assumes uniform resolution)
+    res = xx[1,0] - xx[0,0]
+    npoints = 1+int(dmax/res)
+    if dmax < res:
+        raise ValueError('dmax needs to be larger or equal to the resolution of the grid')
+
+    # change angle notation
+    ang = np.deg2rad(270-A)
+
+    # array for interpolation using griddata
+    points = np.array( (xx.flatten(), yy.flatten()) ).T
+    values = zagl.flatten()
+    
+    # create rotated grid. This way we `isel` into a interpolated grid that has the exact points we need
+    xrot = np.arange(xmin, xmax+0.1, res*np.cos(ang))
+    yrot = np.arange(ymin, ymax+0.1, res*np.sin(ang))
+    xxrot, yyrot = np.meshgrid(xrot, yrot, indexing='ij')
+    elevrot = interpolate.griddata( points, values, (xxrot, yyrot), method=method )
+    ds = xr.DataArray(elevrot, dims=['x', 'y'], coords={'x':xrot, 'y':yrot})
+
+    # create empty rotated Sx array
+    Sxrot = np.empty(np.shape(ds));  Sxrot[:,:] = np.nan
+    
+    for i, xi in enumerate(xrot):
+        print(f'Processing row {i+1}/{len(xrot)}    ', end='\r')
+        for j, yi in enumerate(yrot):
+            
+            # Get elevation profile along the direction asked
+            elev = ds.isel(x=xr.DataArray(np.arange(i-npoints+1,i+1), dims='z'), y=xr.DataArray(np.arange(j-npoints+1,j+1), dims='z'))
+
+            # elevation of (xi, yi), for convenience
+            elevi = elev[-1]
+
+            Sxrot[i,j] = np.nanmax(np.rad2deg( np.arctan( (elev[:-1] - elevi)/(((elev.x[:-1]-xi)**2 + (elev.y[:-1]-yi)**2)**0.5) ) ))
+
+            if verbose: print(f'Max angle is {Sx:.4f} degrees')
+
+                
+    # interpolate results back to original grid
+    pointsrot = np.array( (xxrot.flatten(), yyrot.flatten()) ).T
+    Sx = interpolate.griddata( pointsrot, Sxrot.flatten(), (xx, yy), method=method )
+
+    return Sx
+
+
+
+def calcSxold(xx, yy, zagl, A, dmax, method='nearest', propagateNaN=False, verbose=False):
     '''
     Sx is a measure of topographic shelter or exposure relative to a particular
     wind direction. Calculates a whole map for all points (xi, yi) in the domain.
