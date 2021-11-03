@@ -669,10 +669,16 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
     # create rotated grid. This way we `isel` into a interpolated grid that has the exact points we need
     xmin = min(xx[:,0]);  xmax = max(xx[:,0])
     ymin = min(yy[0,:]);  ymax = max(yy[0,:])
-    xrot = np.arange(xmin, xmax+0.1, abs(res*np.cos(ang)))
-    yrot = np.arange(ymin, ymax+0.1, abs(res*np.sin(ang)))
-    xxrot, yyrot = np.meshgrid(xrot, yrot, indexing='ij')
-    elevrot = interpolate.griddata( points, values, (xxrot, yyrot), method=method )
+    if A%90 == 0:
+        # if flow is aligned, we don't need a new grid
+        xxrot = xx
+        yyrot = yy
+        elevrot = zagl
+    else:
+        xrot = np.arange(xmin, xmax+0.1, abs(res*np.cos(ang)))
+        yrot = np.arange(ymin, ymax+0.1, abs(res*np.sin(ang)))
+        xxrot, yyrot = np.meshgrid(xrot, yrot, indexing='ij')
+        elevrot = interpolate.griddata( points, values, (xxrot, yyrot), method=method )
     ds = xr.DataArray(elevrot, dims=['x', 'y'], coords={'x':xrot, 'y':yrot})
 
     # create empty rotated Sx array
