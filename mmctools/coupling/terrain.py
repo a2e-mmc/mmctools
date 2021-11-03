@@ -14,6 +14,7 @@ For processing downloaded GeoTIFF data:
 """
 import sys,os,glob
 import numpy as np
+import xarray as xr
 from scipy.interpolate import RectBivariateSpline
 
 import elevation
@@ -629,13 +630,13 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
     '''
     Sx is a measure of topographic shelter or exposure relative to a particular
     wind direction. Calculates a whole map for all points (xi, yi) in the domain.
-    For each (xi, yi) pair, it uses all v points (xv, yv) upwind of (xi, yi) in 
+    For each (xi, yi) pair, it uses all v points (xv, yv) upwind of (xi, yi) in
     the A wind direction, up to dmax.
-    
+
     Winstral, A., Marks D. "Simulating wind fields and snow redistribution using
         terrain-based parameters to model snow accumulation and melt over a semi-
         arid mountain catchment" Hydrol. Process. 16, 3585–3603 (2002)
-    
+
     Usage
     =====
     xx, yy : array
@@ -650,18 +651,18 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
         griddata interpolation method. Options are 'nearest', 'linear', 'cubic'.
         Recommended linear or cubic.
     '''
-
+        
     from scipy import interpolate
-
+    
     # get resolution (assumes uniform resolution)
     res = xx[1,0] - xx[0,0]
     npoints = 1+int(dmax/res)
     if dmax < res:
         raise ValueError('dmax needs to be larger or equal to the resolution of the grid')
-
+    
     # change angle notation
     ang = np.deg2rad(270-A)
-
+    
     # array for interpolation using griddata
     points = np.array( (xx.flatten(), yy.flatten()) ).T
     values = zagl.flatten()
@@ -671,6 +672,8 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
     ymin = min(yy[0,:]);  ymax = max(yy[0,:])
     if A%90 == 0:
         # if flow is aligned, we don't need a new grid
+        xrot = xx[:,0]
+        yrot = yy[0,:]
         xxrot = xx
         yyrot = yy
         elevrot = zagl
@@ -679,104 +682,34 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
         yrot = np.arange(ymin, ymax+0.1, abs(res*np.sin(ang)))
         xxrot, yyrot = np.meshgrid(xrot, yrot, indexing='ij')
         elevrot = interpolate.griddata( points, values, (xxrot, yyrot), method=method )
-    ds = xr.DataArray(elevrot, dims=['x', 'y'], coords={'x':xrot, 'y':yrot})
-
+    
     # create empty rotated Sx array
-    Sxrot = np.empty(np.shape(ds));  Sxrot[:,:] = np.nan
+    Sxrot = np.empty(np.shape(elevrot));  Sxrot[:,:] = np.nan
     
     for i, xi in enumerate(xrot):
         print(f'Processing row {i+1}/{len(xrot)}    ', end='\r')
         for j, yi in enumerate(yrot):
             
             # Get elevation profile along the direction asked
-            elev = ds.isel(x=xr.DataArray(np.arange(i-npoints+1,i+1), dims='z'), y=xr.DataArray(np.arange(j-npoints+1,j+1), dims='z'))
-
+            isel = np.arange(i-npoints+1,i+1)
+            jsel = np.arange(j-npoints+1,j+1)
+            xsel = xrot[isel]
+            ysel = yrot[jsel]
+            elev = elevrot[isel,jsel]
+            
             # elevation of (xi, yi), for convenience
             elevi = elev[-1]
-
-            Sxrot[i,j] = np.nanmax(np.rad2deg( np.arctan( (elev[:-1] - elevi)/(((elev.x[:-1]-xi)**2 + (elev.y[:-1]-yi)**2)**0.5) ) ))
-
+            
+            Sxrot[i,j] = np.nanmax(np.rad2deg( np.arctan( (elev[:-1] - elevi)/(((xsel[:-1]-xi)**2 + (ysel[:-1]-yi)**2)**0.5) ) ))
+            
             if verbose: print(f'Max angle is {Sx:.4f} degrees')
 
-                
     # interpolate results back to original grid
     pointsrot = np.array( (xxrot.flatten(), yyrot.flatten()) ).T
     Sx = interpolate.griddata( pointsrot, Sxrot.flatten(), (xx, yy), method=method )
-
+    
     return Sx
 
-
-
-def calcSxold(xx, yy, zagl, A, dmax, method='nearest', propagateNaN=False, verbose=False):
-    '''
-    Sx is a measure of topographic shelter or exposure relative to a particular
-    wind direction. Calculates a whole map for all points (xi, yi) in the domain.
-    For each (xi, yi) pair, it uses all v points (xv, yv) upwind of (xi, yi) in 
-    the A wind direction, up to dmax.
-    
-    Winstral, A., Marks D. "Simulating wind fields and snow redistribution using
-        terrain-based parameters to model snow accumulation and melt over a semi-
-        arid mountain catchment" Hydrol. Process. 16, 3585–3603 (2002)
-    
-    Usage
-    =====
-    xx, yy : array
-        meshgrid arrays of the region extent coordinates.
-    zagl: array
-        Elevation map of the region
-    A: float
-        Wind direction (deg, wind direction convention)
-    dmax: float
-        Upwind extent of the search
-    method: string
-        griddata interpolation method. Options are 'nearest', 'linear', 'cubic'.
-        Function is slow if not `nearest`.
-    propagateNaN: bool
-        If method != nearest, upwind positions that lie outside the domain bounds receive NaN
-    '''
-    
-    from scipy import interpolate
-    
-    # create empty output Sx array
-    Sx = np.empty(np.shape(zagl));  Sx[:,:] = np.nan
-    
-    # get resolution (assumes uniform resolution)
-    res = xx[1,0] - xx[0,0]
-    npoints = 1+int(dmax/res)
-    if dmax < res:
-        raise ValueError('dmax needs to be larger or equal to the resolution of the grid')
-    
-    # change angle notation
-    ang = np.deg2rad(270-A)
-    
-    # array for interpolation using griddata
-    points = np.array( (xx.flatten(), yy.flatten()) ).T
-    values = zagl.flatten()
-    
-    for i, xi in enumerate(xx[:,0]):
-        print(f'Processing row {i+1}/{len(xx)}    ', end='\r')
-        for j, yi in enumerate(yy[0,:]):
-            
-            # limits of the line where Sx will be calculated on (minus bc it's upwind)
-            xf = xi - dmax*np.cos(ang)
-            yf = yi - dmax*np.sin(ang)
-            xline = np.around(np.linspace(xi, xf, num=npoints), decimals=4)
-            yline = np.around(np.linspace(yi, yf, num=npoints), decimals=4)
-
-            # interpolate points upstream (xi, yi) along angle ang
-            elev = interpolate.griddata( points, values, (xline,yline), method=method )
-
-            # elevation of (xi, yi), for convenience
-            elevi = elev[0]
-
-            if propagateNaN:
-                Sx[i,j] = np.amax(np.rad2deg( np.arctan( (elev[1:] - elevi)/(((xline[1:]-xi)**2 + (yline[1:]-yi)**2)**0.5) ) ))
-            else:
-                Sx[i,j] = np.nanmax(np.rad2deg( np.arctan( (elev[1:] - elevi)/(((xline[1:]-xi)**2 + (yline[1:]-yi)**2)**0.5) ) ))
-
-            if verbose: print(f'Max angle is {Sx:.4f} degrees')
-
-    return Sx
 
 def calcSxmean(xx, yy, zagl, A, dmax, method='nearest', verbose=False):
     
