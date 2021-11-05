@@ -15,7 +15,7 @@ For processing downloaded GeoTIFF data:
 import sys,os,glob
 import numpy as np
 import xarray as xr
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline, griddata
 
 import elevation
 import rasterio
@@ -651,8 +651,6 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
         griddata interpolation method. Options are 'nearest', 'linear', 'cubic'.
         Recommended linear or cubic.
     '''
-        
-    from scipy import interpolate
     
     # get resolution (assumes uniform resolution)
     res = xx[1,0] - xx[0,0]
@@ -667,7 +665,7 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
     points = np.array( (xx.flatten(), yy.flatten()) ).T
     values = zagl.flatten()
     
-    # create rotated grid. This way we `isel` into a interpolated grid that has the exact points we need
+    # create rotated grid. This way we sample into a interpolated grid that has the exact points we need
     xmin = min(xx[:,0]);  xmax = max(xx[:,0])
     ymin = min(yy[0,:]);  ymax = max(yy[0,:])
     if A%90 == 0:
@@ -681,7 +679,7 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
         xrot = np.arange(xmin, xmax+0.1, abs(res*np.cos(ang)))
         yrot = np.arange(ymin, ymax+0.1, abs(res*np.sin(ang)))
         xxrot, yyrot = np.meshgrid(xrot, yrot, indexing='ij')
-        elevrot = interpolate.griddata( points, values, (xxrot, yyrot), method=method )
+        elevrot = griddata( points, values, (xxrot, yyrot), method=method )
     
     # create empty rotated Sx array
     Sxrot = np.empty(np.shape(elevrot));  Sxrot[:,:] = np.nan
@@ -706,7 +704,7 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
 
     # interpolate results back to original grid
     pointsrot = np.array( (xxrot.flatten(), yyrot.flatten()) ).T
-    Sx = interpolate.griddata( pointsrot, Sxrot.flatten(), (xx, yy), method=method )
+    Sx = griddata( pointsrot, Sxrot.flatten(), (xx, yy), method=method )
     
     return Sx
 
@@ -742,8 +740,6 @@ def calcSb(xx, yy, zagl, A, sepdist=60):
         Suggested value: 60 m.
     '''
     
-    from scipy import interpolate
-        
     # local Sx
     Sx1 = calcSx(xx, yy, zagl, A, dmax=sepdist)
     
@@ -752,7 +748,7 @@ def calcSb(xx, yy, zagl, A, sepdist=60):
     yyo = yy - sepdist*np.sin(np.deg2rad(270-A))
     points = np.array( (xx.flatten(), yy.flatten()) ).T
     values = zagl.flatten()
-    zaglo = interpolate.griddata( points, values, (xxo,yyo), method='linear' )
+    zaglo = griddata( points, values, (xxo,yyo), method='linear' )
     Sx0 = calcSx(xxo, yyo, zaglo, A, dmax=1000)
 
     Sb = Sx1 - Sx0
@@ -789,4 +785,32 @@ def calcTPI(xx, yy, zagl, r):
     zaglmean = zaglmean/np.sum(kernel*1)
 
     return zagl - zaglmean
+
+
+def extract_elevation_from_stl(stlpath, x, y, interp_method = 'cubic'):
+    from stl import mesh
+
+    x = [x] if isinstance(x, (int,float)) else x
+    y = [y] if isinstance(y, (int,float)) else y
+    
+    assert len(x)==len(y), 'x and y need to have the same dimenension'
+
+    try:
+        msh = mesh.Mesh.from_file(stlpath)
+    except FileNotFoundError:
+        print('File does not exist.')
+
+    xstl = msh.vectors[:,:,0].ravel()
+    ystl = msh.vectors[:,:,1].ravel()
+    zstl = msh.vectors[:,:,2].ravel()
+
+    points = np.stack((xstl,ystl), axis=-1)
+    xi = np.stack((x,y), axis=-1)
+    elev = griddata(points, zstl, xi, method=interp_method)
+
+    if len(x)==1:
+        return np.array(list(zip(x,y,elev))[0])
+    else:
+        return np.array(list(zip(x,y,elev)))
+
 
