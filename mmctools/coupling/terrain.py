@@ -814,3 +814,54 @@ def extract_elevation_from_stl(stlpath, x, y, interp_method = 'cubic'):
         return np.array(list(zip(x,y,elev)))
 
 
+def readSTL(stlpath, stlres=None, method='cubic'):
+    '''
+    Function to read in an STL and get result in an orthogonal grid.
+    The resolution is optional, but check the warnings if you don't 
+    pass one.
+    If a down- or upsampling of a STL is needed, then pass the desired
+    resolution and ignore the warnings.
+    
+    Usage
+    =====
+    stlpath: str
+        Path to STL file, including its extension
+    stlres: int, float
+        Resolution of the underlying grid that the data will be 
+        interpolated to
+    method: str, optional
+        Interpolation method. Options: 'nearest', 'linear', 'cubic'
+        Default is cubic
+    '''
+
+    from stl import mesh
+
+    try:
+        msh = mesh.Mesh.from_file(stlpath)
+    except FileNotFoundError:
+        print('File does not exist.')
+
+    xstl = msh.vectors[:,:,0].ravel()
+    ystl = msh.vectors[:,:,1].ravel()
+    zstl = msh.vectors[:,:,2].ravel()
+    
+    # STLs are complex and the computation below may not always get the proper resolution
+    apparentres = xstl[1]-xstl[0]
+    if stlres==None:
+        print(f'Using {apparentres} m resolution obtained from the STL. This resolution may not be entirely '
+               'accurate. If not, please provide a proper value using the `stlres` parameter.')
+    elif stlres != apparentres:
+        print(f'The {stlres} m resolution provided does not match what the function thinks the resolution is, {apparentres} '
+               'm, based on the STL. This apparent resolution may not be entirely accurate. Trust yours, but verify.')
+
+    xmin = min(xstl);    xmax = max(xstl)
+    ymin = min(ystl);    ymax = max(ystl)
+
+    xx, yy = np.meshgrid(np.arange(xmin,xmax+0.1, stlres), np.arange(ymin, ymax+0.1, stlres), indexing='ij')
+
+    points = np.array( (xstl, ystl) ).T
+    values = zstl.flatten()
+    z = griddata( points, values, (xx, yy), method=method )
+
+    return xx, yy, z
+
