@@ -658,13 +658,24 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
     if dmax < res:
         raise ValueError('dmax needs to be larger or equal to the resolution of the grid')
     
+    # Get upstream direction
+    A = A%360
+    if    A==0:   upstreamDirX=0;  upstreamDirY=-1
+    elif  A==90:  upstreamDirX=-1; upstreamDirY=0
+    elif  A==180: upstreamDirX=0;  upstreamDirY=1
+    elif  A==270: upstreamDirX=1;  upstreamDirY=0
+    elif  A>0  and A<90:   upstreamDirX=-1; upstreamDirY=-1
+    elif  A>90  and A<180:  upstreamDirX=-1; upstreamDirY=1
+    elif  A>180 and A<270:  upstreamDirX=1;  upstreamDirY=1
+    elif  A>270 and A<360:  upstreamDirX=1;  upstreamDirY=-1
+
     # change angle notation
     ang = np.deg2rad(270-A)
-    
+
     # array for interpolation using griddata
     points = np.array( (xx.flatten(), yy.flatten()) ).T
     values = zagl.flatten()
-    
+
     # create rotated grid. This way we sample into a interpolated grid that has the exact points we need
     xmin = min(xx[:,0]);  xmax = max(xx[:,0])
     ymin = min(yy[0,:]);  ymax = max(yy[0,:])
@@ -680,32 +691,36 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
         yrot = np.arange(ymin, ymax+0.1, abs(res*np.sin(ang)))
         xxrot, yyrot = np.meshgrid(xrot, yrot, indexing='ij')
         elevrot = griddata( points, values, (xxrot, yyrot), method=method )
-    
+
     # create empty rotated Sx array
     Sxrot = np.empty(np.shape(elevrot));  Sxrot[:,:] = np.nan
-    
+
     for i, xi in enumerate(xrot):
-        print(f'Processing row {i+1}/{len(xrot)}    ', end='\r')
+        if verbose: print(f'Computing Sx... {100*(i+1)/len(xrot):.1f}%  ', end='\r')
         for j, yi in enumerate(yrot):
-            
+
             # Get elevation profile along the direction asked
-            isel = np.arange(i-npoints+1,i+1)
-            jsel = np.arange(j-npoints+1,j+1)
-            xsel = xrot[isel]
-            ysel = yrot[jsel]
-            elev = elevrot[isel,jsel]
-            
+            isel = np.linspace(i-upstreamDirX*npoints+upstreamDirX, i, npoints, dtype=int)
+            jsel = np.linspace(j-upstreamDirY*npoints+upstreamDirY, j, npoints, dtype=int)
+            try:
+                xsel = xrot[isel]
+                ysel = yrot[jsel]
+                elev = elevrot[isel,jsel]
+            except IndexError:
+                # At the borders, can't get a valid positions
+                xsel = np.zeros(np.size(isel))  
+                ysel = np.zeros(np.size(jsel))
+                elev = np.zeros(np.size(isel)) 
+
             # elevation of (xi, yi), for convenience
             elevi = elev[-1]
-            
+
             Sxrot[i,j] = np.nanmax(np.rad2deg( np.arctan( (elev[:-1] - elevi)/(((xsel[:-1]-xi)**2 + (ysel[:-1]-yi)**2)**0.5) ) ))
-            
-            if verbose: print(f'Max angle is {Sx:.4f} degrees')
 
     # interpolate results back to original grid
     pointsrot = np.array( (xxrot.flatten(), yyrot.flatten()) ).T
     Sx = griddata( pointsrot, Sxrot.flatten(), (xx, yy), method=method )
-    
+
     return Sx
 
 
