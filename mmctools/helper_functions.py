@@ -1249,6 +1249,8 @@ def calc_spectra(data,
 
     # Make sure variables of interest are lists
     var_oi = [var_oi] if type(var_oi) is str else var_oi
+    if var_oi==None:
+        var_oi=[]
     xvar_oi = [xvar_oi] if type(xvar_oi) is tuple else xvar_oi
 
     # Flatten the cross PSD vars of interest
