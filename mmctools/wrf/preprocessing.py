@@ -457,14 +457,14 @@ class ERA5(CDSDataset):
             )
 
 
-class SetupWRF():
+class SetupWRF_old():
     '''
     Set up run directory for WRF / WPS
     '''
 
     def __init__(self,run_directory,icbc_directory,executables_dict,setup_dict):
         self.setup_dict    = setup_dict
-        self.run_dir = run_directory
+        self.run_dir       = run_directory
         self.wrf_exe_dir   = executables_dict['wrf']
         self.wps_exe_dir   = executables_dict['wps']
         self.icbc_dir      = icbc_directory
@@ -485,7 +485,7 @@ class SetupWRF():
             interval_seconds = 3600
             met_lvls  = 38
             download_freq = '1h'
-        elif icbc_type == 'FNL':
+        elif 'FNL' in icbc_type:
             met_lvls  = 34
         elif icbc_type == 'NARR':
             met_lvls  = 30
@@ -515,9 +515,12 @@ class SetupWRF():
                 missing_options = True
                 
         if not missing_options:
-            if 'usgs' in self.setup_dict['geogrid_args']:
+            if 'usgs+' in self.setup_dict['geogrid_args']:
                 land_cat = 24
+            elif 'usgs_lakes+' in self.setup_dict['geogrid_args']:
+                land_cat = 28
             else:
+                print('here')
                 land_cat = 21
             namelist_defaults = {
                        'geogrid_args' : '30s',
@@ -557,6 +560,7 @@ class SetupWRF():
                            'dampcoef' : 0.2,
                               'khdif' : 0,
                               'kvdif' : 0,
+                              'smdiv' : 0.1,
                     'non_hydrostatic' : '.true.',
                       'moist_adv_opt' : 1,
                      'scalar_adv_opt' : 1,
@@ -565,12 +569,15 @@ class SetupWRF():
                     'v_mom_adv_order' : 3,
                     'h_sca_adv_order' : 5,
                     'v_sca_adv_order' : 3,
+                            'gwd_opt' : 0,
                      'spec_bdy_width' : 5,
                           'spec_zone' : 1,
                          'relax_zone' : 4,
                 'nio_tasks_per_group' : 0,
                          'nio_groups' : 1,
                          'sst_update' : 1,
+                           'sst_skin' : 0,
+                   'sf_ocean_physics' : 0,
             }
 
             namelist_opts = namelist_defaults
@@ -710,15 +717,17 @@ class SetupWRF():
         end_second_str = "{0:>5},".format(end_date.second)*num_doms
         
         parent_ids,grid_ids,dx_str,radt_str = '','','',''
+        full_pgr = self.namelist_opts['parent_grid_ratio'].copy()
         for pp,pgr in enumerate(self.namelist_opts['parent_grid_ratio']):
+            full_pgr[pp] = np.prod(self.namelist_opts['parent_grid_ratio'][:pp+1])
             grid_ids += '{0:>5},'.format(str(pp+1))
             if pp == 0:
                 pid = 1
             else:
                 pid = pp
             parent_ids += '{0:>5},'.format(str(pid))
-            dx_str += '{0:>5},'.format(str(int(self.namelist_opts['dxy']/np.prod(self.namelist_opts['parent_grid_ratio'][:(pp+1)]))))
-            radt = self.namelist_opts['radt']/pgr
+            dx_str += '{0:>5},'.format(str(int(self.namelist_opts['dxy']/full_pgr[pp])))
+            radt = self.namelist_opts['radt']/full_pgr[pp]
             if radt < 1: radt = 1
             radt_str += '{0:>5},'.format(str(int(radt)))
 
@@ -776,10 +785,12 @@ class SetupWRF():
         km_str      = self._get_nl_str(num_doms,self.namelist_opts['km_opt'])
         diff6o_str  = self._get_nl_str(num_doms,self.namelist_opts['diff_6th_opt'])
         diff6f_str  = self._get_nl_str(num_doms,self.namelist_opts['diff_6th_factor'])
+        diff6s_str  = self._get_nl_str(num_doms,self.namelist_opts['diff_6th_slopeopt'])
         zdamp_str   = self._get_nl_str(num_doms,self.namelist_opts['zdamp'])
         damp_str    = self._get_nl_str(num_doms,self.namelist_opts['dampcoef'])
         khdif_str   = self._get_nl_str(num_doms,self.namelist_opts['khdif'])
         kvdif_str   = self._get_nl_str(num_doms,self.namelist_opts['kvdif'])
+        smdiv_str   = self._get_nl_str(num_doms,self.namelist_opts['smdiv'])
         nonhyd_str  = self._get_nl_str(num_doms,self.namelist_opts['non_hydrostatic'])
         moist_str   = self._get_nl_str(num_doms,self.namelist_opts['moist_adv_opt'])
         scalar_str  = self._get_nl_str(num_doms,self.namelist_opts['scalar_adv_opt'])
@@ -788,6 +799,9 @@ class SetupWRF():
         vmom_str    = self._get_nl_str(num_doms,self.namelist_opts['v_mom_adv_order'])
         hsca_str    = self._get_nl_str(num_doms,self.namelist_opts['h_sca_adv_order'])
         vsca_str    = self._get_nl_str(num_doms,self.namelist_opts['v_sca_adv_order'])
+        gwd_str     = self._get_nl_str(num_doms,self.namelist_opts['gwd_opt'])
+        if 'shalwater_rough' in self.namelist_opts:
+            shalwater_rough_str    = self._get_nl_str(num_doms,self.namelist_opts['shalwater_rough'])
         
         specified = ['.false.']*num_doms
         nested    = ['.true.']*num_doms
@@ -851,6 +865,10 @@ class SetupWRF():
         f.write(" e_vert                    =  {}\n".format("{0:>5},".format(self.namelist_opts['num_eta_levels'])*num_doms))
         if 'eta_levels' in self.namelist_opts.keys():
             f.write(" eta_levels  = {},\n".format(self.namelist_opts['eta_levels']))
+        if 'dzbot' in self.namelist_opts.keys():
+            f.write(" dzbot                     = {},\n".format(self.namelist_opts['dzbot']))
+        if 'dzstretch_s' in self.namelist_opts.keys():
+            f.write(" dzstretch_s               = {},\n".format(self.namelist_opts['dzstretch_s']))
         f.write(" p_top_requested           = {},\n".format(self.namelist_opts['p_top_requested']))
         f.write(" num_metgrid_levels        = {},\n".format(self.namelist_opts['num_metgrid_levels']))
         f.write(" num_metgrid_soil_levels   = {},\n".format(self.namelist_opts['num_metgrid_soil_levels']))
@@ -864,6 +882,9 @@ class SetupWRF():
         f.write(" parent_time_step_ratio    = {}\n".format(parent_time_ratios))
         f.write(" feedback                  = {},\n".format(self.namelist_opts['feedback']))
         f.write(" smooth_option             = {},\n".format(self.namelist_opts['smooth_option']))
+        if ('nproc_x' in self.namelist_opts.keys()) and ('nproc_y' in self.namelist_opts.keys()):
+            f.write(" nproc_x                   = {},\n".format(self.namelist_opts['nproc_x']))
+            f.write(" nproc_y                   = {},\n".format(self.namelist_opts['nproc_y']))
         f.write(" /\n")
         f.write("\n")
         f.write("&physics\n")
@@ -885,10 +906,40 @@ class SetupWRF():
         f.write(" num_land_cat              = {}, \n".format(self.namelist_opts['num_land_cat']))
         f.write(" sf_urban_physics          = {}\n".format(urb_str))
         f.write(" sst_update                = {}, \n".format(self.namelist_opts['sst_update']))
+        f.write(" sst_skin                  = {}, \n".format(self.namelist_opts['sst_skin']))
+        f.write(" sf_ocean_physics          = {}, \n".format(self.namelist_opts['sf_ocean_physics']))
+        
+        if 'shalwater_rough' in self.namelist_opts:
+            f.write(" shalwater_rough            = {} \n".format(shalwater_rough_str))
+        if 'shalwater_depth' in self.namelist_opts:
+            f.write(" shalwater_depth            = {}, \n".format(self.namelist_opts['shalwater_depth']))
         f.write(" /\n")
+        
         f.write("\n")
         f.write("&fdda\n")
+        if 'fdda_dict' in self.namelist_opts:
+            f.write("grid_fdda                           = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['grid_fdda'])))
+            f.write('gfdda_inname                        = "{}",\n'.format(self.namelist_opts['fdda_dict']['gfdda_inname']))
+            f.write("gfdda_interval_m                    = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['gfdda_interval_m'])))
+            f.write("io_form_gfdda                       = {},\n".format(self.namelist_opts['fdda_dict']['io_form_gfdda']))
+            f.write("if_no_pbl_nudging_uv                = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_no_pbl_nudging_uv'])))
+            f.write("if_no_pbl_nudging_t                 = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_no_pbl_nudging_t'])))
+            f.write("if_no_pbl_nudging_ph                = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_no_pbl_nudging_ph'])))
+            f.write("if_zfac_uv                          = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_zfac_uv'])))
+            f.write("k_zfac_uv                           = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['k_zfac_uv'])))
+            f.write("if_zfac_t                           = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_zfac_t'])))
+            f.write("k_zfac_t                            = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['k_zfac_t'])))
+            f.write("if_zfac_ph                          = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['if_zfac_ph'])))
+            f.write("k_zfac_ph                           = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['k_zfac_ph'])))
+            f.write("guv                                 = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['guv'])))
+            f.write("gt                                  = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['gt'])))
+            f.write("gph                                 = {}\n".format(self._get_nl_str(num_doms,self.namelist_opts['fdda_dict']['gph'])))
+            f.write("if_ramping                          = {},\n".format(self.namelist_opts['fdda_dict']['if_ramping']))
+            f.write("dtramp_min                          = {},\n".format(self.namelist_opts['fdda_dict']['dtramp_min']))
+            f.write("xwavenum                            = {},\n".format(self.namelist_opts['fdda_dict']['xwavenum']))
+            f.write("ywavenum                            = {},\n".format(self.namelist_opts['fdda_dict']['ywavenum']))
         f.write("/\n")
+
         f.write("\n")
         f.write("&dynamics\n")
         if 'hybrid_opt' in self.namelist_opts:
@@ -901,12 +952,17 @@ class SetupWRF():
         f.write(" km_opt                    = {}\n".format(km_str))
         f.write(" diff_6th_opt              = {}\n".format(diff6o_str))
         f.write(" diff_6th_factor           = {}\n".format(diff6f_str))
+        if 'diff_6th_slopeopt' in self.namelist_opts:
+            f.write(" diff_6th_slopeopt         = {}\n".format(diff6s_str))
+
         f.write(" base_temp                 = {}, \n".format(self.namelist_opts['base_temp']))
         f.write(" damp_opt                  = {}, \n".format(self.namelist_opts['damp_opt']))
         f.write(" zdamp                     = {}\n".format(zdamp_str))
         f.write(" dampcoef                  = {}\n".format(damp_str))
         f.write(" khdif                     = {}\n".format(khdif_str))
         f.write(" kvdif                     = {}\n".format(kvdif_str))
+        if 'smdiv' in self.namelist_opts:
+            f.write(" smdiv                     = {}\n".format(smdiv_str))
         f.write(" non_hydrostatic           = {}\n".format(nonhyd_str))
         f.write(" moist_adv_opt             = {}\n".format(moist_str))
         f.write(" scalar_adv_opt            = {}\n".format(scalar_str))
@@ -915,6 +971,7 @@ class SetupWRF():
         f.write(" v_mom_adv_order           = {}\n".format(vmom_str))
         f.write(" h_sca_adv_order           = {}\n".format(hsca_str))
         f.write(" v_sca_adv_order           = {}\n".format(vsca_str))
+        f.write(" gwd_opt                   = {}\n".format(gwd_str))
         f.write(" /\n")
         f.write(" \n")
         f.write("&bdy_control\n")
@@ -942,7 +999,7 @@ class SetupWRF():
         icbc_type = self.namelist_opts['icbc_type'].upper()
         if icbc_type == 'ERAI':
             icbc = ERAInterim()
-        elif icbc_type == 'FNL':
+        elif 'FNL' in icbc_type:
             icbc = FNL()
         elif icbc_type == 'MERRA2':
             print('Cannot download MERRA2 yet... please download manually and put in the IC/BC dir:')
@@ -975,7 +1032,10 @@ class SetupWRF():
             if hpc == 'cheyenne':
                 f = open('{}submit_{}.sh'.format(self.run_dir,executable),'w')
                 f.write("#!/bin/bash\n")
+                case_str = self.run_dir.split('/')[-3].split('_')[0]
                 run_str = '{0}{1}'.format(self.icbc_dict['type'],
+                                         (self.setup_dict['start_date'].split(' ')[0]).replace('-',''))
+                run_str = '{0}{1}'.format(case_str,
                                          (self.setup_dict['start_date'].split(' ')[0]).replace('-',''))
                 f.write("#PBS -N {} \n".format(run_str))
                 f.write("#PBS -A {}\n".format(submission_dict['account_key']))
@@ -986,9 +1046,9 @@ class SetupWRF():
                 f.write("#PBS -M {}\n".format(submission_dict['user_email']))
                 f.write("### Select 2 nodes with 36 CPUs each for a total of 72 MPI processes\n")
                 if executable == 'wps':
-                    f.write("#PBS -l select=1:ncpus=1:mpiprocs=1\n".format(submission_dict['nodes']))
+                    f.write("#PBS -l select=1:ncpus=1:mpiprocs=1\n")
                 else:
-                    f.write("#PBS -l select={0:02d}:ncpus=36:mpiprocs=36\n".format(submission_dict['nodes']))
+                    f.write("#PBS -l select={0:02d}:ncpus=36:mpiprocs=36\n".format(submission_dict['nodes'][executable]))
                 f.write("date_start=`date`\n")
                 f.write("echo $date_start\n")
                 f.write("module list\n")
@@ -1000,7 +1060,7 @@ class SetupWRF():
                     elif icbc_type == 'ERAI':
                         icbc_head = 'ei.oper*'
                         icbc_vtable = 'ERA-interim.pl'
-                    elif icbc_type == 'FNL':
+                    elif 'FNL' in icbc_type:
                         icbc_head = 'fnl_*'
                         icbc_vtable = 'GFS'
                     elif icbc_type == 'MERRA2':
@@ -1107,8 +1167,1179 @@ class SetupWRF():
     def create_tslist_file(self,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
         fname = '{}tslist'.format(self.run_dir)
         write_tslist_file(fname,lat=lat,lon=lon,i=i,j=j,twr_names=twr_names,twr_abbr=twr_abbr)
+        
+    def link_metem_files(self,met_em_dir):
+        # Link WPS and WRF files / executables
+        met_files = glob.glob('{}/*'.format(met_em_dir))
+        self._link_files(met_files,self.run_dir)
 
+
+        
+        
+
+class SetupWRF():
+    '''
+    Set up run directory for WRF / WPS
+    
+    *** For reading in a namelist, have the namelist turn into the namelist_control_dict...
+        ... the setup_dict can then be empty and just filled with the "defaults" that are
+        ... all the values from the input namelist.
+    '''
+
+    def __init__(self,
+                 run_directory=None,
+                 icbc_directory=None,
+                 executables_dict={'wrf':{},'wps':{}},
+                 setup_dict={}):
             
+        self.setup_dict    = setup_dict
+        self.run_dir       = run_directory
+        self.wrf_exe_dir   = executables_dict['wrf']
+        self.wps_exe_dir   = executables_dict['wps']
+        self.icbc_dir      = icbc_directory
+
+
+    def SetupNamelist(self,load_namelist_path=None,namelist_type=None):
+        self.namelist_control_dict = self._GetNamelistControlDict()
+        if load_namelist_path is not None:
+            if type(load_namelist_path) is not list:
+                load_namelist_path = [load_namelist_path]
+            for namelist_path in load_namelist_path:
+
+                if namelist_type is None:
+                    if 'input' in namelist_path.split('/')[-1]:
+                        namelist_type = 'input'
+                    elif 'wps' in namelist_path.split('/')[-1]:
+                        namelist_type = 'wps'
+                    else:
+                        raise ValueError('Please specify namelist_type as "wps" or "input"')
+
+                self._LoadNamelist(namelist_path,self.namelist_control_dict,self.setup_dict)
+        if self.icbc_dir is not None:
+            self.namelist_dict = self._CreateNamelistDict()
+        return(self.namelist_control_dict)
+
+        
+    def _LoadNamelist(self,namelist_path,namelist_control_dict,setup_dict,namelist_type=None):
+        if namelist_type is None:
+            if 'input' in namelist_path.split('/')[-1]:
+                namelist_type = 'input'
+            elif 'wps' in namelist_path.split('/')[-1]:
+                namelist_type = 'wps'
+            else:
+                raise ValueError('Please specify namelist_type as "wps" or "input"')
+        
+        if namelist_type == 'input':
+            namelist_sections = ['time_control', 'domains', 'physics', 'fdda', 'dynamics', 'bdy_control', 'namelist_quilt']
+        elif namelist_type == 'wps':
+            namelist_sections = ['share', 'geogrid', 'ungrib', 'metgrid']
+            
+        f = open(namelist_path,'r')
+        count = 0
+        get_eta_levels = False
+        for line in f: 
+            if '!' in line:
+                line = line.split('!')[0]
+            if '&' in line:
+                section = line.replace('&','').strip()
+                value = None
+            elif (line.strip() != '/') and (line.strip() != ''):
+                if ('=' not in line) and get_eta_levels:
+                    line = line.strip()
+                    eta_values = line.strip().split(',')
+                    if '' in eta_values: eta_values.remove('')
+                    for eta in eta_values:
+                        eta = ''.join(set(eta.strip().replace('.','')))
+                        if eta == '0':
+                            get_eta_levels = False
+
+                    eta_level_str += eta_values
+                    if get_eta_levels:
+                        value = None
+                    else:
+                        value = ', '.join(eta_level_str)
+
+                else:
+                    line = line.strip()
+                    line = line.split('=')
+                    namelist_var = line[0].strip()
+                    value = line[1].strip().split(',')
+                    if '' in value: value.remove('')
+
+                    if namelist_var == 'eta_levels':
+                        eta_level_str = value
+                        value = None
+                        get_eta_levels = True
+
+                    else:
+                        if len(value) > 1:
+                            for vv,val in enumerate(value):
+                                val = val.strip()
+                                if '.' in val:
+                                    try:
+                                        val = float(val)
+                                    except:
+                                        val = val
+                                else:
+                                    try:
+                                        val = int(val)
+                                    except:
+                                        val = val
+                                if (type(val) is not int) and (type(val) is not float):
+                                    if '"' in val: val = val.replace('"','')
+                                    if "'" in val: val = val.replace("'",'')
+                                    if val == '.true.': val = True
+                                    if val == '.false.': val = False
+                                value[vv] = val
+                        else:
+                            value = value[0]
+                            if '.' in value:
+                                try:
+                                    value = float(value)
+                                except:
+                                    value = value
+                            else:
+                                try:
+                                    value = int(value)
+                                except:
+                                    value = value
+                            if (type(value) is not int) and (type(value) is not float):
+                                if '"' in value: value = value.replace('"','')
+                                if "'" in value: value = value.replace("'",'')
+                                if value == '.true.': value = True
+                                if value == '.false.': value = False
+
+                if value is not None:
+                    namelist_control_dict[section]['required'][namelist_var] = value
+            count += 1
+        f.close()
+        
+        for section in list(namelist_sections):
+            for namelist_var in list(namelist_control_dict[section]['required'].keys()):
+                setup_dict[namelist_var] = namelist_control_dict[section]['required'][namelist_var]
+            
+        self.setup_dict = setup_dict
+        self.namelist_control_dict = namelist_control_dict
+
+
+    def _GetNamelistControlDict(self):
+        aux_in_dict = {'_inname' : '{}_d<domain>', 
+                       '_interval' : [None], 
+                       'io_form_' : 2,  
+                       },
+        aux_out_dict = {'_outname' : '{}_d<domain>', 
+                        '_interval' : [None], 
+                        '_begin' : [None], 
+                        '_end' : [None], 
+                        'io_form_' : 2,  
+                        'frames_per_' : [1],
+                        },
+
+        namelist_control_dict = {
+                'time_control' : {
+                            'required' : {
+                                                'run_days' : 0,
+                                               'run_hours' : 0,
+                                             'run_minutes' : 0,
+                                             'run_seconds' : 0,
+                                              'start_year' : [None],
+                                             'start_month' : [None],
+                                               'start_day' : [None],
+                                              'start_hour' : [None],
+                                            'start_minute' : [None],
+                                            'start_second' : [None],
+                                                'end_year' : [None],
+                                               'end_month' : [None],
+                                                 'end_day' : [None],
+                                                'end_hour' : [None],
+                                              'end_minute' : [None],
+                                              'end_second' : [None],
+                                        'interval_seconds' : None,
+                                        'history_interval' : [60],
+                                      'frames_per_outfile' : [1],
+                                         'io_form_history' : 2,
+                                                 'restart' : False,
+                                        'restart_interval' : 0,
+                                         'io_form_restart' : 2,
+                                           'io_form_input' : 2,
+                                        'io_form_boundary' : 2,
+                                          },
+                             'optional' : {
+                                         'input_from_file' : [True],
+                                       'fine_input_stream' : [0],
+                                                 'cycling' : False,
+                                  'reset_simulation_start' : False,
+                                              'ncd_nofill' : True,
+                                    'frames_per_emissfile' : 12,
+                                          'io_style_emiss' : 1,
+                                              'diag_print' : 0,
+                                            'all_ic_times' : False,
+                                     'adjust_output_times' : False,
+                                 'override_restart_timers' : False,
+                                    'write_hist_at_0h_rst' : False,
+                                       'output_ready_flag' : True,
+                                      'force_use_old_data' : False,
+                                                'auxinput' : aux_in_dict,
+                                                 'auxhist' : aux_out_dict,
+                                         'nwp_diagnostics' : 0,
+                                      'output_diagnostics' : 0,
+                                       'iofields_filename' : [None],
+                                 'ignore_iofields_warning' : True,
+                                             'debug_level' : 0,
+                                          },
+
+                            },
+
+                'domains' : {
+                            'required' : {
+                                            'time_step' : None, 
+                                  'time_step_fract_num' : 0,  
+                                  'time_step_fract_den' : 1,  
+                                              'max_dom' : None,  
+                                                 's_we' : [1], 
+                                                 'e_we' : [None],
+                                                 's_sn' : [1],
+                                                 'e_sn' : [None],
+                                               's_vert' : [1], 
+                                               'e_vert' : [None],
+                                      'p_top_requested' : 10000,
+                                   'num_metgrid_levels' : 73, 
+                              'num_metgrid_soil_levels' : 4,
+                                                   'dx' : [None],
+                                                   'dy' : [None],
+                                              'grid_id' : [1,2,3,4,5,6,7,8,9,10],
+                                            'parent_id' : [1,1,2,3,4,5,6,7,8,9],
+                                    'parent_grid_ratio' : None,
+                               'parent_time_step_ratio' : [None],
+                                       'i_parent_start' : [1],
+                                       'j_parent_start' : [1],
+                                                 'e_we' : [None],
+                                                 'e_sn' : [None],
+                                            'feedback'  : 0,
+                                        'smooth_option' : 0,
+                                         },
+                            'optional' : {
+                                           'eta_levels' : None,
+                                          'max_ts_locs' :  20, 
+                                         'max_ts_level' :  20, 
+                               'tslist_unstagger_winds' : True, 
+                                'dzstretch_s' : 1.3,
+                                'dzbot' : 50.0,
+                                'nproc_x' : None,
+                                'nproc_y' : None,
+                                         },
+                            },
+
+                'physics' : {
+                            'required' : { 
+                                           'mp_physics' : [5],
+                                        'ra_lw_physics' : [4],
+                                        'ra_sw_physics' : [4], 
+                                                 'radt' : [None], ### Calculate from ∆x
+                                    'sf_sfclay_physics' : [1],
+                                   'sf_surface_physics' : [1],
+                                       'bl_pbl_physics' : [1],
+                                                 'bldt' : [0],
+                                           'cu_physics' : [1],
+                                                 'cudt' : [5],
+                                               'isfflx' : 1,  
+                                               'ifsnow' : 0,  
+                                               'icloud' : 1,  
+                                 'surface_input_source' : 1,  
+                                      'num_soil_layers' : 4, 
+                                         'num_land_cat' : 21, ### From ICBC
+
+                                        },
+                             'optional' : {
+                                     'sf_urban_physics' : [0],
+                                           'sst_update' : 1,  
+                                             'sst_skin' : 0,  
+                                     'sf_ocean_physics' : 0,  
+                                      'shalwater_rough' : [0], 
+                                      'shalwater_depth' : 40, 
+                                        },
+                            },
+
+                'fdda' : {
+                            'required' : {},
+                            'optional' : {
+                                            'grid_fdda' : [2],
+                                         'gfdda_inname' : "wrffdda_d<domain>",
+                                       'gfdda_interval' : [6],
+                                        'io_form_gfdda' : 2,
+                                 'if_no_pbl_nudging_uv' : [1],
+                                  'if_no_pbl_nudging_t' : [1], 
+                                 'if_no_pbl_nudging_ph' : [1], 
+                                           'if_zfac_uv' : [1], 
+                                            'k_zfac_uv' : [None], 
+                                            'if_zfac_t' : [1], 
+                                             'k_zfac_t' : [None],
+                                           'if_zfac_ph' : [1],
+                                            'k_zfac_ph' : [None], 
+                                                  'guv' : [0.0003],
+                                                   'gt' : [0.0003],
+                                                  'gph' : [0.0003],
+                                           'if_ramping' : 1,
+                                           'dtramp_min' : 60.0,
+                                             'xwavenum' : 7,
+                                             'ywavenum' : 7,
+                                         },
+                            },
+
+                'dynamics' : {
+                            'required' : {
+                                           'hybrid_opt' : 0,
+                                          'use_theta_m' : 0,
+                                             'diff_opt' : [1],
+                                               'km_opt' : [4],
+                                         'diff_6th_opt' : [2],
+                                      'diff_6th_factor' : [0.12],
+                                            'base_temp' : 290.0,
+                                             'damp_opt' : 3,
+                                               'zdamp'  : [5000.0],
+                                             'dampcoef' : [0.2],
+                                                'khdif' : [0],
+                                                'kvdif' : [0],
+                                                'smdiv' : [0.1],
+                                      'non_hydrostatic' : [True],
+                                        'moist_adv_opt' : [1],
+                                       'scalar_adv_opt' : [1],
+                                          'tke_adv_opt' : [1],
+                                      'h_mom_adv_order' : [5],
+                                      'v_mom_adv_order' : [3],
+                                      'h_sca_adv_order' : [5],
+                                      'v_sca_adv_order' : [3],
+                                         },
+                             'optional' : {
+                                            'w_damping' : 1,
+                                              'gwd_opt' : [1],
+                                    'diff_6th_slopeopt' : [0],
+                                            'cell_pert' : [False],
+                                            'cell_tvcp' : [False],
+                                            'pert_tsec' : [100.],
+                                         'cell_kbottom' : [3],  
+                                                'm_opt' : [0],
+                                        },
+                            },
+
+                'bdy_control' : {
+                            'required' : {
+                                       'spec_bdy_width' : 5,  
+                                            'spec_zone' : 1,  
+                                           'relax_zone' : 4,  
+                                            'specified' : [True,False,False,False,False,False,False,False,False,False],
+                                               'nested' : [False,True,True,True,True,True,True,True,True,True],
+                                         },
+                            },
+
+                'namelist_quilt' : {
+                            'required' : {
+                                  'nio_tasks_per_group' : 0,  
+                                           'nio_groups' : 1,
+                                         },
+                            },
+
+                'share' : {
+                        'required' : {
+                            'wrf_core' : 'ARW',
+                            'max_dom' : 1,
+                            'start_date' : [None],
+                            'end_date' : [None],
+                            'interval_seconds' : None,
+                            'io_form_geogrid' : 2,
+                                     },
+                            },
+                'geogrid' : {
+                        'required' : {
+                            'parent_id' : [1,1,2,3,4,5,6,7,8,9],
+                            'parent_grid_ratio' : [1],
+                            'i_parent_start' : [1],
+                            'j_parent_start' : [1],
+                            'e_we' : [None],
+                            'e_sn' : [None],
+                            'geog_data_res' : ['30s'],
+                            'dx' : None,
+                            'dy' : None,
+                            'map_proj' : 'lambert',
+                            'ref_lat' : None,
+                            'ref_lon' : None,
+                            'truelat1' : None,
+                            'truelat2' : None,
+                            'stand_lon' : None,
+                            'geog_data_path' : None,
+                                     },
+                            },
+                'ungrib' : {
+                        'required' : {
+                            'out_format' : 'WPS',
+                            'prefix' : None,   ### From IC/BC               
+                                     },
+                            },
+                'metgrid' : {            
+                        'required' : {
+                            'fg_name' : None,  ### From IC/BC
+                            'io_form_metgrid' : 2,
+                                     },
+                            },
+        }
+        return(namelist_control_dict)
+        
+        
+    def _CreateNamelistDict(self):
+        namelist_control_dict = self.namelist_control_dict
+        namelist_dict = self.setup_dict.copy()
+        namelist_dict = self._GetICBCinfo(namelist_dict,namelist_dict['icbc_type'])
+        namelist_dict = self._CheckForRequiredFields(namelist_dict,namelist_control_dict)
+        namelist_dict = self._MaxDomainAdjustment(namelist_dict,namelist_control_dict)
+        return(namelist_dict)
+
+    def _link_files(self,file_list,destination_dir):
+        for filen in file_list:
+            file_name = filen.split('/')[-1]
+            try:
+                os.symlink(filen,'{}{}'.format(destination_dir,file_name))
+            except FileExistsError:
+                print('file already linked')
+                
+    def CreateRunDirectory(self):
+        # Create run dir:
+        if not os.path.exists(self.run_dir):
+            os.makedirs(self.run_dir)
+            
+        # Link WPS and WRF files / executables
+        wps_files = glob.glob('{}[!n]*'.format(self.wps_exe_dir))
+        self._link_files(wps_files,self.run_dir)
+        wrf_files = glob.glob('{}[!n]*'.format(self.wrf_exe_dir))
+        self._link_files(wrf_files,self.run_dir)
+        
+    def _GetICBCinfo(self,namelist_dict,icbc_type):
+        interval_seconds = 21600
+        met_lvls = 38
+        soil_lvls = 4
+        download_freq = '6h'
+
+        if icbc_type == 'ERA5':
+            interval_seconds = 3600
+            met_lvls  = 38
+            download_freq = '1h'
+        elif 'FNL' in icbc_type:
+            met_lvls  = 34
+        elif icbc_type == 'NARR':
+            met_lvls  = 30
+        elif icbc_type == 'MERRA2':
+            met_lvls  = 73
+        else:
+            if icbc_type != 'ERAI':
+                raise ValueError('{} is not yet supported. Try ERA5, FNL, NARR, or MERRA2'.format(icbc_type))
+
+        icbc_dict = {'type' : icbc_type,
+                    'interval_seconds' : interval_seconds,
+                    'met_levels' : met_lvls,
+                    'soil_levels' : soil_lvls,
+                    'download_freq' : download_freq}
+        self.icbc_dict = icbc_dict
+
+        namelist_dict['interval_seconds']        = icbc_dict['interval_seconds']
+        namelist_dict['num_metgrid_levels']      = icbc_dict['met_levels']
+        namelist_dict['num_metgrid_soil_levels'] = icbc_dict['soil_levels']
+        namelist_dict['num_soil_layers']         = int(icbc_dict['soil_levels'])
+        namelist_dict['prefix']  = icbc_type
+        namelist_dict['fg_name'] = icbc_type
+
+        return namelist_dict
+    
+    def get_icbcs(self):
+        start_time = pd.to_datetime(self.namelist_dict['start_date'])
+        end_time   = pd.to_datetime(self.namelist_dict['end_date'])
+        freq       = self.icbc_dict['download_freq']
+
+        datetimes = pd.date_range(start=start_time,
+                                  end=end_time,
+                                  freq=freq)
+        optional_args = {}
+        icbc_type = self.setup_dict['icbc_type'].upper()
+        if icbc_type == 'ERAI':
+            icbc = ERAInterim()
+        elif 'FNL' in icbc_type:
+            icbc = FNL()
+        elif icbc_type == 'MERRA2':
+            print('Cannot download MERRA2 yet... please download manually and put in the IC/BC dir:')
+            print(self.icbc_dir)
+            #icbc = MERRA2()
+            #if 'resolution_deg' not in self.setup_keys():
+            #    res_drag = 0
+            #else:
+            #    res_drag = self.setup_dict['resolution_deg']
+            #optional_args['resolution_deg'] = res_drag
+        elif icbc_type == 'ERA5':
+            icbc = ERA5()
+            if 'bounds' not in self.setup_dict.keys():
+                bounds = { 'N':60,
+                           'S':30,
+                           'W':-120,
+                           'E':-90}
+            else:
+                bounds = self.setup_dict['bounds']
+            optional_args['bounds'] = bounds
+        else:
+            print('We currently do not support ',icbc_type)
+        if icbc_type != 'MERRA2':
+            icbc.download(datetimes,path=self.icbc_dir, **optional_args)
+
+    def write_submission_scripts(self,submission_dict,hpc='cheyenne'):
+        executables = ['wps','real','wrf']
+        for executable in executables:
+            if hpc == 'cheyenne':
+                f = open('{}submit_{}.sh'.format(self.run_dir,executable),'w')
+                f.write("#!/bin/bash\n")
+                case_str = self.run_dir.split('/')[-3].split('_')[0]
+                if (type(self.setup_dict['start_date']) is list): 
+                    start_date = self.setup_dict['start_date'][0]
+                else:
+                    start_date = self.setup_dict['start_date']
+                
+
+                run_str = '{0}{1}'.format(case_str,
+                                         (start_date.split(' ')[0]).replace('-',''))
+                f.write("#PBS -N {} \n".format(run_str))
+                f.write("#PBS -A {}\n".format(submission_dict['account_key']))
+                f.write("#PBS -l walltime={0:02d}:00:00\n".format(submission_dict['walltime_hours'][executable]))
+                f.write("#PBS -q economy\n")
+                f.write("#PBS -j oe\n")
+                f.write("#PBS -m abe\n")
+                f.write("#PBS -M {}\n".format(submission_dict['user_email']))
+                f.write("### Select 2 nodes with 36 CPUs each for a total of 72 MPI processes\n")
+                if executable == 'wps':
+                    f.write("#PBS -l select=1:ncpus=1:mpiprocs=1\n")
+                else:
+                    f.write("#PBS -l select={0:02d}:ncpus=36:mpiprocs=36\n".format(submission_dict['nodes'][executable]))
+                f.write("date_start=`date`\n")
+                f.write("echo $date_start\n")
+                f.write("module list\n")
+                if executable == 'wps':
+                    icbc_type = self.icbc_dict['type'].upper()
+                    if icbc_type == 'ERA5':
+                        icbc_head = 'era5_*'
+                        icbc_vtable = 'ERA-interim.pl'
+                    elif icbc_type == 'ERAI':
+                        icbc_head = 'ei.oper*'
+                        icbc_vtable = 'ERA-interim.pl'
+                    elif 'FNL' in icbc_type:
+                        icbc_head = 'fnl_*'
+                        icbc_vtable = 'GFS'
+                    elif icbc_type == 'MERRA2':
+                        icbc_head = 'MERRA2*'
+                        icbc_vtable = 'GFS'
+                    else:
+                        print('We do not support this ICBC yet...')
+
+                    f.write("./geogrid.exe\n".format(executable))
+                    icbc_files = '{}{}'.format(self.icbc_dir,icbc_head)
+                    if icbc_type == 'MERRA2':
+                        f.write('ln -sf {} .\n'.format(icbc_files))
+                    else:
+                        f.write("ln -sf ungrib/Variable_Tables/Vtable.{} Vtable\n".format(icbc_vtable))
+                        f.write("./link_grib.csh {}\n".format(icbc_files))
+                        f.write("./ungrib.exe\n".format(executable))
+                    f.write("./metgrid.exe\n".format(executable))
+                    if icbc_type != 'MERRA2':
+                        f.write("for i in GRIBFILE.*; do unlink $i; done\n")
+                else:
+                    f.write("mpiexec_mpt ./{}.exe\n".format(executable))
+                f.write("date_end=`date`\n")
+                f.write("echo $date_end\n")
+                f.close()
+
+            else:
+                print('The hpc requested, {}, is not currently supported... please add it!'.format(hpc))
+
+    def write_io_fieldnames(self,vars_to_remove=None,vars_to_add=None):
+        if 'iofields_filename' not in self.setup_dict.keys():
+            print('iofields_filename not found in setup dict... add a name to allow for creating the file')
+            return
+        io_names = self.setup_dict['iofields_filename']
+
+        if type(io_names) is str:
+            io_names = [io_names]
+        if type(io_names) is not list:
+            io_names = list(io_names)
+
+        if vars_to_remove is not None:
+            assert len(vars_to_remove) ==  len(np.unique(io_names)), \
+            'expecting number of io field names ({}) and remove lists {} to be same shape'.format(
+                                                    len(np.unique(io_names)),len(vars_to_remove))
+
+        if vars_to_add is not None:
+            assert len(vars_to_add) ==  len(np.unique(io_names)), \
+            'expecting number of io field names ({}) and add lists {} to be same shape'.format(
+                                                    len(np.unique(io_names)),len(vars_to_add))
+        rem_str_start = '-:h:0:'
+        add_str_start = '+:h:0:'
+
+        for ii,io_name in enumerate(np.unique(io_names)):
+            if '"' in io_name:
+                io_name = io_name.replace('"','')
+            if "'" in io_name:
+                io_name = io_name.replace("'",'')
+            f = open('{}{}'.format(self.run_dir,io_name),'w')
+            line = ''
+            if vars_to_remove is not None:
+                rem_vars = vars_to_remove[ii]
+                var_count = 0
+                for rv in rem_vars:
+                    line += '{},'.format(rv)
+                    if var_count == 7:
+                        f.write('{}{}\n'.format(rem_str_start,line))
+                        var_count = 0
+                        line = ''
+                    else:
+                        var_count += 1
+
+            if vars_to_add is not None:
+                add_vars = vars_to_add[ii]
+                var_count = 0
+                for av in add_vars:
+                    line += '{},'.format(av)
+                    if var_count == 7:
+                        f.write('{}{}\n'.format(add_str_start,line))
+                        var_count = 0
+                        line = ''
+                    else:
+                        var_count += 1
+
+            f.close()
+
+    def create_submitAll_scripts(self,main_directory,list_of_cases,executables):
+        str_of_dirs = ' '.join(list_of_cases)    
+        for exe in executables:
+            fname = '{}submit_all_{}.sh'.format(main_directory,exe)
+            f = open(fname,'w')
+            f.write("#!/bin/bash\n")
+            f.write("for value in {}\n".format(str_of_dirs))
+            f.write("do\n")
+            f.write("    cd $value/\n")
+            f.write("    pwd\n")
+            f.write("    qsub submit_{}.sh\n".format(exe))
+            f.write("    cd ..\n")
+            f.write("done\n")
+            f.close()
+            os.chmod(fname,0o755)
+
+    def create_tslist_file(self,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
+        fname = '{}tslist'.format(self.run_dir)
+        write_tslist_file(fname,lat=lat,lon=lon,i=i,j=j,twr_names=twr_names,twr_abbr=twr_abbr)
+        
+    def link_metem_files(self,met_em_dir):
+        # Link WPS and WRF files / executables
+        met_files = glob.glob('{}/*'.format(met_em_dir))
+        self._link_files(met_files,self.run_dir)
+
+    def _InvertControlDict(self,namelist_control_dict):
+        namelist_var_dict = {}
+        for section in list(namelist_control_dict.keys()):
+            for opt in list(namelist_control_dict[section].keys()):
+                for namelist_var in list(namelist_control_dict[section][opt].keys()):
+                    if type(namelist_control_dict[section][opt][namelist_var]) is list:
+                        max_dom = True
+                    else:
+                        max_dom = False
+                    namelist_var_dict[namelist_var] = {'section':section,'required':(opt=='required'),'max_dom':max_dom}
+        return(namelist_var_dict)
+        
+    def _CheckMissing(self,have,need,namelist_dict):
+        missing = []
+
+        for key in need:
+            if key not in have:
+                missing.append(key)
+            found_key = True
+            try: 
+                namelist_dict[key]
+            except:
+                found_key = False
+
+            if found_key:
+                if type(namelist_dict[key]) is list:
+                    if None in namelist_dict[key]: 
+                        missing.append(key)
+                else:
+                    if namelist_dict[key] is None: missing.append(key)
+        
+        return(missing)
+
+    def _CheckForRequiredFields(self,namelist_dict,namelist_control_dict,namelist_type='input'):
+        
+        if namelist_type == 'input':
+            namelist_sections = ['time_control', 'domains', 'physics', 'fdda', 'dynamics', 'bdy_control', 'namelist_quilt']
+        elif namelist_type == 'wps':
+            namelist_sections = ['share', 'geogrid', 'ungrib', 'metgrid']
+            
+        setup_keys = list(self.setup_dict.keys())
+        missing_keys = {}
+        missing_key_flag = False
+
+        try:
+            max_dom = self.setup_dict['max_dom']
+        except:
+            raise ValueError('max_dom must be specified in the setup_dict')
+
+        try:
+            max_dom = int(max_dom)
+        except:
+            raise ValueError('max_dom must be an integer')
+            
+        namelist_dict['max_dom'] = max_dom
+
+        got_start_and_end_dates = (('start_date' in setup_keys) and ('end_date' in setup_keys))
+
+        got_run_time = (('run_days' in setup_keys) and ('run_hours' in setup_keys))
+
+        got_start_and_end_times = (('start_year' in setup_keys) and ('end_year' in setup_keys))
+        
+        got_enough_time_information = got_start_and_end_dates or got_start_and_end_times
+        
+        if not got_enough_time_information:
+            raise ValueError('Not enough time information to create a run. Please add start_date/end_date')
+
+        if got_start_and_end_dates:
+            sim_start = self.setup_dict['start_date']
+            sim_end   = self.setup_dict['end_date']
+        elif got_start_and_end_times:
+            date_fmt = '{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d}'
+            if type(self.setup_dict['start_year']) is not list:
+                self.setup_dict['start_year'] = [self.setup_dict['start_year']]
+                self.setup_dict['start_month'] = [self.setup_dict['start_month']]
+                self.setup_dict['start_day'] = [self.setup_dict['start_day']]
+                self.setup_dict['start_hour'] = [self.setup_dict['start_hour']]
+                self.setup_dict['start_minute'] = [self.setup_dict['start_minute']]
+                self.setup_dict['start_second'] = [self.setup_dict['start_second']]
+                self.setup_dict['end_year'] = [self.setup_dict['end_year']]
+                self.setup_dict['end_month'] = [self.setup_dict['end_month']]
+                self.setup_dict['end_day'] = [self.setup_dict['end_day']]
+                self.setup_dict['end_hour'] = [self.setup_dict['end_hour']]
+                self.setup_dict['end_minute'] = [self.setup_dict['end_minute']]
+                self.setup_dict['end_second'] = [self.setup_dict['end_second']]
+                
+            sim_start,sim_end = [],[]
+            for dd in range(0,len(self.setup_dict['start_year'])):
+                sim_start.append(date_fmt.format(int(self.setup_dict['start_year'][dd]),
+                                                 int(self.setup_dict['start_month'][dd]),
+                                                 int(self.setup_dict['start_day'][dd]),
+                                                 int(self.setup_dict['start_hour'][dd]),
+                                                 int(self.setup_dict['start_minute'][dd]),
+                                                 int(self.setup_dict['start_second'][dd])))
+                sim_end.append(date_fmt.format(int(self.setup_dict['end_year'][dd]),
+                                               int(self.setup_dict['end_month'][dd]),
+                                               int(self.setup_dict['end_day'][dd]),
+                                               int(self.setup_dict['end_hour'][dd]),
+                                               int(self.setup_dict['end_minute'][dd]),
+                                               int(self.setup_dict['end_second'][dd])))
+
+            self.setup_dict['start_date'] = sim_start
+            self.setup_dict['end_date'] = sim_end
+
+        if (type(sim_start) is list) and (type(sim_end) is not list):
+            sim_end = [sim_end]*len(sim_start)
+        if (type(sim_start) is str) or (type(sim_start) is list): 
+            if type(sim_start) is list:
+                for ss,sim_s in enumerate(sim_start):
+                    sim_start[ss] = sim_s.replace('_',' ')
+            else:
+                sim_start = sim_start.replace('_',' ')
+            sim_start=pd.to_datetime(sim_start)
+        if (type(sim_end) is str) or (type(sim_end) is list): 
+            if type(sim_end) is list:
+                for se,sim_e in enumerate(sim_end):
+                    sim_end[se] = sim_e.replace('_',' ')
+            else:
+                sim_end = sim_end.replace('_',' ')
+            sim_end=pd.to_datetime(sim_end)
+            
+        if not got_run_time:
+            run_time = sim_end - sim_start
+            if np.shape(run_time) != ():
+                run_time = max(run_time)
+            namelist_dict['run_days'] = int(run_time.components.days)
+            namelist_dict['run_hours'] = int(run_time.components.hours)
+            namelist_dict['run_minutes'] = int(run_time.components.minutes)
+            namelist_dict['run_seconds'] = int(run_time.components.seconds)
+            
+        if not got_start_and_end_times:
+            if np.shape(sim_start) != ():
+                sim_start_y = list(sim_start.year)
+                sim_start_m = list(sim_start.month)
+                sim_start_d = list(sim_start.day)
+                sim_start_H = list(sim_start.hour)
+                sim_start_M = list(sim_start.minute)
+                sim_start_S = list(sim_start.second)
+                sim_end_y = list(sim_end.year)
+                sim_end_m = list(sim_end.month)
+                sim_end_d = list(sim_end.day)
+                sim_end_H = list(sim_end.hour)
+                sim_end_M = list(sim_end.minute)
+                sim_end_S = list(sim_end.second)
+            else:
+                sim_start_y = sim_start.year
+                sim_start_m = sim_start.month
+                sim_start_d = sim_start.day
+                sim_start_H = sim_start.hour
+                sim_start_M = sim_start.minute
+                sim_start_S = sim_start.second
+                sim_end_y = sim_end.year
+                sim_end_m = sim_end.month
+                sim_end_d = sim_end.day
+                sim_end_H = sim_end.hour
+                sim_end_M = sim_end.minute
+                sim_end_S = sim_end.second
+
+            namelist_dict['start_year'] = sim_start_y
+            namelist_dict['start_month'] = sim_start_m
+            namelist_dict['start_day'] = sim_start_d
+            namelist_dict['start_hour'] = sim_start_H
+            namelist_dict['start_minute'] = sim_start_M
+            namelist_dict['start_second'] = sim_start_S
+            
+            namelist_dict['end_year'] = sim_end_y
+            namelist_dict['end_month'] = sim_end_m
+            namelist_dict['end_day'] = sim_end_d
+            namelist_dict['end_hour'] = sim_end_H
+            namelist_dict['end_minute'] = sim_end_M
+            namelist_dict['end_second'] = sim_end_S
+
+
+        if 'dxy' in setup_keys:
+            dx,dy = self.setup_dict['dxy'],self.setup_dict['dxy']
+            if ((type(dx) is not list) and (max_dom > 1)) and ('parent_grid_ratio' in setup_keys):
+                ratio_total = np.ones(max_dom)
+                for rr in range(0,max_dom):
+                    ratio_total[rr] = np.product(self.setup_dict['parent_grid_ratio'][:rr+1])
+                dx = list(dx/ratio_total)
+                dy = list(dy/ratio_total)
+            else:
+                raise ValueError('Please specify parent_grid_ratio for nested run, or limit to 1 domain')
+            namelist_dict['dx'],namelist_dict['dy'] = dx,dy
+        if 'nx' in setup_keys: namelist_dict['e_we'] = self.setup_dict['nx']
+        if 'ny' in setup_keys: namelist_dict['e_sn'] = self.setup_dict['ny']
+        if 'icbc_type' in setup_keys:
+            namelist_dict['prefix'],namelist_dict['fg_name'] = self.setup_dict['icbc_type'],self.setup_dict['icbc_type']
+
+        namelist_dict = self._aux_inout_check(namelist_dict,
+                                              inout='in',
+                                              aux_dict=namelist_control_dict['time_control']['optional']['auxinput'][0])
+        namelist_dict = self._aux_inout_check(namelist_dict,
+                                              inout='out',
+                                              aux_dict=namelist_control_dict['time_control']['optional']['auxhist'][0])
+        
+        if ('e_vert' not in setup_keys) and (self.setup_dict['eta_levels'] is not None):
+            eta_levels = self.setup_dict['eta_levels']
+            if (type(eta_levels) is list):
+                namelist_dict['e_vert'] = len(eta_levels)
+            elif (type(eta_levels) is str):
+                namelist_dict['e_vert'] = len(eta_levels.split(','))
+            else:
+                raise ValueError('Must specify either eta_levels or e_vert')
+
+        if 'radt' not in setup_keys:
+            if (max_dom > 1): 
+                radt = np.round(np.asarray(namelist_dict['dx'])/1000)
+                radt = [max(int(rad),1) for rad in radt]
+                namelist_dict['radt'] = radt
+            else:
+                namelist_dict['radt'] = max(int(namelist_dict['dx']/1000),1)
+
+
+    ##### FOR THE REST... IF THE VALUE IN NAMELIST_CONTROL_DICT IS NOT NONE, FILL WITH DEFAULT! #####
+
+        for section in list(namelist_control_dict.keys()):
+        #for section in namelist_sections:
+            required_fields = list(namelist_control_dict[section]['required'].keys())
+            assigned_fields = list(namelist_dict.keys())
+
+            vars_to_add = []
+            
+            
+            for req_field in required_fields:
+                if req_field not in assigned_fields:
+                    fill_val = namelist_control_dict[section]['required'][req_field]
+                    if '_interval' in req_field:
+                        for asg_field in assigned_fields:
+                            if req_field in asg_field:
+                                vars_to_add.append(req_field)
+                                fill_val = None
+                    if fill_val is not None:
+                        namelist_dict[req_field] = fill_val
+                    #else:
+                        
+
+            namelist_keys = list(namelist_dict.keys()) + vars_to_add
+
+            missing_keys[section] = self._CheckMissing(namelist_keys,required_fields,namelist_dict)
+
+        #for section in list(namelist_control_dict.keys()):
+        for section in namelist_sections:
+            if (missing_keys[section] != []):
+                f_str = '{} section is missing: '.format(section)
+                for val in missing_keys[section]:
+                    f_str += '{}, '.format(val)
+                print(f_str)
+                missing_key_flag = True
+        if missing_key_flag: raise ValueError('Certain required namelist entries are missing from the setup_dict.')
+            
+        return(namelist_dict)
+
+    def _TimeIntervalCheck(self,key,full_key_name):
+        interval = ''
+        if ('interval' in key) or ('begin' in key) or ('end' in key):
+            if key[-2] == '_':
+                if key[-1] in ['d','h','m','s']:
+                    interval = key[-1]
+                    key = key[:-2]
+                else:
+                    raise ValueError('{} is not supported'.format(full_key_name))
+        return(key,interval)
+    
+    def _aux_inout_check(self,namelist_dict,inout=None,aux_dict=None):
+        if inout is None:
+            raise ValueError('specify "in" or "out"')
+        elif inout == 'in':
+            aux_key = 'auxinput'
+        elif inout == 'out':
+            aux_key = 'auxhist'
+            
+        setup_keys = list(self.setup_dict.keys())
+        max_dom = namelist_dict['max_dom']
+        got_aux = {}
+        
+        aux_names = []
+        aux_keys_all = []
+        for key in setup_keys:
+            if aux_key in key:
+                key = key.split('_')
+                for kk in key:
+                    if 'aux' in kk: key_name = kk
+                aux_names.append(key_name)
+                aux_keys_all.append('_'.join(key))
+        aux_names = np.unique(aux_names)
+
+        if aux_names != []:
+            for aux_name in aux_names:
+                aux_keys = []
+                for key in aux_keys_all:
+                    if aux_name in key: 
+                        aux_key = key.replace(aux_name,'')
+                        aux_key,interval = self._TimeIntervalCheck(aux_key,key)
+                        aux_keys.append(aux_key)
+                        if aux_key in list(aux_dict.keys()): 
+                            key_val = self.setup_dict[key]
+                            fill_val = aux_dict[aux_key]
+                            
+                            if type(fill_val) is list:
+                                if type(key_val) is not list:
+                                    if (fill_val[0] is not None) and (type(key_val) is not type(fill_val[0])):
+                                        raise ValueError('Type disagreement for {}'.format(key))
+                                    key_val = [key_val]
+                                    if len(key_val) < max_dom:
+                                        key_val *= max_dom
+                                    elif len(key_val) > max_dom:
+                                        key_val = key_val[:max_dom]
+                                        
+                            namelist_dict[key] = key_val
+                            
+                            if type(fill_val) is not type(namelist_dict[key]):
+                                switch_type = True
+                                try: 
+                                    namelist_dict[key] = np.asarray(namelist_dict[key]).astype(type(fill_val))[0]
+                                except:
+                                    switch_type = False
+
+                                if switch_type:
+                                    if type(fill_val) is not type(namelist_dict[key]):
+                                        raise ValueError('Type disagreement for {}'.format(key))
+                        else:
+                            print('{} not recognized... skipping.'.format(key))
+                            
+                necessary_aux_in = sorted(list(aux_dict.keys()))
+                have_aux_in = sorted(aux_keys)
+
+                for key in necessary_aux_in:
+                    if key not in have_aux_in:
+                        fill_val = aux_dict[key]
+                        if fill_val == [None]: raise ValueError('{} for {} must be specified'.format(key,aux_name))
+                            
+                        if key[0] == '_':
+                            key = aux_name + key
+                        elif key[-1] == '_':
+                            key += aux_name
+                        print('Filling {} to {}'.format(key,fill_val))
+                        namelist_dict[key] = fill_val
+
+        return(namelist_dict)
+
+    
+    def _get_maxdom_str(self,num_doms,namelist_opt):
+        namelist_str = ''
+        for dd in range(0,num_doms):
+            if type(namelist_opt) is list:
+                namelist_str += '{0:>5},'.format(str(namelist_opt[dd]))
+            else:
+                namelist_str += '{0:>5},'.format(str(namelist_opt))
+        return(phys_str)
+
+    def _MaxDomainAdjustment(self,namelist_dict,namelist_control_dict):
+        vars_that_do_not_go_in_namelist = ['nx','ny','dxy','icbc_type']
+        namelist_var_dict = self._InvertControlDict(namelist_control_dict)
+        all_namelist_vars = list(namelist_var_dict.keys())
+
+        for key in list(namelist_dict.keys()):
+            interval = ''
+            if '_interval' in key:
+                key_fill,interval = self._TimeIntervalCheck(key,key)
+            else:
+                key_fill = key
+            if key_fill in all_namelist_vars:
+                if namelist_var_dict[key_fill]['max_dom']:
+                    if type(namelist_dict[key]) is not list:
+                        var_type = type(namelist_dict[key])
+                        if var_type is str:
+                            var_list = ['{}'.format(namelist_dict[key])]*namelist_dict['max_dom']
+                        else:
+                            var_list = [namelist_dict[key]]*namelist_dict['max_dom']
+                        namelist_dict[key] = var_list
+                    else: # Vars that are 'list'
+                        if len(namelist_dict[key]) < namelist_dict['max_dom']:
+                            namelist_dict[key] = namelist_dict[key]*namelist_dict['max_dom']
+                        elif len(namelist_dict[key]) > namelist_dict['max_dom']:
+                            namelist_dict[key] = namelist_dict[key][:namelist_dict['max_dom']]
+
+            else:
+                if ('auxinput' not in key) and ('auxhist' not in key):    
+                    if key in vars_that_do_not_go_in_namelist:
+                        #print('{} is not needed in the namelist... removing'.format(key))
+                        namelist_dict.pop(key)
+                    else:
+                        msg1 = 'Cannot find {} in namelist_control_dict. '.format(key)
+                        msg2 = 'Please add so it can be added in the correct section of the namelist'
+                        print(msg1+msg2)
+        
+        # Nest Checks:
+        nest_error_str = '{} improperly set. Currently: {}'
+        if namelist_dict['max_dom'] > 1:
+            vars_to_check = ['parent_grid_ratio','i_parent_start','j_parent_start']
+            for nest_var in vars_to_check:
+                if max(namelist_dict[nest_var]) == 1: raise ValueError(nest_error_str.format(nest_var,namelist_dict[nest_var]))
+
+        return(namelist_dict)
+           
+
+    def _FormatVariableForNamelist(self,value,key):
+        if type(value) is str:
+            if key == 'eta_levels':
+                value_str = value
+            else:
+                value_str = "'{}'".format(value)
+        elif type(value) is bool:
+            if value is True:
+                value_str = '.true.'
+            else:
+                value_str = '.false.'
+        else:
+            value_str = str(value)
+        return(value_str)
+
+    def write_namelist(self,namelist_type):
+        namelist_dict = self.namelist_dict
+        if namelist_type == 'input':
+            namelist_sections = ['time_control', 'domains', 'physics', 'fdda', 'dynamics', 'bdy_control', 'namelist_quilt']
+            opt_fmt = ' {0: <24} ='
+        elif namelist_type == 'wps':
+            opt_fmt = ' {0: <17} ='
+            namelist_sections = ['share', 'geogrid', 'ungrib', 'metgrid']
+            
+        f = open('{}namelist.{}'.format(self.run_dir,namelist_type),'w')
+        section_fmt = '&{}\n'
+        for section in namelist_sections:
+            f.write(section_fmt.format(section))
+            section_keys = []
+            for opt in list(self.namelist_control_dict[section].keys()):
+                section_keys += (list(self.namelist_control_dict[section][opt].keys()))
+            ordered_section_keys = []
+            [ordered_section_keys.append(key) for key in section_keys if key not in ordered_section_keys]
+            section_keys = ordered_section_keys
+
+            ordered_section = []
+            # These are variables that can have different structures...
+            # ... e.g., history_interval_h or history_interval_m or history_interval, etc.
+            weird_keys = ['history_interval','restart_interval','auxhist','auxinput','gfdda_interval']
+            for fill_key in section_keys:
+                if (fill_key in weird_keys):
+                    order_option = 2
+                else:
+                    order_option = 1
+                for key in list(namelist_dict.keys()):
+                    if order_option == 2:
+                        if fill_key in key:
+                            ordered_section.append(key)
+                    else:
+                        if fill_key == key:
+                            ordered_section.append(key)
+
+            if 'eta_levels' in ordered_section:
+                evert_ind = int(np.where(np.asarray(ordered_section) == 'e_vert')[0]) + 1
+                eta_ind = int(np.where(np.asarray(ordered_section) == 'eta_levels')[0][0])
+                eta_levels = ordered_section[eta_ind]
+                ordered_section.remove(ordered_section[eta_ind])
+                ordered_section.insert(evert_ind, eta_levels)
+
+            for key in ordered_section:
+                if ('_interval' in key) and (key[-2] == '_'):
+                    fill_key = key[:-2]
+                elif ('auxhist' in key):
+                    fill_key = 'auxhist'
+                elif ('auxinput' in key):
+                    fill_key = 'auxinput'
+                else:
+                    fill_key = key
+
+                if fill_key in section_keys:
+                    key_val = namelist_dict[key]
+                    if type(key_val) is list:
+                        if (namelist_type == 'wps') and ((key == 'dx') or (key == 'dy')):
+                            key_val = [key_val[0]]
+                        if 'eta_levels' in key:
+                            value_str = self._FormatEtaLevels(key_val)
+                        else:
+                            value_str = ''
+                            for kk in key_val:
+                                value_str += '{0: <6}'.format(self._FormatVariableForNamelist(kk,fill_key)+',')
+                    else:
+                        if 'eta_levels' in key:
+                            value_str = self._FormatEtaLevels(key_val)
+                        else:
+                            value_str = '{0: <2}'.format(self._FormatVariableForNamelist(key_val,fill_key)+',')
+                    f.write('{} {}\n'.format(opt_fmt.format(key), value_str ))
+            f.write('/\n')
+        f.close()
+
+    def _FormatEtaLevels(self,eta_levels,ncols=4):
+        eta_level_str = ''
+        if type(eta_levels) is str:
+            eta_levels = eta_levels.split(',')
+
+        count = 1
+
+        for eta in eta_levels:
+            eta = float(eta)
+            if count < ncols:
+                eta_level_str += '{0:8.7f}, '.format(eta)
+                count += 1
+            else:
+                eta_level_str += '{0:8.7f},\n  '.format(eta)
+                count = 1
+
+        return(eta_level_str[:-2])
+        
+        
+        
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
     """
     Write a list of lat/lon or i/j locations to a tslist file that is
@@ -1204,6 +2435,46 @@ sst_dict = {
           'sst_dx' : 5.5, # km
     },
     
+    'NAVO' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 10.0, # km
+    },
+    
+    'OSPO' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 5.5, # km
+    },
+    
+    'NCEI' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 27.75, # km
+    },
+    
+    'CMC' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 11.1, # km
+    },
+    
+    'G1SST' : {
+        'time_dim' : 'time',
+         'lat_dim' : 'lat',
+         'lon_dim' : 'lon',
+        'sst_name' : 'analysed_sst',
+          'sst_dx' : 1.0, # km
+    },
+    
     'MUR' : {
         'time_dim' : 'time',
          'lat_dim' : 'lat',
@@ -1241,6 +2512,10 @@ icbc_dict = {
     'ERA5' : {
         'sst_name' : 'SST',
     },
+    
+    'MERRA2' : {
+        'sst_name' : 'SKINTEMP',
+    },
 }
 
 
@@ -1262,7 +2537,8 @@ class OverwriteSST():
     fill_missing   = boolean; fill missing values in SST data with SKINTEMP
     
     '''
-
+    import warnings
+    warnings.filterwarnings("ignore", category=RuntimeWarning)
     def __init__(self,
                  met_type,
                  overwrite_type,
@@ -1270,7 +2546,8 @@ class OverwriteSST():
                  sst_directory,
                  out_directory,
                  smooth_opt=False,
-                 fill_missing=False):
+                 fill_missing=False,
+                 skip_finished=True):
         
         self.met_type   = met_type
         self.overwrite  = overwrite_type
@@ -1279,6 +2556,7 @@ class OverwriteSST():
         self.out_dir    = out_directory
         self.smooth_opt = smooth_opt
         self.fill_opt   = fill_missing
+        self.skip_finished = skip_finished
         
         if overwrite_type == 'FILL': fill_missing=True
         
@@ -1286,27 +2564,45 @@ class OverwriteSST():
             self.smooth_str = 'smooth'
         else:
             self.smooth_str = 'raw'
-
-        self.out_dir += '{}/'.format(self.smooth_str)
         
+        if (self.smooth_str == 'raw') and fill_missing:
+            self.smooth_str += '-filled'
+            
+        self.out_dir += '{}/'.format(self.smooth_str)
+        if not os.path.exists(self.out_dir):
+            os.mkdir(self.out_dir)
+            
         # Get met_em_files 
         self.met_em_files = sorted(glob.glob('{}met_em.d0*'.format(self.met_dir)))
+        print(self.met_em_files)
+        
         
         # Get SST data info (if not doing fill or tskin)
         if (overwrite_type.upper() != 'FILL') and (overwrite_type.upper() != 'TSKIN'):
             self._get_sst_info()
 
         # Overwrite the met_em SST data:
-        for mm,met_file in enumerate(self.met_em_files):
-            self._get_new_sst(met_file)
-            # If filling missing values with SKINTEMP:
-            if fill_missing:
-                self._fill_missing(met_file)
-            self.new_sst = np.nan_to_num(self.new_sst)
-            # Write to new file:
-            self._write_new_file(met_file)
+        for mm,met_file in enumerate(self.met_em_files[:]):
+            self._check_file_exists(met_file)
+            if self.exists and self.skip_finished:
+                    print('{} exists... skipping'.format(self.new_file))
+            else:
+                print(self.new_file)
+                self._get_new_sst(met_file)
+                # If filling missing values with SKINTEMP:
+                if fill_missing:
+                    self._fill_missing(met_file)
+                self.new_sst = np.nan_to_num(self.new_sst)
+                # Write to new file:
+                self._write_new_file(met_file)
             
 
+    def _check_file_exists(self,met_file):
+        f_name = met_file.split('/')[-1]
+        self.new_file = self.out_dir + f_name
+        self.exists = os.path.exists(self.new_file)
+            
+            
     def _get_sst_info(self):
         
         if self.overwrite == 'MODIS':
@@ -1346,14 +2642,20 @@ class OverwriteSST():
         self.sst_file_times = sst_file_times
         
         sst = xr.open_dataset(sst_file_times[list(sst_file_times.keys())[0]])
-        self.sst_lat = sst[sst_dict[self.overwrite]['lat_dim']]
-        self.sst_lon = sst[sst_dict[self.overwrite]['lon_dim']]
+        sst_lat = sst[sst_dict[self.overwrite]['lat_dim']]
+        sst_lon = sst[sst_dict[self.overwrite]['lon_dim']]
+        
+        self.sst_lat = sst_lat
+        self.sst_lon = sst_lon
+        
+        
 
 
     
     def _get_new_sst(self,met_file):
-        met = xr.open_dataset(met_file)
+        import matplotlib.pyplot as plt
 
+        met = xr.open_dataset(met_file)
         met_time = pd.to_datetime(met.Times.data[0].decode().replace('_',' '))
         met_lat = np.squeeze(met.XLAT_M)
         met_lon = np.squeeze(met.XLONG_M)
@@ -1378,16 +2680,18 @@ class OverwriteSST():
             before_ds = xr.open_dataset(self.sst_file_times[sst_neighbors[0]])
             after_ds  = xr.open_dataset(self.sst_file_times[sst_neighbors[1]])
 
-            min_lon = np.max([np.nanmin(met_lon)-1,-180])
-            max_lon = np.min([np.nanmax(met_lon)+1,180])
-            
             if (self.overwrite == 'MODIS') or (self.overwrite == 'GOES16'):
                 min_lat = np.min([np.nanmax(met_lat)+1,90])
                 max_lat = np.max([np.nanmin(met_lat)-1,-90])
             else:
+                before_ds = before_ds.sortby('lat')
+                after_ds = after_ds.sortby('lat')
                 min_lat = np.max([np.nanmin(met_lat)-1,-90])
                 max_lat = np.min([np.nanmax(met_lat)+1,90])
 
+            min_lon = np.max([np.nanmin(met_lon)-1,-180])
+            max_lon = np.min([np.nanmax(met_lon)+1,180])
+            
             before_ds = before_ds.sel({sst_dict[self.overwrite]['lat_dim']:slice(min_lat,max_lat),
                                       sst_dict[self.overwrite]['lon_dim']:slice(min_lon,max_lon)})
             after_ds  = after_ds.sel({sst_dict[self.overwrite]['lat_dim']:slice(min_lat,max_lat),
@@ -1410,53 +2714,56 @@ class OverwriteSST():
 
             sst_lat = self.sst_lat.data
             sst_lon = self.sst_lon.data
-
+            
             for jj in met.south_north:
                 for ii in met.west_east:
                     if met_landmask[jj,ii] == 0.0:
-                        dist_lat = abs(sst_lat - float(met_lat[jj,ii]))
-                        dist_lon = abs(sst_lon - float(met_lon[jj,ii]))
+                        within_lat = (np.nanmin(sst_lat) <= met_lat[jj,ii] <= np.nanmax(sst_lat))
+                        within_lon = (np.nanmin(sst_lon) <= met_lon[jj,ii] <= np.nanmax(sst_lon))
+                        if within_lat and within_lon:
+                            dist_lat = abs(sst_lat - float(met_lat[jj,ii]))
+                            dist_lon = abs(sst_lon - float(met_lon[jj,ii]))
+                            
+                            lat_ind = np.where(dist_lat==np.min(dist_lat))[0]
+                            lon_ind = np.where(dist_lon==np.min(dist_lon))[0]
 
-                        lat_ind = np.where(dist_lat==np.min(dist_lat))[0]
-                        lon_ind = np.where(dist_lon==np.min(dist_lon))[0]
+                            if (len(lat_ind) > 1) and (len(lon_ind) > 1):
+                                lat_s = sst_lat[lat_ind[0] - window]
+                                lat_e = sst_lat[lat_ind[1] + window]
+                                lon_s = sst_lon[lon_ind[0] - window]
+                                lon_e = sst_lon[lon_ind[1] + window]
 
-                        if (len(lat_ind) > 1) and (len(lon_ind) > 1):
-                            lat_s = sst_lat[lat_ind[0] - window]
-                            lat_e = sst_lat[lat_ind[1] + window]
-                            lon_s = sst_lon[lon_ind[0] - window]
-                            lon_e = sst_lon[lon_ind[1] + window]
-
-                        elif (len(lat_ind) > 1) and (len(lon_ind) == 1):
-                            lat_s = sst_lat[lat_ind[0] - window]
-                            lat_e = sst_lat[lat_ind[1] + window]
-                            lon_s = sst_lon[lon_ind[0] - window]
-                            lon_e = sst_lon[lon_ind[0] + window]
-
-                        elif (len(lat_ind) == 1) and (len(lon_ind) > 1):
-                            lat_s = sst_lat[lat_ind[0] - window]
-                            lat_e = sst_lat[lat_ind[0] + window]
-                            lon_s = sst_lon[lon_ind[0] - window]
-                            lon_e = sst_lon[lon_ind[1] + window]
-
-                        else:
-                            lat_s = sst_lat[lat_ind[0] - window]
-                            lat_e = sst_lat[lat_ind[0] + window]
-                            lon_s = sst_lon[lon_ind[0] - window]
-                            try:
+                            elif (len(lat_ind) > 1) and (len(lon_ind) == 1):
+                                lat_s = sst_lat[lat_ind[0] - window]
+                                lat_e = sst_lat[lat_ind[1] + window]
+                                lon_s = sst_lon[lon_ind[0] - window]
                                 lon_e = sst_lon[lon_ind[0] + window]
-                            except IndexError:
-                                lon_e = len(sst_lon)
 
-                        sst_before_val = before_sst.sel({
-                                            sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
-                                            sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+                            elif (len(lat_ind) == 1) and (len(lon_ind) > 1):
+                                lat_s = sst_lat[lat_ind[0] - window]
+                                lat_e = sst_lat[lat_ind[0] + window]
+                                lon_s = sst_lon[lon_ind[0] - window]
+                                lon_e = sst_lon[lon_ind[1] + window]
 
-                        sst_after_val  = after_sst.sel({
-                                            sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
-                                            sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+                            else:
+                                lat_s = sst_lat[lat_ind[0] - window]
+                                lat_e = sst_lat[lat_ind[0] + window]
+                                lon_s = sst_lon[lon_ind[0] - window]
+                                try:
+                                    lon_e = sst_lon[lon_ind[0] + window]
+                                except IndexError:
+                                    lon_e = len(sst_lon)
 
-                        new_sst[jj,ii] = sst_before_val*sst_weights[0] + sst_after_val*sst_weights[1]
-                        
+                            sst_before_val = before_sst.sel({
+                                                sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
+                                                sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+
+                            sst_after_val  = after_sst.sel({
+                                                sst_dict[self.overwrite]['lat_dim']:slice(lat_s,lat_e),
+                                                sst_dict[self.overwrite]['lon_dim']:slice(lon_s,lon_e)}).mean(skipna=True)
+
+                            new_sst[jj,ii] = sst_before_val*sst_weights[0] + sst_after_val*sst_weights[1]
+                            
         else:
             if (self.overwrite.upper() == 'TSKIN'):
                 new_sst = met_sst.data.copy()
@@ -1464,8 +2771,8 @@ class OverwriteSST():
                 new_sst[np.where(met_landmask==0.0)] = tsk[np.where(met_landmask==0.0)]
             elif (self.overwrite.upper() == 'FILL'):
                 new_sst = np.squeeze(met[icbc_dict[self.met_type]['sst_name']]).data
+
         self.new_sst = new_sst
-            
 
     def _get_closest_files(self,met_time):
         sst_times = np.asarray(list(self.sst_file_times.keys()))
@@ -1479,7 +2786,6 @@ class OverwriteSST():
             time_dist[dt] = abs(stime - met_time)
 
         closest_time = sst_times[np.where(time_dist == np.min(time_dist))]
-
         if len(closest_time) == 1:
             if closest_time == met_time:
                 sst_before = closest_time[0]
@@ -1496,10 +2802,10 @@ class OverwriteSST():
                     got_before = True
                 else:
                     sst_after = closest_time
+                    if closest_ind <= 1: closest_ind += 1
                     next_closest_times = sst_times[:closest_ind-1]
                     next_closest_dist  = time_dist[:closest_ind-1]
                     got_after = True
-
                 next_closest_time = next_closest_times[np.where(next_closest_dist == np.min(next_closest_dist))][0]
 
                 if got_before:
@@ -1543,10 +2849,8 @@ class OverwriteSST():
         
     def _write_new_file(self,met_file):
         f_name = met_file.split('/')[-1]
-        new_file = self.out_dir + f_name
-        print(new_file)
         new = xr.open_dataset(met_file)
-        new.SST.data = np.expand_dims(self.new_sst,axis=0)
+        new[icbc_dict[self.met_type]['sst_name']].data = np.expand_dims(self.new_sst,axis=0)
         new.attrs['source']   = '{}'.format(self.overwrite)
         new.attrs['smoothed'] = '{}'.format(self.smooth_opt)
         new.attrs['filled']   = '{}'.format(self.fill_opt)
@@ -1555,7 +2859,9 @@ class OverwriteSST():
             os.remove(new_file)
         new.to_netcdf(new_file)
 
-class CreateEtaLevels():
+        
+
+class CreateEtaLevels_old():
     '''
     Generate a list of eta levels for WRF simulations. Core of the eta level code
     comes from Tim Juliano of NCAR. Alternatively, the user can provide a list of
@@ -1593,19 +2899,17 @@ class CreateEtaLevels():
                                      pres_top=62500.0,
                                      surface_temp=290.0,
                                      height_top=4000,
-                                     n_total_levels=201,
-                                     smooth_eta=False
+                                     n_total_levels=201
                                      )
                                      
     
     2. Only specify lower levels and let the program fill the rest (no smoothing):
 
-    eta_levels = generate_eta_levels(levels=np.linspace(0,1000,50),
+    eta_levels = generate_eta_levels(levels=np.linspace(0,1000,51),
                                      pres_top=10000.0,
                                      surface_temp=282.72,
                                      height_top=16229.028,
-                                     n_total_levels=88,
-                                     smooth_eta=False
+                                     n_total_levels=88
                                      )
 
     3. Smooth the eta levels so there are no harsh jumps in d(eta):
@@ -1614,21 +2918,38 @@ class CreateEtaLevels():
                                      pres_top=10000.0,
                                      surface_temp=282.72,
                                      height_top=16229.028,
-                                     n_total_levels=88,
-                                     smooth_eta=True
-                                     )
+                                     n_total_levels=88
+                                     ).smooth_eta_levels(smooth_fact=9e-4)
 
     '''
+    import matplotlib.pyplot as plt
+
+    gas_constant_dry_air = 287.06
+    gravity = 9.80665
+    M = 0.0289644
+    universal_gas_constant = 8.3144598
     
+    deta_limit = -0.035
+
     def __init__(self, levels=None,
                  eta_levels=None,
-                 surface_temp=290,
+                 surface_temp=None,
                  pres_top=None,
-                 height_top=14417.41,
+                 height_top=None,
                  p0=100000.0,
                  fill_to_top=True,
-                 n_total_levels=None):
+                 n_total_levels=None,
+                 transition_zone=None,
+                 min_transition_deta=None,
+                 cos_squeeze=None,
+                 cos_tail=None,
+                 overlaying_slope=None
+                 ):
     
+        self.p0 = p0
+        self.pres_top = pres_top
+        self.surface_temp = surface_temp
+        
         if eta_levels is not None:
             self.eta_levels = eta_levels
         else:
@@ -1644,92 +2965,278 @@ class CreateEtaLevels():
 
             self.levels = levels
 
-            if n_total_levels < len(self.levels):
-                print('Setting n_total_levels to be len(levels).')
+            if n_total_levels is not None:
+                if n_total_levels < len(self.levels):
+                    print('Setting n_total_levels to be len(levels).')
+                    n_total_levels = len(levels)
+            elif transition_zone is not None:
+                n_total_levels = len(levels) + transition_zone
+            else:
                 n_total_levels = len(levels)
 
-            pressure = self._pressure_calc(surface_temp,height_top,p0)
+            pressure = self._pressure_calc()
+            
             if pres_top is None:
-                pres_top = pressure[-1]
+                self.pres_top = pressure[-1]
+            
 
-            self.eta_levels = self._eta_level_calc(pressure,pres_top,height_top,p0,n_total_levels,fill_to_top)
+            self.eta_levels = self._eta_level_calc(pressure,
+                                                   height_top,
+                                                   n_total_levels,
+                                                   fill_to_top,
+                                                   transition_zone,
+                                                   min_transition_deta,
+                                                   cos_squeeze,
+                                                   cos_tail,
+                                                   overlaying_slope)
         
+            self.estimated_heights = self._estimate_heights()
+            
+    def _pressure_calc(self):
 
-    def _pressure_calc(self,surface_temp,
-                       height_top,
-                       p0,
-                       pres_calc_option=1):
-        gas_constant_dry_air = 287.06
-        gravity = 9.80665
-        M = 0.0289644
-        universal_gas_constant = 8.3144598
-
-        if pres_calc_option == 1:
-            pressure = p0*np.exp((-gravity*self.levels)/gas_constant_dry_air/surface_temp)
-        elif pres_calc_option == 2:
-            pressure = p0*np.exp((-gravity*M*self.levels/(universal_gas_constant*surface_temp)))
-        else:
-            print('pres_calc_option = {} is not a valid option. Please select 1 or 2'.format(pres_calc_option))
-
-        return(pressure)
+        return(self.p0*np.exp((-self.gravity*self.levels)/self.gas_constant_dry_air/self.surface_temp))
     
-    def _eta_level_calc(self,pressure,
-                        pres_top,
+    def _eta_level_calc(self,
+                        pressure,
                         height_top,
-                        p0,
                         n_total_levels,
-                        fill_to_top):
+                        fill_to_top,
+                        transition_zone,
+                        min_transition_deta,
+                        cos_squeeze,
+                        cos_tail,
+                        overlaying_slope):
         
-        eta_levels = np.zeros(n_total_levels)
+        import matplotlib.pyplot as plt
 
-        eta_levels[:len(self.levels)] = (pressure-pres_top)/(p0-pres_top)
 
-        if np.max(self.levels) < height_top:
+        if height_top is None:
+            height_top = (self.gas_constant_dry_air*self.surface_temp/self.gravity)*np.log((self.p0/self.pres_top))
+
+        eta_levels = (pressure-self.pres_top)/(self.p0-self.pres_top)
+
+        reached_model_top = False
+        if float(np.max(self.levels)) < float(height_top):
+            if transition_zone is not None:
+                if (len(self.levels)+transition_zone) > n_total_levels:
+                    print('Transition zone makes this larger than n_total_levels')
+                    print('Setting n_total_levels to len(levels) + transition_zone')
+                    n_total_levels = len(self.levels)+transition_zone
+                
+                transition = np.zeros(transition_zone)
+                for tt,tran in enumerate(range(1,transition_zone+1)):
+                    if overlaying_slope is None:
+                        overlaying_slope = 0.002 # slope applied to cos curve
+                    if cos_tail is None:
+                        cos_tail = 0.3 # How much of the cos curve should continue (0.3 = 30%)
+                    if cos_squeeze is None:
+                        cos_squeeze = 0.9 # How much of the cos curve should be squeezed (1 = none, 0.9 = a little toward the beginning)
+                        
+                    transition[tt] = (1.0 + np.cos((tran*((tran/((1-cos_tail)*transition_zone))**cos_squeeze)/transition_zone)*np.pi)) - tt*overlaying_slope
+
+                transition -= np.min(transition)
+                transition /= np.max(transition)
+                
+                max_transition_deta = eta_levels[len(self.levels)-1] - eta_levels[len(self.levels)-2]
+
+                orig_eta_levels = eta_levels
+                orig_transition = transition.copy()
+
+                top_lvl_threshold = 0.001
+                if min_transition_deta is not None:
+                    if min_transition_deta > 0:
+                        min_transition_deta *= -1
+                    eta_levels,error = self._calc_transition(eta_levels,
+                                                             transition,
+                                                             max_transition_deta,
+                                                             min_transition_deta)
+                    
+                    if error > top_lvl_threshold:
+                        iterate_for_transition = True
+                        print('Specified min_transition_deta resulted in bad levels...')
+                        eta_levels = orig_eta_levels.copy()
+                    else:
+                        iterate_for_transition = False
+                else:
+                    iterate_for_transition = True
+                    min_transition_deta = -0.02
+                    
+                if iterate_for_transition:
+                    print('Iterating to find reasonable levels.')
+                    error = 1.0
+                    prev_error = 1.0
+                    count = 0
+                    max_iterations = 100
+                    
+                    
+                    check_transition = False
+                    if check_transition:
+                        fig,ax = plt.subplots(ncols=2,figsize=(12,5))
+                    
+                    while ((np.abs(error) > top_lvl_threshold) and (count <= max_iterations)) and (min_transition_deta > self.deta_limit):
+                        eta_levels = orig_eta_levels.copy()
+                        transition = orig_transition.copy()
+                        
+                        eta_levels,error = self._calc_transition(eta_levels,
+                                                                 transition,
+                                                                 max_transition_deta,
+                                                                 min_transition_deta,
+                                                                 top_lvl_threshold)
+                        if abs(error) < abs(prev_error):
+                            min_error = {'error': error,'deta':min_transition_deta}
+                            
+                            if error > 0:
+                                min_transition_deta *= 1.001
+                            else:
+                                min_transition_deta *= 0.999
+                        else:
+                            if error < 0:
+                                min_transition_deta *= 1.001
+                            else:
+                                min_transition_deta *= 0.999
+                        count+=1
+                        if check_transition:
+                            ax[0].scatter(count,error)
+                            ax[0].plot([count-1,count],[prev_error,error])
+                            ax[0].set_title('error')
+                            ax[1].scatter(count,min_transition_deta)
+                            ax[1].set_title('min_transition_deta')
+                        prev_error = error
+                        if min_transition_deta < self.deta_limit:
+                            print('min_transition_deta of {} exceeds reasonable limit for d(eta), {}'.format(
+                                    min_transition_deta, self.deta_limit))
+                            #raise ValueError ('Could not find a reasonable min_transition_deta - try adding more levels')
+                            min_transition_deta = self.deta_limit
+                            count = max_iterations + 1
+
+                    
+                    if (count > max_iterations) and len(eta_levels) >= n_total_levels:
+                        print(eta_levels,error)
+                        print(min_error)
+                        raise ValueError ('Not enough levels to reach the top')
+                    else:
+                        if error <= top_lvl_threshold:
+                            eta_levels -= np.min(eta_levels)
+                            eta_levels /= np.max(eta_levels)
+                        #else:
+                        #    print(error)
+                        #    print(eta_levels)
+                        #    raise ValueError ('Error is too large')
+
+
+                if np.min(eta_levels) < 0.0:
+                    eta_levels -= np.min(eta_levels)
+                    eta_levels /= np.max(eta_levels)
+                    reached_model_top = True
+                
             if (n_total_levels is None) or (n_total_levels <= len(self.levels)):
                 print('Insufficient number of levels to reach model top.')
                 print('Height top: {}, top of specified levels: {}, number of levels: {}'.format(
                                 height_top,self.levels[-1],n_total_levels))
-                print('Must specify n_total_levels to complete eta_levels to model top')
-                return
-            remaining_levels = n_total_levels - len(self.levels)
+                raise ValueError ('Must specify n_total_levels to complete eta_levels to model top')
+                
+            remaining_levels = n_total_levels - len(eta_levels)
 
-            eta_levels_top = np.zeros(remaining_levels+2)
-            z_scale = 0.4
-            for k in range(1,remaining_levels+2):
-                kind = k-1
-                eta_levels_top[kind] = (np.exp(-(k-1)/float(n_total_levels)/z_scale) - np.exp(-1./z_scale))/ (1.-np.exp(-1./z_scale))
-            eta_levels_top -= eta_levels_top[-2]
-            eta_levels_top = eta_levels_top[:-1]
-            eta_levels_top /= np.max(eta_levels_top)
-            eta_levels_top *= eta_levels[len(self.levels)-1]
+            if remaining_levels > 0:
+                if not reached_model_top:
+                    print('Filling to top...')
+                    #import matplotlib.pyplot as plt
+                    eta_levels_top = np.zeros(remaining_levels+2)
+                    z_scale = 0.4
+                    for k in range(1,remaining_levels+2):
+                        kind =  k - 1
+                        eta_levels_top[kind] = (np.exp(-(k-1)/float(n_total_levels)/z_scale) - np.exp(-1./z_scale))/ (1.-np.exp(-1./z_scale))
+                        #eta_levels_top[kind] = (np.exp(-(k-1)/float(remaining_levels)/z_scale) - np.exp(-1./z_scale))/ (1.-np.exp(-1./z_scale))
+                        
+                    eta_levels_top = eta_levels_top[:-1]
 
-            eta_levels[len(self.levels):] = eta_levels_top[1:]
-            
+                    eta_levels_top -= np.min(eta_levels_top)
+                    eta_levels_top /= np.max(eta_levels_top)
+
+                    eta_levels_top *= eta_levels[-1]
+
+                    eta_levels_top = list(eta_levels_top)
+                    eta_levels = list(eta_levels)
+                    
+                    eta_levels += eta_levels_top[1:]
+                    eta_levels = np.array(eta_levels)
+                else:
+                    print('Specified levels + transition zone reached model top.')
+                    print('Setting n_total_levels to len(levels) + transition_zone')
+                    n_total_levels = len(self.levels)+transition_zone
+
+
+            if np.min(eta_levels) != 0.0:
+                print('Insufficient number of levels to reach model top.')
+                raise ValueError ('Lower the model top, increase number of levels, or increase the deta_lim')
+
         return(eta_levels)
+    
+    def _calc_transition(self,eta_levels,
+                         transition,
+                         max_transition_deta,
+                         min_transition_deta,
+                         top_lvl_threshold=None):        
+        import matplotlib.pyplot as plt
+
+        transition *= (max_transition_deta - min_transition_deta)
+        transition += min_transition_deta
+
+        eta_levels = list(eta_levels)
+        for tt,tran in enumerate(transition):
+            tind = len(self.levels) + tt
+            eta_levels += list([eta_levels[tind-1] + tran])
+        eta_levels = np.array(eta_levels)
+        
+        error = eta_levels[-1]
+        return (eta_levels,error)
+    
+    def _estimate_heights(self):
+        
+        pressure = self.eta_levels*(self.p0-self.pres_top) + self.pres_top
+        return((self.gas_constant_dry_air*self.surface_temp/self.gravity)*np.log((self.p0/pressure)))
+        
     
     def smooth_eta_levels(self,
                           smooth_fact=7e-4,
                           smooth_degree=2):
         
         eta_levels = self.eta_levels
-        deta_x = np.arange(0,len(eta_levels)-1)
-        deta = eta_levels[1:] - eta_levels[:-1]
+        deta_levels = eta_levels[1:] - eta_levels[:-1]
+        
+        import matplotlib.pyplot as plt
+       
+        start_smooth_ind = len(self.levels)-4
+        eta_levels_to_smooth = eta_levels[start_smooth_ind:]
+        
+        deta_x = np.arange(0,len(eta_levels_to_smooth)-1)
+        deta = eta_levels_to_smooth[1:] - eta_levels_to_smooth[:-1]
         
         spl = UnivariateSpline(deta_x,deta,k=smooth_degree)
 
         spl.set_smoothing_factor(smooth_fact)
-        deta_x = np.arange(0,len(eta_levels)-1)
+        deta_x = np.arange(0,len(eta_levels_to_smooth))
         new_deta = spl(deta_x)
 
-
-        final_eta_levels = np.ones(len(new_deta)+1)
-        for ee,eta in enumerate(final_eta_levels[1:]):
-            final_eta_levels[ee+1] = 1 + sum(new_deta[:ee+1])
+        final_eta_levels = np.ones(len(eta_levels))
+        final_eta_levels[:start_smooth_ind] = eta_levels[:start_smooth_ind]
+        for ee,eta in enumerate(new_deta):
+            final_eta_levels[start_smooth_ind + ee] = eta_levels[start_smooth_ind -1] + sum(new_deta[:ee+1])
         final_eta_levels -= min(final_eta_levels)
         final_eta_levels /= max(final_eta_levels)
         
+        buffer_deta = final_eta_levels[start_smooth_ind-2:start_smooth_ind+3] - final_eta_levels[start_smooth_ind-3:start_smooth_ind+2]
+        
+        buff_slope = (buffer_deta[-1]-buffer_deta[0]) / (len(buffer_deta)-1)
+        new_buff_deta = buffer_deta[0] + buff_slope*np.arange(0,len(buffer_deta))
+        
+        for ww in range(0,len(buffer_deta)):
+            final_eta_levels[start_smooth_ind - 2 + ww] = final_eta_levels[start_smooth_ind - 3 + ww] + new_buff_deta[ww]
+        
         self.original_eta_levels = self.eta_levels
         self.eta_levels = final_eta_levels
+        if self.pres_top is not None:
+            self.estimated_heights = self._estimate_heights()
         return(self)
     
     
@@ -1738,7 +3245,7 @@ class CreateEtaLevels():
         line = ''
         print('{} levels'.format(len(self.eta_levels)))
         for kk,eta in enumerate(self.eta_levels):
-            line += '{0:6.5f}, '.format(eta)
+            line += '{0:8.7f}, '.format(eta)
             count+=1
             if count == ncols:
                 #line += '\n'
@@ -1747,3 +3254,214 @@ class CreateEtaLevels():
                 line = ''
         if line != '':
             print(line)
+
+            
+class CreateEtaLevels():
+    
+    def __init__(self, 
+                 nz=None,
+                 dz_bottom=None,
+                 dz_top=None,
+                 sfc_pressure=100000.0,
+                 surface_z=0.0,
+                 top_pressure=None,
+                 top_z=None,
+                 sfc_temperature=280.0,
+                 transition_steepness=8.0,
+                 transition_inflection_location=None,
+                 stretch_lower_bound=0.0,
+                 stretch_upper_bound=1.0,
+                 tolerance=0.01,
+                 verbose=False,
+                 ):
+        
+        if nz is None: raise ValueError('Need to specify the number of levels, nz')
+        if dz_bottom is None: raise ValueError('Need to specify the desired ∆z at the surface, dz_bottom')
+        if dz_top is None: raise ValueError('Need to specify the desired ∆z at the top, dz_top')
+        
+        if transition_inflection_location is None:
+            raise ValueError('Need to specify transition_start')
+        if type(transition_inflection_location) is int:
+            pinflect = (transition_inflection_location/nz)*2.0 - 1.0
+        elif type(transition_inflection_location) is float:
+            if transition_inflection_location <= 1.0:
+                pinflect = (transition_inflection_location)*2.0 - 1.0
+            else:
+                raise ValueError('transition_inflection_location must be the index (int) or the percentage (divided by 100.0; float) of where the inflection point will be located')
+        
+        if (top_pressure is None):
+            if (top_z is None):
+                raise ValueError('Must specify either top_pressure or top_z')
+            else:
+                if top_z <= 0:
+                    raise ValueError('top_z must be positive')
+                else:
+                    top_pressure = -999.
+        else:
+            if (top_z is None):
+                if top_pressure <= 0:
+                    raise ValueError('top_pressure must be positive')
+                else:
+                    top_z = -999.
+            else:
+                if (top_pressure > 0) and (top_z > 0):
+                    print('Both pressure top and model top height are specified... default is height')
+                    top_pressure = -999.
+                elif (top_pressure <= 0) and (top_z <= 0):
+                    raise ValueError('Either top_pressure or top_z must be positive')
+                    
+        
+        self._CalculateEtaLevels(nz,dz_bottom,dz_top,sfc_pressure,
+                                 surface_z,top_pressure,top_z,sfc_temperature,
+                                 transition_steepness,pinflect,
+                                 stretch_lower_bound,stretch_upper_bound,
+                                 tolerance,verbose)
+        
+    def _standard_atm(self,z,pb,hb,Tb=290.0):
+        R=8.31447  # J/(K*mol) - universal gas constant
+        g0=9.80665 # m/s^2     - standard gravity
+        M=0.0289644 # kg/mol   - molar mass of Earth's air
+        #Tb=290.0      # K        - standard temperature
+        p=pb*np.exp(g0*M*(hb-z)/(R*Tb))
+        return p
+    ####
+    # function create_eta
+    # computes an array of eta levels - eta
+    # given an array of pressure levels - p
+    # and base pressure and elevation pb and hb
+    #
+    def _create_eta(self,z,pb,hb,Tb=290.0):
+        p=self._standard_atm(z,pb,hb,Tb)
+        s=np.size(p)
+        n=s
+        eta=-(p-p[n-1])/(p[n-1]-p[0])
+        return eta
+    #
+    ####
+    # function stretch_coefficient
+    #
+    def _stretch_coefficient(self,amp,nz,steep,pinflect):
+        fac = steep
+        xc  = pinflect
+        xa  =-1.
+        xb  = 1.
+        x   = np.arange(xa, xb, (xb-xa)/nz)
+        cf  = amp*((np.exp(fac*(x-xc))-1.)/(np.exp(fac*(x-xc))+1.)+1.)
+        return cf
+    
+    def _CalculateEtaLevels(self,nz,dz_bottom,dz_top,sfc_pressure,
+                 surface_z,top_pressure,top_z,sfc_temperature,
+                 transition_steepness,pinflect,
+                 stretch_lower_bound,stretch_upper_bound,
+                 tolerance,verbose):
+        if top_pressure > 0.:
+            diff=np.abs(top_pressure)
+
+        if top_z > 0.:
+            diff=np.abs(top_z)
+
+        it=0
+
+        while diff > tolerance:
+
+            amp = stretch_lower_bound+0.5*(stretch_upper_bound-stretch_lower_bound)
+            cf  = self._stretch_coefficient(amp,nz,transition_steepness,pinflect)
+            dz  = cf*dz_top+dz_bottom
+            z   = np.cumsum(dz)
+
+            if top_z > 0.:
+                if z[nz-1] > top_z:
+                    stretch_upper_bound=amp
+                if z[nz-1] < top_z:
+                    stretch_lower_bound=amp
+                diff=np.abs(z[nz-1]-top_z)
+                if amp==0.:
+                    print( 'no convergence - change parameters')
+                    quit()
+
+            p=self._standard_atm(z,sfc_pressure,surface_z,sfc_temperature)
+
+            if top_pressure > 0.:
+                if p[nz-1] > top_pressure:
+                    stretch_lower_bound=amp
+                if p[nz-1] < top_pressure:
+                    stretch_upper_bound=amp
+                diff=np.abs(p[nz-1]-top_pressure)
+                if amp==0.:
+                    print( 'no convergence - change parameters')
+                    quit()
+
+            it=it+1
+            if verbose:
+                print( it,diff,z[nz-1],p[nz-1],amp)
+
+            
+
+        s=np.cumsum(dz)
+        t=np.arange(np.size(s))
+
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.plot(t, s)
+        ax.set(xlabel='Number of grid points', ylabel='Elevation [m]',
+               title='About as simple as it gets, folks')
+        ax.grid()
+
+        #fig.savefig("elevation.png")
+        plt.show()
+
+        fig, ax = plt.subplots()
+        ax.set(xlabel='Number of grid points', ylabel='Grid spacing [m]',
+               title='About as simple as it gets, folks')
+        ax.grid()
+        ax.plot(t, dz)
+        #fig.savefig("dz.png")
+        plt.show()
+        
+        if verbose:
+            print (' level     height      dz     pressure')
+            for k in range(nz):
+                print( '{0:6d},{1:12.5f},{2:14.5f},{3:14.5f}'.format(k,z[k],dz[k],p[k]))
+
+        
+        self.eta_levels=self._create_eta(z,sfc_pressure,surface_z,sfc_temperature)
+
+        
+        
+    def print_eta_levels(self,ncols=4):
+        count = 0
+        line = ''
+        print('{} levels'.format(len(self.eta_levels)))
+        for kk,eta in enumerate(self.eta_levels):
+            line += '{0:8.7f}, '.format(eta)
+            count+=1
+            if count == ncols:
+                #line += '\n'
+                print(line)
+                count = 0
+                line = ''
+        if line != '':
+            print(line)
+        
+    '''
+    def print_eta_levels(self,ncols=4,num_decimals=5):
+
+        eta_levels = self.eta_levels
+        count = 0
+        line = ''
+        print('{} levels'.format(len(eta_levels)))
+        
+        for kk,eta in enumerate(eta_levels):
+            #eta = str(eta)[:num_decimals+2]
+            eta = '{0:0.{1}f}'.format(eta, num_decimals)
+            line += '{}, '.format(eta)
+            count+=1
+            if count == ncols:
+                #line += '\n'
+                print(line)
+                count = 0
+                line = ''
+        if line != '':
+            print(line)
+    '''
+

@@ -1515,4 +1515,371 @@ def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_a
     f.close()
         
         
-  
+
+import glob
+import numpy as np
+import matplotlib.pyplot as plt
+import xarray as xr
+import pandas as pd
+import time
+import matplotlib.colors as colors
+
+def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    new_cmap = colors.LinearSegmentedColormap.from_list(
+        'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
+        cmap(np.linspace(minval, maxval, n)))
+    return new_cmap
+
+class ErrorWatch():
+    
+    def __init__(self,
+                 working_dir=None,
+                 domain_of_interest=None,
+                 wait_time=5.0,
+                 show_plot=True):
+        
+        if domain_of_interest is None:
+            domain_of_interest = 'd01'
+        terrain_cmap = truncate_colormap(plt.cm.terrain,minval=0.25)
+        terrain_cmap.set_bad('steelblue')
+
+        
+        if working_dir is None:
+            raise ValueError('working_dir must be specified')
+            
+        print('Getting information about the run...')
+        datetime_dict = self.get_run_information(working_dir)
+
+        print('Getting information about the domain...')
+        domain_ds = self.get_domain_information(working_dir,domain_of_interest)
+        self.domain_ds = domain_ds
+
+        print('Initializing the CFL dataset...')
+        cfl_ds = self.initialize_dataset(datetime_dict[domain_of_interest],domain_of_interest)
+        last_time_step = cfl_ds.datetime[0].data
+        
+        print('Getting CFL information...')
+        cfl_ds,rsl_dict,last_time_step = self.grep_error_logs(cfl_ds,rsl_loc=working_dir,last_time_step=last_time_step)
+        self.cfl_ds = cfl_ds
+
+        
+        sim_running = self.check_run_status(cfl_ds)
+        if show_plot:
+            fig = plt.figure(figsize=(9,9))#,constrained_layout=True)
+            plt.subplots_adjust(hspace=0.8)
+            self.error_watch_plot(fig,cmap=terrain_cmap)
+        
+        sim_finished_when_starting = True
+        
+        if sim_running:
+            print('It appears the simulation is still running... refreshing every {} seconds'.format(wait_time))
+            need_to_iterate = True
+        else:
+            need_to_iterate = False
+
+
+        while sim_running:
+            cfl_ds,rsl_dict,last_time_step = self.grep_error_logs(cfl_ds,rsl_loc=working_dir,last_time_step=last_time_step)
+            self.cfl_ds = cfl_ds
+            sim_running = self.check_run_status(cfl_ds)
+            if show_plot:
+                plt.clf()
+                self.error_watch_plot(fig,cmap=terrain_cmap)
+                plt.pause(0.05)
+            time.sleep(wait_time)
+
+        self.cfl_ds = cfl_ds
+        if show_plot:
+            if need_to_iterate:
+                self.error_watch_plot(fig,cmap=terrain_cmap)
+            plt.show()
+            
+        print('The simulation has stopped. Result: {}'.format(cfl_ds.status))
+
+
+        
+
+    def error_watch_plot(self,fig,cmap):
+        cfl_ds = self.cfl_ds
+        domain_ds = self.domain_ds
+        gs = fig.add_gridspec(3, 3)
+        cfl_ax = fig.add_subplot(gs[0, :])
+        xy_ax = fig.add_subplot(gs[1:, :-1])
+        z_ax = fig.add_subplot(gs[1:, -1])
+
+        w_plt = cfl_ds.w.where(cfl_ds.w != -999.).dropna(how='any',dim='datetime')
+        cfl_plt = cfl_ds.cfl.where(cfl_ds.cfl != -999.).dropna(how='any',dim='datetime')
+
+        #cfl_ax.plot(w_plt.datetime.data,w_plt.data,marker='o',c='b',label='W')
+        #cfl_ax.plot(cfl_plt.datetime.data,cfl_plt.data,marker='o',label='CFL',c=t_locs,vmin=cfl_ds.datetime[0],vmax=cfl_ds.datetime[-1])
+        
+        cfl_ax.scatter(w_plt.datetime.data,w_plt.data,marker='o',c='grey',label='W')
+        cfl_ax.scatter(cfl_plt.datetime.data,cfl_plt.data,marker='o',label='CFL',cmap=plt.cm.jet,c=w_plt.datetime.data,vmin=cfl_ds.datetime[0],vmax=cfl_ds.datetime[-1])
+
+        
+        progress_s = pd.to_datetime(cfl_ds.datetime[0].data)
+        progress_e = pd.to_datetime(cfl_ds.finished_to)
+
+        cfl_ax.set_ylim(0,1.1*np.max((cfl_ds.cfl.max().data,cfl_ds.w.max().data,1.0)))
+        cfl_ax.set_xlim(cfl_ds.datetime[0].data,cfl_ds.datetime[-1].data)
+        cfl_ax.plot([progress_s,progress_e],[0.0,0.0],c='g',lw=10.0,alpha=0.5)
+
+        #xy_ax.pcolormesh(domain_ds.HGT.where(domain_ds.LANDMASK > 0),cmap=cmap,alpha=0.15)
+        xy_ax.contour(domain_ds.HGT,alpha=0.15,cmap=plt.cm.copper,levels=np.arange(0,domain_ds.HGT.max(),200))
+        xy_ax.contour(domain_ds.LANDMASK,levels=[0.5],colors='k',alpha=0.15)
+
+        locs_ds = cfl_ds.location.where(cfl_ds.location != None).dropna(how='any',dim='datetime')
+
+        loc_list = []
+        t_locs = []
+        for locs in locs_ds:
+            loc_t = locs.datetime.data
+            locs = str(locs.data)
+            if '),(' in locs:
+                locs = locs.split('),(')
+                for loc in locs:
+                    loc = loc.replace('(','').replace(')','')
+                    loc_list.append(loc)
+                    t_locs.append(loc_t)
+            else:
+                loc = locs.replace('(','').replace(')','')
+                loc_list.append(loc)
+                t_locs.append(loc_t)
+
+
+        dz = domain_ds.z[1:] - domain_ds.z[:-1]
+        #z_ax.scatter(np.arange(len(domain_ds.z)),domain_ds.z/1000.0,marker='o',color='k')
+        z_ax.scatter(np.arange(len(dz)),dz,marker='o',color='k')
+        show_scatter = True
+        if show_scatter: 
+
+            i_locs = []
+            j_locs = []
+            k_locs = []
+            z_locs = []
+            for loc in loc_list:
+                loc = loc.split(',')
+                i_locs.append(int(loc[0]))
+                j_locs.append(int(loc[1]))
+                k_locs.append(int(loc[2]))
+                z_locs.append(dz.data[int(loc[2])])
+                
+            xy_ax.scatter(i_locs,j_locs,marker='o',cmap=plt.cm.jet,c=t_locs,vmin=cfl_ds.datetime[0],vmax=cfl_ds.datetime[-1])
+            z_ax.scatter(k_locs,z_locs,marker='o',cmap=plt.cm.jet,c=t_locs,vmin=cfl_ds.datetime[0],vmax=cfl_ds.datetime[-1])
+                
+        cfl_ax.tick_params(labelsize=16,labelbottom=True,bottom=True)
+        xticks = pd.date_range(str(cfl_ds.datetime.data[0]),str(cfl_ds.datetime.data[-1]),freq='6h')
+        xticks = np.asarray(xticks)
+        xtick_str = []
+        for xt in np.arange(len(xticks)):
+            xtick = pd.to_datetime(xticks[xt])
+            xtick_str.append('{0:02d} {1:02d}Z'.format(xtick.day,xtick.hour))
+        cfl_ax.set_xticks(xticks)
+        cfl_ax.set_xticklabels(xtick_str,rotation=-35)
+        #cfl_ax.tick_params(labelbottom=False,labeltop=True,bottom=False,top=True,labelsize=16)
+        #cfl_ax.tick_params(axis='x',labelrotation=35.0)
+        for label in cfl_ax.get_xticklabels():
+            label.set_horizontalalignment('left')
+        #cfl_ax.xaxis.set_label_position('top') 
+        cfl_ax.set_xlabel('Datetime',size=18)
+        cfl_ax.legend(frameon=False,fontsize=16,ncol=2,loc=(0.01,1.01))
+
+        xy_ax.tick_params(labelsize=16)
+        xy_ax.set_ylabel('NY',size=16)
+        xy_ax.set_xlabel('NX',size=16)
+
+        z_ax.tick_params(labelsize=16,labelleft=False,left=False,labelright=True,right=True)
+        z_ax.set_xlabel('NZ',size=16)
+        z_ax.set_ylabel('∆z [m]',size=16,rotation=270,labelpad=20)
+        z_ax.yaxis.set_label_position('right') 
+
+        plt.suptitle('{} - Current Time: {}'.format(str(cfl_ds.domain),progress_e),size=20)
+        plt.draw()
+
+
+    def remove_commas(self,string,make=None):
+        if ',' in string: 
+            string = string.replace(',','')
+        if make is not None:
+            if make == 'int': string = int(string)
+            if make == 'float': string = float(string)
+
+        return(string)
+
+    def get_run_information(self,working_dir):
+        namelist = open('{}namelist.input'.format(working_dir),'r')
+        for line in namelist:
+            line = line.split() 
+            #print(line)
+            if len(line) > 0:
+                if 'start_year' in line[0]: start_yr = line[2:]
+                if 'start_month' in line[0]:start_mo = line[2:]
+                if 'start_day' in line[0]:start_dy = line[2:]
+                if 'start_hour' in line[0]:start_hr = line[2:]
+                if 'start_minute' in line[0]:start_mn = line[2:]
+                if 'start_second' in line[0]:start_sd = line[2:]
+
+                if 'end_year' in line[0]: end_yr = line[2:]
+                if 'end_month' in line[0]:end_mo = line[2:]
+                if 'end_day' in line[0]:end_dy = line[2:]
+                if 'end_hour' in line[0]:end_hr = line[2:]
+                if 'end_minute' in line[0]:end_mn = line[2:]
+                if 'end_second' in line[0]:end_sd = line[2:]
+
+                if 'max_dom' in line[0]:
+                    max_dom = line[2]
+                    max_dom = self.remove_commas(max_dom)
+                    max_dom = int(max_dom)
+
+                if 'time_step' in line[0]:
+                    if line[0] == 'time_step':dt_b = self.remove_commas(line[2],make='int')
+                    if 'fract_num' in line[0]: dt_num = self.remove_commas(line[2],make='int')
+                    if 'fract_den' in line[0]: dt_den = self.remove_commas(line[2],make='int')
+                    if 'ratio' in line[0]: dt_ratio = line[2:]
+
+
+        namelist.close()
+        main_dt = float(dt_b) + float(dt_num)/float(dt_den)
+        datetime_dict = {}
+        for dd in range(0,max_dom):
+            dom = 'd{0:02d}'.format(dd+1)
+            dom_dt = main_dt / self.remove_commas(dt_ratio[dd],make='float')
+            syr = self.remove_commas(start_yr[dd],make='int')
+            smo = self.remove_commas(start_mo[dd],make='int')
+            sdy = self.remove_commas(start_dy[dd],make='int')
+            shr = self.remove_commas(start_hr[dd],make='int')
+            smn = self.remove_commas(start_mn[dd],make='int')
+            ssd = self.remove_commas(start_sd[dd],make='int')
+
+            eyr = self.remove_commas(end_yr[dd],make='int')
+            emo = self.remove_commas(end_mo[dd],make='int')
+            edy = self.remove_commas(end_dy[dd],make='int')
+            ehr = self.remove_commas(end_hr[dd],make='int')
+            emn = self.remove_commas(end_mn[dd],make='int')
+            esd = self.remove_commas(end_sd[dd],make='int')
+
+            start_date = pd.to_datetime('{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d}'.format(
+                                        syr,smo,sdy,shr,smn,ssd))
+            end_date = pd.to_datetime('{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d}'.format(
+                                        eyr,emo,edy,ehr,emn,esd))
+
+
+            freq = int(max([1.0,dom_dt]))
+            datetime = pd.date_range(start_date,end_date,freq='{0}s'.format(freq))
+            datetime_dict[dom] = datetime
+
+
+        return(datetime_dict)
+
+
+    def initialize_dataset(self,datetime,domain):
+        cfl_ds = xr.Dataset(data_vars={
+                                'cfl':(['datetime'],np.zeros(len(datetime))-999.0),
+                               'npts':(['datetime'],np.zeros(len(datetime))),
+                                  'w':(['datetime'],np.zeros(len(datetime))-999.0),
+                           'location':(['datetime'],np.empty(len(datetime),dtype=list)),
+                                      },
+                            coords={'datetime':datetime},
+                            attrs={'domain':domain},
+                           )
+        cfl_ds.w.astype(str)
+        return(cfl_ds)
+
+    def grep_error_logs(self,cfl_ds,rsl_dict=None,rsl_loc=None,last_time_step=None):
+        if (rsl_dict is None) and (rsl_loc is None):
+            raise ValueError('Please specify the location of rsl files (rsl_loc)')
+        if (rsl_dict is None) and (rsl_loc is not None):
+            rsl_files = sorted(glob.glob('{}rsl.error*'.format(rsl_loc)))
+            rsl_dict = {}
+            for log in rsl_files:
+                rsl_dict[log] = {'stopping_ind':0}
+
+        rsl_files = list(rsl_dict.keys())
+
+        domain_of_interest = cfl_ds.domain
+        sim_complete = False
+        sim_crash = False
+        
+        for ee,elog in enumerate(rsl_files):
+            log = open(elog,'r')
+            log = log.readlines()[rsl_dict[elog]['stopping_ind']:]
+
+            for line in log:
+
+                if 'w_critical_cfl' in line:
+                    line = line.split()
+                    dom = line[0]
+                    if dom == domain_of_interest:
+                        npts = int(line[2])
+                        dtime = pd.to_datetime(line[1].replace('_',' '))
+                        cfl_ds.sel(datetime=dtime)['npts'] += npts
+                if 'w-cfl' in line:
+                    if "*******" in line: print(line)
+                    line = line.split()
+                    dom = line[0]
+                    if dom == domain_of_interest:
+                        dtime = pd.to_datetime(line[1].replace('_',' '))
+                        cfl = float(line[10])
+                        w = float(line[8])
+                        i = str(line[4])
+                        j = int(line[5])
+                        k = int(line[6])
+                        current_cfl = cfl_ds.sel(datetime=dtime).cfl
+                        current_w = cfl_ds.sel(datetime=dtime).w
+                        current_loc = cfl_ds.sel(datetime=dtime).location
+
+                        if cfl > current_cfl:
+                            cfl_ds.sel(datetime=dtime)['cfl'] *= 0.0
+                            cfl_ds.sel(datetime=dtime)['cfl'] += cfl
+
+                        if w > current_w:
+                            cfl_ds.sel(datetime=dtime)['w'] *= 0.0
+                            cfl_ds.sel(datetime=dtime)['w'] += w
+
+                        if current_loc.data == None:
+                            cfl_ds.location.loc[{'datetime':str(dtime)}] = ('({},{},{})'.format(i,j,k))
+
+                        else:
+                            current_loc_str = str(current_loc.data)
+                            new_loc_str = ','.join([current_loc_str,'({},{},{})'.format(i,j,k)])
+                            cfl_ds.location.loc[{'datetime':str(dtime)}]= new_loc_str
+
+
+                if ee == 0:
+                    if 'Timing for main' in line:
+                        last_time_step = pd.to_datetime(line.split()[4].replace('_',' '))
+                if 'SUCCESS COMPLETE WRF' in line:
+                    sim_complete = True
+                if 'Program received signal SIGSEGV' in line:
+                    sim_complete = True
+                    sim_crash = True
+
+                rsl_dict[elog]['stopping_ind'] += 1
+                
+        if sim_complete: 
+            if sim_crash:
+                status = 'Crashed'
+            else:
+                status = 'Complete'
+        else:
+            status = 'Running'
+        cfl_ds.attrs['status'] = status
+        cfl_ds.attrs['finished_to'] = last_time_step
+        #cfl_ds = cfl_ds.where(cfl_ds != -999.)
+        return(cfl_ds,rsl_dict,last_time_step)
+
+    def check_run_status(self,cfl_ds):
+        if cfl_ds.status == 'Running':
+            sim_running = True
+        else:
+            sim_running = False
+        return(sim_running)
+
+    def get_domain_information(self,working_dir,domain):
+        wrfin = xr.open_dataset('{}wrfinput_{}'.format(working_dir,domain)).squeeze()
+        hgt = wrfin.HGT
+        z = ((wrfin.PH + wrfin.PHB)/9.81 - hgt).mean(dim=['west_east','south_north'])
+
+        domain_ds = wrfin[['HGT','LANDMASK']]
+        domain_ds['z'] = z
+        return(domain_ds)
