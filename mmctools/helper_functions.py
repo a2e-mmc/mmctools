@@ -1101,8 +1101,8 @@ def calc_spectra(data,
     ==========
     data : xr.Dataset, xr.DataArray, or pd.dataframe
         The data that spectra should be calculated over
-    var_oi : str
-        Variable of interest - what variable should PSD be computed from.
+    var_oi : str, or list
+        Variable(s) of interest - what variable(s) should PSD be computed from.
     spectra_dim : str
         Name of the dimension that the variable spans for spectra to be 
         computed. E.g., if you want time spectra, this should be something like
@@ -1244,9 +1244,12 @@ def calc_spectra(data,
                 assert len(dim_list) == 1, 'There are too many dimensions... drop one of {}'.format(dim_list)
                 assert len(spec_dat[dim_list[0]].data) == 1, 'Not sure how to parse this dimension, {}, reduce to 1 or remove'.format(dim_list)
                 spec_dat = spec_dat.squeeze()
-            for varn in list(spec_dat.variables.keys()):
-                if (varn != var_oi) and (varn != spectra_dim):
-                    spec_dat = spec_dat.drop(varn)
+
+            varsToDrop = set(spec_dat.variables.keys()) \
+                       - set([spectra_dim] if type(spectra_dim) is str else spectra_dim) \
+                       - set([var_oi] if type(var_oi) is str else var_oi)
+            spec_dat = spec_dat.drop(list(varsToDrop))
+
             spec_dat_df = spec_dat[var_oi].to_dataframe()
             
             psd = power_spectral_density(spec_dat_df,
@@ -1256,7 +1259,7 @@ def calc_spectra(data,
                                          tstart=tstart,interval=interval)
             psd = psd.to_xarray()
             if avg_dim is not None:
-                psd = psd.assign_coords({average_dim:1})
+                psd = psd.assign_coords(**{average_dim:1})
                 psd[average_dim] = avg_dim.data            
                 psd = psd.expand_dims(average_dim)
 
@@ -1268,7 +1271,7 @@ def calc_spectra(data,
                 psd_level = psd
                 
         if level_dim is not None:
-            psd_level = psd_level.assign_coords({level_dim:1})
+            psd_level = psd_level.assign_coords(**{level_dim:1})
             psd_level[level_dim] = lvl#.data            
             psd_level = psd_level.expand_dims(level_dim)
 
@@ -1278,90 +1281,3 @@ def calc_spectra(data,
             psd_f = psd_level.combine_first(psd_f)
     return(psd_f)
 
-
-def calcTRI(hgt,window):
-    '''
-    Terrain Ruggedness Index
-    Riley, S. J., DeGloria, S. D., & Elliot, R. (1999). Index that 
-        quantifies topographic heterogeneity. intermountain Journal 
-        of sciences, 5(1-4), 23-27.
-    
-    hgt : array
-        Array of heights over which TRI will be calculated
-    window : int
-        Length of window in x and y direction. Must be odd.
-    '''
-    from scipy.ndimage.filters import generic_filter
-
-    # Window setup:
-    assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
-    Hwindow = int(np.floor(window/2))
-    
-    # Type and dimension check:
-    if isinstance(hgt,(xr.Dataset,xr.DataArray,xr.Variable)):
-        hgt = hgt.data    
-    assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
-    
-    ny,nx = np.shape(hgt)
-    
-    def tri_filt(x):
-        middle_ind = int(len(x)/2)
-        return((sum((x - x[middle_ind])**2.0))**0.5)
-    
-    tri = generic_filter(hgt,tri_filt, size = (window,window))
-    
-    return tri
-
-
-def calcVRM(hgt,window,return_slope=False):
-    '''
-    Vector Ruggedness Measure
-    Sappington, J. M., Longshore, K. M., & Thompson, D. B. (2007). 
-        Quantifying landscape ruggedness for animal habitat analysis: 
-        a case study using bighorn sheep in the Mojave Desert. The 
-        Journal of wildlife management, 71(5), 1419-1426.
-    
-    hgt : array
-        Array of heights over which TRI will be calculated
-    window : int
-        Length of window in x and y direction. Must be odd.
-    '''
-    import richdem as rd
-    from scipy.ndimage.filters import generic_filter
-    
-    # Window setup:
-    assert (window/2.0) - np.floor(window/2.0) != 0.0, 'window must be odd...'
-    Hwndw = int(np.floor(window/2))
-
-    # Type and dimension check:
-    if isinstance(hgt,(xr.Dataset,xr.DataArray,xr.Variable)):
-        hgt = hgt.data    
-    assert len(np.shape(hgt)) == 2, 'hgt must be 2-dimensional. Currently has {} dimensions'.format(len(np.shape(hgt)))
-    ny,nx = np.shape(hgt)
-
-    # Get slope and aspect:
-    hgt_rd = rd.rdarray(hgt, no_data=-9999)
-    rd.FillDepressions(hgt_rd, in_place=True)
-    slope  = rd.TerrainAttribute(hgt_rd, attrib='slope_riserun')
-    aspect = rd.TerrainAttribute(hgt_rd, attrib='aspect')
-    
-    # Calculate vectors:
-    vrm = np.zeros((ny,nx))
-    rugz   = np.cos(slope*np.pi/180.0)
-    rugdxy = np.sin(slope*np.pi/180.0)
-    rugx   = rugdxy*np.cos(aspect*np.pi/180.0)
-    rugy   = rugdxy*np.sin(aspect*np.pi/180.0)
-        
-
-    def vrm_filt(x):
-        return(sum(x)**2)
-
-    vrmX = generic_filter(rugx,vrm_filt, size = (window,window))
-    vrmY = generic_filter(rugy,vrm_filt, size = (window,window))
-    vrmZ = generic_filter(rugz,vrm_filt, size = (window,window))
-
-    vrm = 1.0 - np.sqrt(vrmX + vrmY + vrmZ)/float(window**2)
-    if return_slope:
-        return vrm,slope
-    else:
-        return vrm
