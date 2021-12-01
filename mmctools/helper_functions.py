@@ -1288,7 +1288,7 @@ def calc_spectra(data,
                        - set(xvar_oi_flatten)
             spec_dat = spec_dat.drop(list(varsToDrop))
 
-            spec_dat_df = spec_dat[var_oi].to_dataframe()
+            spec_dat_df = spec_dat.to_dataframe()
 
             psd = power_spectral_density(spec_dat_df,
                                          var_oi=var_oi,
