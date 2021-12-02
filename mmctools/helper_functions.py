@@ -257,20 +257,21 @@ def covariance(a,b,interval='10min',resample=False,**kwargs):
     else:
         return cov
 
-
-def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
-                           window_type='hanning',detrend='linear',scaling='density',
-                           num_overlap=None):
+def power_spectral_density(df, var_oi=None, xvar_oi=[], tstart=None, interval=None,
+                           window_size='10min', window_type='hanning', detrend='linear',
+                           scaling='density', num_overlap=None):
     """
-    Calculate power spectral density using welch method and return
-    a new dataframe. The spectrum is calculated for every column
-    of the original dataframe.
-
+    Calculate power spectral density and cross power spectral density
+    using welch method and return a new dataframe.
+    The spectrum is calculated for the vars_oi and cross spectrum
+    for the pairs of variables in xvars_oi. If both are None, then
+    the spectrum is calculated for every column of the original
+    dataframe.
     Notes:
     - Input can be a pandas series or dataframe
     - Output is a dataframe with frequency as index
     """
-    from scipy.signal import welch
+    from scipy.signal import welch, csd
     
     # Determine time scale
     timevalues = df.index.get_level_values(0)
@@ -308,15 +309,29 @@ def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
     if isinstance(df,pd.Series):
         df = df.to_frame()
 
-    spectra = {}
-    for col in df.columns:
+    # Backwards compatibility
+    if not var_oi and not xvar_oi:
+        var_oi = df.columns
+
+    spectra = {}   
+    for col in var_oi:
+        # Computing psd for {col}
         f,P = welch(df.loc[inrange,col], fs=1./dt, nperseg=nperseg,
                     detrend=detrend,window=window_type,scaling=scaling,
-                    noverlap=num_overlap)    
+                    noverlap=num_overlap)  
         spectra[col] = P
+    
+    for cols in xvar_oi:
+        col1=cols[0]; col2=cols[1]
+        # Computing cross psd for {col1} and {col2}
+        f,P = csd(df.loc[inrange,col1], df.loc[inrange,col2], fs=1./dt, nperseg=nperseg,
+                  detrend=detrend,window=window_type,scaling=scaling,
+                  noverlap=num_overlap)
+        spectra[col1+col2] = P
+    
     spectra['frequency'] = f
     return pd.DataFrame(spectra).set_index('frequency')
-    
+
 
 def power_law(z,zref=80.0,Uref=8.0,alpha=0.2):
     return Uref*(z/zref)**alpha
@@ -1074,8 +1089,10 @@ def get_nc_file_times(f_dir,
             file_times[ft] = fname
     return (file_times)
 
+
 def calc_spectra(data,
                  var_oi=None,
+                 xvar_oi=None,
                  spectra_dim=None,
                  average_dim=None,
                  level_dim=None,
@@ -1090,12 +1107,15 @@ def calc_spectra(data,
                  ):
     
     '''
-    Calculate spectra using the Welch function. This code uses the 
-    power_spectral_density function from helper_functions.py. This function
-    accepts either xarray dataset or dataArray, or pandas dataframe. Dimensions
-    must be 4 or less (time, x, y, z). Returns a xarray dataset with the PSD of
-    the variable (f(average_dim, level, frequency/wavelength)) and the frequency 
-    or wavelength variables. Averages of the PSD over time or space can easily
+    Calculate spectra using the Welch function or cross spectra using the cross
+    spectral density function. This code uses the power_spectral_density function
+    from helper_functions.py. This function accepts either xarray dataset or
+    dataArray, or pandas dataframe. Dimensions must be 4 or less (time, x, y, z).
+    Returns a xarray dataset with the PSD of all of the variables in the original
+    dataset (f(average_dim, level, frequency/wavelength)) and the frequency 
+    or wavelength variables. Alterntively, the user can specify a subset of variables
+    for the PSD to be computed from using `var_oi` and pairs of variables for cross
+    PSD using `xvar_oi`. Averages of PSD and cross PSD over time or space can easily
     be done with xarray.Dataset.mean(dim='[dimension_name]').
     
     Parameters
@@ -1104,6 +1124,9 @@ def calc_spectra(data,
         The data that spectra should be calculated over
     var_oi : str, or list
         Variable(s) of interest - what variable(s) should PSD be computed from.
+    xvar_oi : tuple of str, or list of tuples of str
+        Variable(s) of interest for cross PSD - what pair(s) of variables should
+        the cross PSD be computed from
     spectra_dim : str
         Name of the dimension that the variable spans for spectra to be 
         computed. E.g., if you want time spectra, this should be something like
@@ -1148,6 +1171,7 @@ def calc_spectra(data,
     
     psd = calc_spectra(data,                       # data read in with xarray 
                        var_oi='W',                # PSD of 'W' to be computed
+                       xvar_oi=[('U','V'),('U','W')] # cross PSD of UV and UW
                        spectra_dim='west_east',     # Take the west-east line
                        average_dim='south_north',  # Average over north/south
                        level_dim='bottom_top_stag', # Compute over each level
@@ -1166,7 +1190,7 @@ def calc_spectra(data,
             data = data.to_dataset()
         else:
             raise ValueError('unsupported type: {}'.format(type(data)))
-            
+
     for xr_dim in list(data.dims):
         if xr_dim not in list(data.coords):
             data = data.assign_coords({xr_dim:np.arange(len(data[xr_dim]))})
@@ -1187,7 +1211,7 @@ def calc_spectra(data,
                     dwindow = pd.to_timedelta(window_length)
                 except:
                     raise ValueError('Cannot convert {} to timedelta'.format(window_length))
-                    
+
                 if dwindow < dX:
                     raise ValueError('window_length is smaller than data time spacing')
                 nblock = int( dwindow/dX )
@@ -1197,13 +1221,13 @@ def calc_spectra(data,
             nblock = int(window_length)
     else:
         nblock = int((len(data[spectra_dim].data))/number_of_windows)
-    
+
     # Create window:
     if window is None:
         window = np.ones(nblock)
     elif (window == 'hamming') or (window == 'hanning'):
         window = hamming(nblock, True) #Assumed non-periodic in the spectra_dim    
-    
+
     # Calculate number of overlapping points:
     if window_overlap_pct is not None:
         if window_overlap_pct > 1:
@@ -1211,7 +1235,7 @@ def calc_spectra(data,
         num_overlap = int(nblock*window_overlap_pct)
     else:
         num_overlap = None
-    
+
     # Make sure 'level' is iterable:
     if level is None:
         if level_dim is not None:
@@ -1223,11 +1247,24 @@ def calc_spectra(data,
     level = list(level)
     n_levels = len(level)
 
+    # Make sure variables of interest are lists
+    var_oi = [var_oi] if type(var_oi) is str else var_oi
+    if var_oi==None:
+        var_oi=[]
+    xvar_oi = [xvar_oi] if type(xvar_oi) is tuple else xvar_oi
+
+    # Flatten the cross PSD vars of interest
+    if xvar_oi != None:
+        xvar_oi_flatten = [var for pairs in xvar_oi for var in pairs]
+    else:
+        xvar_oi = []
+        xvar_oi_flatten=[]
+
     if average_dim is None:
         average_dim_data = [None]
     else:
         average_dim_data = data[average_dim]
-    
+
     for ll,lvl in enumerate(level):
         if lvl is not None:
             spec_dat_lvl = data.sel({level_dim:lvl},method='nearest')
@@ -1247,12 +1284,15 @@ def calc_spectra(data,
                 spec_dat = spec_dat.squeeze()
             varsToDrop = set(spec_dat.variables.keys()) \
                        - set([spectra_dim] if type(spectra_dim) is str else spectra_dim) \
-                       - set([var_oi] if type(var_oi) is str else var_oi)
+                       - set(var_oi) \
+                       - set(xvar_oi_flatten)
             spec_dat = spec_dat.drop(list(varsToDrop))
 
-            spec_dat_df = spec_dat[var_oi].to_dataframe()
-            
+            spec_dat_df = spec_dat.to_dataframe()
+
             psd = power_spectral_density(spec_dat_df,
+                                         var_oi=var_oi,
+                                         xvar_oi=xvar_oi,
                                          window_type=window,
                                          detrend=detrend,
                                          num_overlap=num_overlap,
@@ -1269,7 +1309,7 @@ def calc_spectra(data,
                     psd_level = psd.combine_first(psd_level)
             else:
                 psd_level = psd
-                
+
         if level_dim is not None:
             psd_level = psd_level.assign_coords(**{level_dim:1})
             psd_level[level_dim] = lvl#.data            
@@ -1279,5 +1319,6 @@ def calc_spectra(data,
             psd_f = psd_level
         else:
             psd_f = psd_level.combine_first(psd_f)
-    return(psd_f)
+
+    return psd_f.real
 
