@@ -327,7 +327,7 @@ def power_spectral_density(df, var_oi=None, xvar_oi=[], tstart=None, interval=No
         f,P = csd(df.loc[inrange,col1], df.loc[inrange,col2], fs=1./dt, nperseg=nperseg,
                   detrend=detrend,window=window_type,scaling=scaling,
                   noverlap=num_overlap)
-        spectra[col1+col2] = P
+        spectra[col1+col2] = abs(P)
     
     spectra['frequency'] = f
     return pd.DataFrame(spectra).set_index('frequency')
@@ -1178,7 +1178,7 @@ def calc_spectra(data,
                        level=None)    # level defaults to all levels in array
     
     '''
-    from scipy.signal.windows import hamming
+    from scipy.signal.windows import hamming, hann
 
     # Datasets, DataArrays, or dataframes
     if not isinstance(data,xr.Dataset):
@@ -1225,8 +1225,10 @@ def calc_spectra(data,
     # Create window:
     if window is None:
         window = np.ones(nblock)
-    elif (window == 'hamming') or (window == 'hanning'):
+    elif window == 'hamming':
         window = hamming(nblock, True) #Assumed non-periodic in the spectra_dim    
+    elif window == 'hanning' or window=='hann':
+        window = hann(nblock, True) #Assumed non-periodic in the spectra_dim    
 
     # Calculate number of overlapping points:
     if window_overlap_pct is not None:
@@ -1320,5 +1322,5 @@ def calc_spectra(data,
         else:
             psd_f = psd_level.combine_first(psd_f)
 
-    return psd_f.real
+    return psd_f
 
