@@ -641,7 +641,7 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
     =====
     xx, yy : array
         meshgrid arrays of the region extent coordinates.
-    zagl: array
+    zagl: arrayi, xr.DataArray
         Elevation map of the region
     A: float
         Wind direction (deg, wind direction convention)
@@ -674,6 +674,8 @@ def calcSx(xx, yy, zagl, A, dmax, method='linear', verbose=False):
 
     # array for interpolation using griddata
     points = np.array( (xx.flatten(), yy.flatten()) ).T
+    if isinstance(zagl, xr.DataArray):
+        zagl = zagl.values
     values = zagl.flatten()
 
     # create rotated grid. This way we sample into a interpolated grid that has the exact points we need
