@@ -3160,8 +3160,6 @@ class CreateEtaLevels_old():
                         overlaying_slope):
         
         import matplotlib.pyplot as plt
-
-
         if height_top is None:
             height_top = (self.gas_constant_dry_air*self.surface_temp/self.gravity)*np.log((self.p0/self.pres_top))
 
@@ -3270,11 +3268,6 @@ class CreateEtaLevels_old():
                         if error <= top_lvl_threshold:
                             eta_levels -= np.min(eta_levels)
                             eta_levels /= np.max(eta_levels)
-                        #else:
-                        #    print(error)
-                        #    print(eta_levels)
-                        #    raise ValueError ('Error is too large')
-
 
                 if np.min(eta_levels) < 0.0:
                     eta_levels -= np.min(eta_levels)
@@ -3292,7 +3285,6 @@ class CreateEtaLevels_old():
             if remaining_levels > 0:
                 if not reached_model_top:
                     print('Filling to top...')
-                    #import matplotlib.pyplot as plt
                     eta_levels_top = np.zeros(remaining_levels+2)
                     z_scale = 0.4
                     for k in range(1,remaining_levels+2):
@@ -3301,7 +3293,6 @@ class CreateEtaLevels_old():
                         #eta_levels_top[kind] = (np.exp(-(k-1)/float(remaining_levels)/z_scale) - np.exp(-1./z_scale))/ (1.-np.exp(-1./z_scale))
                         
                     eta_levels_top = eta_levels_top[:-1]
-
                     eta_levels_top -= np.min(eta_levels_top)
                     eta_levels_top /= np.max(eta_levels_top)
 
@@ -3330,7 +3321,6 @@ class CreateEtaLevels_old():
                          min_transition_deta,
                          top_lvl_threshold=None):        
         import matplotlib.pyplot as plt
-
         transition *= (max_transition_deta - min_transition_deta)
         transition += min_transition_deta
 
