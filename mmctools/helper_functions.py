@@ -960,8 +960,8 @@ def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
     T : 
         Estimate the height of the ABL from the potential temperature
         (T) profile. The height is given as where the gradient of
-        potential temperature is smaller than some threshold. Additional
-        parameters:
+        potential temperature is greater than or equal to some threshold.
+	Additional parameters:
         - threshold (default=0.065 K/m)
             Temperature gradient that describes the inversion layer.
         - zmin (default=0 m)
