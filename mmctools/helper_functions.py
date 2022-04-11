@@ -296,7 +296,7 @@ def power_spectral_density(df, var_oi=None, xvar_oi=[], tstart=None, interval=No
 
     # Determine sampling rate and samples per window
     dts = np.diff(timevalues.unique())/timescale
-    dt  = dts[0]
+    dt  = np.nanmean(dts)
 
     if type(window_type) is str:
         nperseg = int( pd.to_timedelta(window_size)/pd.to_timedelta(dt,'s') )
@@ -960,8 +960,8 @@ def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
     T : 
         Estimate the height of the ABL from the potential temperature
         (T) profile. The height is given as where the gradient of
-        potential temperature is smaller than some threshold. Additional
-        parameters:
+        potential temperature is greater than or equal to some threshold.
+	Additional parameters:
         - threshold (default=0.065 K/m)
             Temperature gradient that describes the inversion layer.
         - zmin (default=0 m)
@@ -1083,9 +1083,8 @@ def get_nc_file_times(f_dir,
                     f_time.append(datetime(time_start.year, time_start.month, time_start.day) + timedelta(seconds=int(nc_time)))
             else:
                 f_time = ncf[time_dim].data
-
         for ft in f_time:
-            ft = pd.to_datetime(ft)
+            ft = pd.to_datetime(str(ft))
             file_times[ft] = fname
     return (file_times)
 
@@ -1319,6 +1318,4 @@ def calc_spectra(data,
             psd_f = psd_level
         else:
             psd_f = psd_level.combine_first(psd_f)
-
-    return psd_f.real
-
+    return(psd_f)
