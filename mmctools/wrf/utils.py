@@ -1088,9 +1088,15 @@ def combine_towers(fdir, restarts, simulation_start, fname,
     return dataF
 
 
-def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest,
-                       structure='ordered', time_step=None,
-                       heights=None, height_var='heights', select_tower=None,
+def tsout_seriesReader(fdir, 
+                       restarts=[''], 
+                       simulation_start_time=None, 
+                       domain_of_interest=None,
+                       structure='ordered', 
+                       time_step=None,
+                       heights=None, 
+                       height_var='heights', 
+                       select_tower=None,
                        **kwargs):
     '''
     This will combine a series of tslist output over time and location based on the
@@ -1110,6 +1116,14 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     height_var            = 'ph'
     select_tower          = ['TS1','TS5']
     '''
+    if simulation_start_time is None:
+        raise ValueError ('simulation_start_time must be in the format of "YYYY-MM-DD HH:MM:SS"')
+    if type(restarts) is str:
+        restarts = [restarts]
+    if domain_of_interest is None:
+        raise ValueError('Must specify domain_of_interest as str (e.g., "d02")')
+    if type(simulation_start_time) is str:
+        simulation_start_time = [simulation_start_time]*len(restarts)
     ntimes = np.shape(restarts)[0]
     floc = '{}{}/*{}.??'.format(fdir,restarts[0],domain_of_interest)
     file_list = glob.glob(floc)
