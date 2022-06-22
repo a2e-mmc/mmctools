@@ -35,7 +35,7 @@ VERSION = '0.1.1'
 REQUIRED = [
     # core
     'matplotlib>=3',
-    'numpy==1.18.1',
+    'numpy==1.22.0',
     'scipy==1.4.1',
     'pandas==1.0.1',
     'xarray==0.15.0',
