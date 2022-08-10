@@ -375,10 +375,10 @@ def fit_powerlaw(df=None,z=None,U=None,zref=80.0,Uref=None):
     if Uref is None:
         Uref = df.loc[zref]
     elif not hasattr(Uref, '__iter__'):
-        Uref = pd.Series(Uref,index=df.columns)
+        Uref = pd.Series(Uref,index=df.columns,dtype=float)
     # calculate shear coefficient
-    alpha = pd.Series(index=df.columns)
-    R2 = pd.Series(index=df.columns)
+    alpha = pd.Series(index=df.columns,dtype=float)
+    R2 = pd.Series(index=df.columns,dtype=float)
     def fun(x,*popt):
         return popt[0]*x
     for col,U in df.iteritems():
