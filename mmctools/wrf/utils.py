@@ -58,6 +58,8 @@ ts_header = [
     'CLW',    # total column-integrated water vapor and cloud variables
     'QFX',    # Vapor flux (upward is positive) [g m^-2 s^-1]
     'UST',    # u* from M-O 
+    'U4',     # 4 m U wind (earth-relative)
+    'V4',     # 4 m V wind (earth-relative)
 ]
 
 TH0 = 300.0 # [K] base-state potential temperature by WRF convention
@@ -1127,7 +1129,7 @@ def tsout_seriesReader(fdir,
     ntimes = np.shape(restarts)[0]
     floc = '{}{}/*{}.??'.format(fdir,restarts[0],domain_of_interest)
     file_list = glob.glob(floc)
-    assert file_list != [], 'No tslist files found. Check kwargs.'
+    assert file_list != [], 'No tslist files found in {}. Check kwargs.'.format(floc)
     for ff,file in enumerate(file_list):
         file = file[:-3]
         file_list[ff] = file
