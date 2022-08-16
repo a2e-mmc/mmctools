@@ -834,7 +834,10 @@ def model4D_pdfs(ds,pdf_dim,vert_levels,horizontal_locs,fld,fldMean,bins_vector)
     for level in vert_levels:
         cnt_i = 0
         for iLoc in horizontal_locs:
-            dist=np.ndarray.flatten(((ds[fld]).isel(nz=level,nx=iLoc)-(ds[fldMean]).isel(nz=level,nx=iLoc)).values)
+            if fldMean is not None:
+                dist=np.ndarray.flatten(((ds[fld]).isel(nz=level,nx=iLoc)-(ds[fldMean]).isel(nz=level,nx=iLoc)).values)
+            else:
+                dist=np.ndarray.flatten(ds[fld].isel(nz=level,nx=iLoc).values)
             sk_vec[cnt_lvl,cnt_i]=skew(dist)
             kurt_vec[cnt_lvl,cnt_i]=kurtosis(dist)
             hist,bin_edges=np.histogram(dist, bins=bins_vector)
