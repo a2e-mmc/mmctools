@@ -28,29 +28,29 @@ DESCRIPTION = 'A collection of preprocessing, postprocessing, and analysis code 
 URL = 'https://github.com/a2e-mmc/mmctools'
 EMAIL = 'eliot.quon@nrel.gov'
 AUTHOR = 'U.S. Department of Energy'
-REQUIRES_PYTHON = '>=3.6.0'
+REQUIRES_PYTHON = '>=3.10.6'
 VERSION = '0.1.1'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
     # core
-    'matplotlib>=3',
-    'numpy>=1.18.1',
-    'scipy>=1.4.1',
-    'pandas>=1.0.1',
-    'xarray>=0.15.0',
-    'netcdf4>=1.5.1',
-    'dask>=2.10.1',
-    'utm>=0.5.0',
+    'matplotlib>=3.5.3',
+    'numpy>=1.23.2',
+    'scipy>=1.9.0',
+    'pandas>=1.4.3',
+    'xarray>=2022.6.0',
+    'netcdf4>=1.6.0',
+    'dask>=2022.8.1',
+    'utm>=0.7.0',
 ]
 
 EXTRAS = {
     # NCAR WRF utilities
-    'wrf-python': ['wrf-python>=1.3.2'],
+    'wrf-python': ['wrf-python>=1.3.4'],
     # Coupling with terrain (mmctools.coupling.terrain)
-    'terrain': ['elevation==1.0.6', 'rasterio==1.0.25'],
+    'terrain': ['elevation>=1.1.3', 'rasterio>=1.3.2'],
     # For calculating vector ruggedness 
-    'richdem': ['richdem==0.3.4']
+    'richdem': ['richdem>=2.3.0']
 }
 
 # The rest you shouldn't have to touch too much :)
