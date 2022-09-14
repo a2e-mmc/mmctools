@@ -188,7 +188,8 @@ class Toof(object):
             agl=True,
             verbose=self.verbose
         )
-        self.ds = self.ds.swap_dims({'nz':'height'}) # to facilitate ds.interp()
+        self.ds = self.ds.swap_dims({'nz':'z'}) # dimension coordinate to enable ds.interp()
+        self.ds = self.ds.rename({'z':'height'})
         if self.verbose:
             print('... done reading ts outputs')
 
@@ -229,18 +230,24 @@ class Toof(object):
         assert (tgtlat >= wrflat[i,j]) and (tgtlat < wrflat[i,j+1])
         assert (tgtlon >= wrflon[i,j]) and (tgtlon < wrflon[i+1,j])
         # bilinear interpolation
-        f00 = self.ds.sel(nx=i  ,ny=j)
-        f10 = self.ds.sel(nx=i+1,ny=j)
-        f01 = self.ds.sel(nx=i  ,ny=j+1)
-        f11 = self.ds.sel(nx=i+1,ny=j+1)
-        finterp = f00 * (wrflon[i+1,j] - tgtlon     ) * (wrflat[i,j+1] - tgtlat     ) + \
-                  f10 * (tgtlon        - wrflon[i,j]) * (wrflat[i,j+1] - tgtlat     ) + \
-                  f01 * (wrflon[i+1,j] - tgtlon     ) * (tgtlat        - wrflat[i,j]) + \
-                  f11 * (tgtlon        - wrflon[i,j]) * (tgtlat        - wrflat[i,j])
+        f00 = self.ds.sel(nx=i  ,ny=j).drop_vars(['x','y'])
+        f10 = self.ds.sel(nx=i+1,ny=j).drop_vars(['x','y'])
+        f01 = self.ds.sel(nx=i  ,ny=j+1).drop_vars(['x','y'])
+        f11 = self.ds.sel(nx=i+1,ny=j+1).drop_vars(['x','y'])
+        coef00  = (wrflon[i+1,j] - tgtlon     ) * (wrflat[i,j+1] - tgtlat     )
+        coef10  = (tgtlon        - wrflon[i,j]) * (wrflat[i,j+1] - tgtlat     )
+        coef01  = (wrflon[i+1,j] - tgtlon     ) * (tgtlat        - wrflat[i,j])
+        coef11  = (tgtlon        - wrflon[i,j]) * (tgtlat        - wrflat[i,j])
+        finterp = coef00*f00 + coef10*f10 + coef01*f01 + coef11*f11
         finterp = finterp / ((wrflon[i+1,j] - wrflon[i,j]) * (wrflat[i,j+1] - wrflat[i,j]))
-        # note: y and z coordinates don't get interpolated
         finterp = finterp.assign_coords({'lon':tgtlon,'lat':tgtlat})
-        return finterp.drop_vars(['y','z'])
+        # fix height coordinate if needed
+        if 'height' not in finterp.coords:
+            if 'z' in finterp.coords:
+                finterp = finterp.rename_vars({'z':'height'})
+            else:
+                print('WARNING: no z or height coordinate found')
+        return finterp
 
 
     def map_to_boundary(self,i=None,j=None,k=None,allpts=False):
@@ -252,20 +259,25 @@ class Toof(object):
         assert np.count_nonzero([idx is not None for idx in [i,j,k]])==1, \
                 'Specify i, j, or k'
         if allpts:
-            print('WARNING: current implementation of allpts is likely to result in extreme memory usage and may crash')
+            print('WARNING: Current implementation of allpts can result in extreme memory usage')
         # interpolate to selected lat/lon
         selected_x, selected_y, selected_lat, selected_lon = \
                 self._select_boundary_latlon(i,j,k,allpts)
         if self.verbose:
             print('selected lat:',selected_lat)
             print('selected lon:',selected_lon)
+        # get all selected profiles
         dslist = self._get_datasets_at_locations(
                 selected_x,selected_y,selected_lat,selected_lon)
         # combine all interpolated profiles
         boundarydata = self._create_dataset_from_list(i,j,k,allpts,dslist)
+        if boundarydata.chunks:
+            from dask.diagnostics import ProgressBar
+            with ProgressBar():
+                boundarydata = boundarydata.compute()
         return boundarydata
 
-    def _get_datasets_at_locations(self,selected_x, selected_y, selected_lat, selected_lon):
+    def _get_datasets_at_locations(self, selected_x, selected_y, selected_lat, selected_lon):
         dslist = []
         for x,y,lat,lon in zip(selected_x, selected_y, selected_lat, selected_lon):
             ds = self.interp_to_latlon((lat,lon))
@@ -281,14 +293,12 @@ class Toof(object):
         elif (j is not None):
             mydim = 'y'
             idx = j
-        elif (k is not None):
-            mydim = 'height'
-            idx = k
         if ((i is not None) or (j is not None)) and allpts:
-            # if allpts, interpolate side boundary profiles to exact domain heights
+            # lateral boundaries: if allpts, interpolate side boundary
+            # profiles to exact domain heights
             ds = ds.interp(height=self.domain.z)
         elif k is not None:
-            # if horizontal boundary, interpolate to constant z
+            # horizontal boundaries: interpolate to constant z
             if self.verbose:
                 print('interpolating to',self.domain.z[k])
             ds = ds.interp(height=self.domain.z[k])

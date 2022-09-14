@@ -316,7 +316,8 @@ class BoundaryCoupling(object):
                  name='patch',
                  dateref=None,
                  datefrom=None,
-                 dateto=None):
+                 dateto=None,
+                 verbose=True):
         """
         Initialize SOWFA input object. This should be called for _each_
         inflow/outflow boundary.
@@ -344,6 +345,7 @@ class BoundaryCoupling(object):
             with the last timestamp in df; only used if dateref is
             specified
         """
+        self.verbose = verbose
         self.name = name
         self.dpath = os.path.join(dpath, name)
         # Create folder dpath if needed
@@ -381,20 +383,25 @@ class BoundaryCoupling(object):
         """Do all sanity checks here"""
         for dim in self.ds.dims:
             # dimension coordinates
-            assert dim in expected_dims
+            assert dim in expected_dims, f'missing dim {dim}'
             coord = self.ds.coords[dim]
-            assert (coord.dims[0] == dim) and (len(coord.dims) == 1)
+            assert (coord.dims[0] == dim) and (len(coord.dims) == 1), \
+                    f'{dim} is not a dimension coordinate'
         # Only handle a single boundary plane at a time; boundaries
         # should be aligned with the Cartesian axes
-        dims = expected_dims.copy()
-        for dim in self.ds.dims:
-            dims.remove(dim)
-        assert (len(dims) == 1)
-        constdim = dims[0]
-        print('Input is an {:s}-boundary at {:g}'.format(constdim,
-                                                         self.ds.coords[constdim].values))
+        constdims = [dim for dim in self.ds.dims if self.ds.dims[dim]==1]
+        if len(constdims) > 0:
+            assert (len(constdims) == 1), 'more than one constant dim'
+            constdim = constdims[0]
+        else:
+            nodimcoords = [coord for coord in self.ds.coords if len(self.ds.coords[coord].dims)==0]
+            assert (len(nodimcoords) == 1), 'more than one selected dim'
+            constdim = nodimcoords[0]
+        print('Input is a {:s}-boundary at {:g}'.format(constdim,
+                                                        float(self.ds.coords[constdim])))
+        self.constdim = constdim
         
-    def write(self, fields, binary=False, gzip=False):
+    def write(self, fields, points=True, binary=False, gzip=False):
         """
         Write surface boundary conditions to SOWFA-readable input files
         for the solver in constant/boundaryData
@@ -408,9 +415,13 @@ class BoundaryCoupling(object):
             field name, values corresponding to dataset data variables;
             values may be a single variable (scalar) or a list/tuple of
             variables (vector)
+        points : bool, optional
+            Write out points definition for this patch
         binary : bool, optional
             Write out actual data (coordinates, scalars, vectors) in
             binary for faster I/O
+        gzip : bool, optional
+            Write out compressed data to save disk space
         """
         # check output options
         if binary and gzip:
@@ -423,10 +434,14 @@ class BoundaryCoupling(object):
         # make sure ordering of bnd_dims is correct
         dims = list(self.ds.dims)
         dims.remove('datetime')
-        self.bndry_dims = [dim for dim in ['x','y','height'] if dim in dims]
-        assert (len(self.bndry_dims) == 2)
+        self.bndry_dims = [
+            dim for dim in ['x','y','height']
+            if (dim in dims) and self.ds.dims[dim] > 1
+        ]
+        assert (len(self.bndry_dims) == 2), f'boundary patch dims: {str(self.bndry_dims)}'
         # write out patch/points
-        self._write_points(binary=binary, gzip=gzip)
+        if points:
+            self._write_points(binary=binary, gzip=gzip)
         # write out patch/*/field
         for fieldname,dvars in fields.items():
             if isinstance(dvars, (list,tuple)):
@@ -470,10 +485,15 @@ class BoundaryCoupling(object):
         else:
             with self._open(fpath, 'w', gzip=gzip) as f:
                 np.savetxt(f, pts, fmt='(%g %g %g)', header=header, footer=')', comments='')
-        print('Wrote',N,'points to',fpath)
+        if self.verbose: 
+            print('Wrote',N,'points to',fpath)
 
     def _write_boundary_vector(self,fname,components,binary=False,gzip=False):
-        ds = self.ds.copy()
+        if self.constdim in self.ds.dims:
+            assert self.ds.dims[self.constdim] == 1
+            ds = self.ds.isel({self.constdim:0})
+        else:
+            ds = self.ds
         # add missing dimensions, if any
         for dim in self.bndry_dims:
             for var in components:
@@ -516,10 +536,15 @@ class BoundaryCoupling(object):
                         f.write(b'\n(0 0 0) // average value')
                     else:
                         f.write('\n(0 0 0) // average value')
-            print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
+            if self.verbose: 
+                print('Wrote',N,'vectors to',fpath,'at',str(tstamp))
 
     def _write_boundary_scalar(self,fname,var,binary=False,gzip=False):
-        ds = self.ds.copy()
+        if self.constdim in self.ds.dims:
+            assert self.ds.dims[self.constdim] == 1
+            ds = self.ds.isel({self.constdim:0})
+        else:
+            ds = self.ds
         # add missing dimensions, if any
         for dim in self.bndry_dims:
             if dim not in ds[var].dims:
@@ -554,5 +579,6 @@ class BoundaryCoupling(object):
                         f.write(b'\n0 // average value')
                     else:
                         f.write('\n0 // average value')
-            print('Wrote',N,'scalars to',fpath,'at',str(tstamp))
+            if self.verbose: 
+                print('Wrote',N,'scalars to',fpath,'at',str(tstamp))
 
