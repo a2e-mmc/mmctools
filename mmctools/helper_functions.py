@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import time
-
+import glob
+from datetime import datetime,timedelta
 
 # constants
 epsilon = 0.622 # ratio of molecular weights of water to dry air
@@ -15,10 +16,11 @@ def e_s(T, celsius=False, model='Tetens'):
     """Calculate the saturation vapor pressure of water, $e_s$ [mb]
     given the air temperature ([K] by default).
     """
+    T = T.copy()
     if celsius:
         # input is deg C
         T_degC = T
-        T = T + 273.15
+        T = T_degC + 273.15
     else:
         # input is in Kelvin
         T_degC = T - 273.15
@@ -82,9 +84,10 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
     pressures of water vapor and dry air (e, pd [mbar]); or dewpoint
     temperature (Td).
     """
+    T = T.copy()
     if celsius:
         T_degC = T
-        T += 273.15
+        T = T_degC + 273.15
     else:
         T_degC = T - 273.15
     if (p is not None) and (RH is not None):
@@ -126,7 +129,7 @@ def T_to_Tv(T,p=None,RH=None,e=None,w=None,Td=None,
     elif (Td is not None) and (p is not None):
         # From National Weather Service, using Tetens' formula:
         # https://www.weather.gov/media/epz/wxcalc/vaporPressure.pdf
-        Td_degC = Td
+        Td_degC = Td.copy()
         if not celsius:
             Td_degC -= 273.15
         e = e_s(Td_degC, celsius=True, model='Tetens')
@@ -254,22 +257,25 @@ def covariance(a,b,interval='10min',resample=False,**kwargs):
     else:
         return cov
 
-
-def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
-                           window_type='hanning',detrend='linear',scaling='density'):
+def power_spectral_density(df, var_oi=None, xvar_oi=[], tstart=None, interval=None,
+                           window_size='10min', window_type='hanning', detrend='linear',
+                           scaling='density', num_overlap=None):
     """
-    Calculate power spectral density using welch method and return
-    a new dataframe. The spectrum is calculated for every column
-    of the original dataframe.
-
+    Calculate power spectral density and cross power spectral density
+    using welch method and return a new dataframe.
+    The spectrum is calculated for the vars_oi and cross spectrum
+    for the pairs of variables in xvars_oi. If both are None, then
+    the spectrum is calculated for every column of the original
+    dataframe.
     Notes:
     - Input can be a pandas series or dataframe
     - Output is a dataframe with frequency as index
     """
-    from scipy.signal import welch
+    from scipy.signal import welch, csd
     
     # Determine time scale
     timevalues = df.index.get_level_values(0)
+
     if isinstance(timevalues,pd.DatetimeIndex):
         timescale = pd.to_timedelta(1,'s')
     else:
@@ -290,8 +296,12 @@ def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
 
     # Determine sampling rate and samples per window
     dts = np.diff(timevalues.unique())/timescale
-    dt  = dts[0]
-    nperseg = int( pd.to_timedelta(window_size)/pd.to_timedelta(dt,'s') )
+    dt  = np.nanmean(dts)
+
+    if type(window_type) is str:
+        nperseg = int( pd.to_timedelta(window_size)/pd.to_timedelta(dt,'s') )
+    else:
+        nperseg = len(window_type)
     assert(np.allclose(dts,dt)),\
         'Timestamps must be spaced equidistantly'
 
@@ -299,14 +309,29 @@ def power_spectral_density(df,tstart=None,interval=None,window_size='10min',
     if isinstance(df,pd.Series):
         df = df.to_frame()
 
-    spectra = {}
-    for col in df.columns:
-        f,P = welch( df.loc[inrange,col], fs=1./dt, nperseg=nperseg,
-            detrend=detrend,window=window_type,scaling=scaling)    
+    # Backwards compatibility
+    if not var_oi and not xvar_oi:
+        var_oi = df.columns
+
+    spectra = {}   
+    for col in var_oi:
+        # Computing psd for {col}
+        f,P = welch(df.loc[inrange,col], fs=1./dt, nperseg=nperseg,
+                    detrend=detrend,window=window_type,scaling=scaling,
+                    noverlap=num_overlap)  
         spectra[col] = P
+    
+    for cols in xvar_oi:
+        col1=cols[0]; col2=cols[1]
+        # Computing cross psd for {col1} and {col2}
+        f,P = csd(df.loc[inrange,col1], df.loc[inrange,col2], fs=1./dt, nperseg=nperseg,
+                  detrend=detrend,window=window_type,scaling=scaling,
+                  noverlap=num_overlap)
+        spectra[col1+col2] = abs(P)
+    
     spectra['frequency'] = f
     return pd.DataFrame(spectra).set_index('frequency')
-    
+
 
 def power_law(z,zref=80.0,Uref=8.0,alpha=0.2):
     return Uref*(z/zref)**alpha
@@ -350,10 +375,10 @@ def fit_powerlaw(df=None,z=None,U=None,zref=80.0,Uref=None):
     if Uref is None:
         Uref = df.loc[zref]
     elif not hasattr(Uref, '__iter__'):
-        Uref = pd.Series(Uref,index=df.columns)
+        Uref = pd.Series(Uref,index=df.columns,dtype=float)
     # calculate shear coefficient
-    alpha = pd.Series(index=df.columns)
-    R2 = pd.Series(index=df.columns)
+    alpha = pd.Series(index=df.columns,dtype=float)
+    R2 = pd.Series(index=df.columns,dtype=float)
     def fun(x,*popt):
         return popt[0]*x
     for col,U in df.iteritems():
@@ -490,7 +515,7 @@ def model4D_calcQOIs(ds,mean_dim,data_type='wrfout', mean_opt='static', lowess_d
     ds['vw'] = ds_perts['v']*ds_perts['w']
     ds['wth'] = ds_perts['w']*ds_perts['theta']
     ds['UU'] = ds_perts['wspd']**2
-    ds['Uw'] = ds_perts['wspd']**2
+    ds['Uw'] = ds_perts['wspd']*ds_perts['w']
     ds['TKE'] = 0.5*np.sqrt(ds['UU']+ds['ww'])
     ds.attrs['MEAN_OPT'] = mean_opt
     if mean_opt == 'lowess':
@@ -538,31 +563,47 @@ def model4D_spectra(ds,spectra_dim,average_dim,vert_levels,horizontal_locs,fld,f
     fs = 1 / dt
     overlap = 0
     win = hamming(nblock, True) #Assumed non-periodic in the spectra_dim
-    Puuf_cum = np.zeros((len(vert_levels),len(horizontal_locs),ds.dims[spectra_dim]))
+    
+    init_Puuf_cum = True
 
     for cnt_lvl,level in enumerate(vert_levels): # loop over levels
         print('grabbing a slice...')
         spec_start = time.time()
         series_lvl = ds[fld].isel(nz=level)-ds[fldMean].isel(nz=level)
+        series_lvl.name = 'varn'
         print(time.time() - spec_start)
         for cnt_i,iLoc in enumerate(horizontal_locs): # loop over x
             for cnt,it in enumerate(range(ds.dims[average_dim])): # loop over y
                 if spectra_dim == 'datetime':
                     series = series_lvl.isel(nx=iLoc,ny=it)
+                    if (type(series) == xr.Dataset) or (type(series) == xr.DataArray):
+                        series = series.to_dataframe()
+                        for key in series.keys():
+                            if key != 'varn':
+                                series = series.drop([key],axis=1)
+                    
                 elif 'y' in spectra_dim:
                     series = series_lvl.isel(nx=iLoc,datetime=it)
                 else:
                     print('Please choose spectral_dim of \'ny\', or \'datetime\'')
-                f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, 
-                                 nfft=nblock, return_onesided=False, detrend='constant')
-                Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
-                if it is 0:
-                    Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
+                #f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, 
+                #                 nfft=nblock, return_onesided=False, detrend='constant')
+                #Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
+                
+                Pxxf = power_spectral_density(series,window_type=win,detrend='constant')
+                if it == 0:
+                    if init_Puuf_cum:
+                        Puuf_cum = np.zeros((len(vert_levels),len(horizontal_locs),len(Pxxf)))
+                        init_Puuf_cum = False
+                    Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf.varn
+                    sum_count = 1
                 else:
-                    Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
-    Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims[spectra_dim]/2).astype(int))]   ###2.0 is to account for the dropping of the negative side of the FFT 
-    f = f[:(np.floor(ds.dims[spectra_dim]/2).astype(int))]
-
+                    Puuf_cum[cnt_lvl,cnt_i,:] += Pxxf.varn
+                    sum_count += 1
+    #Puuf = 2.0*(1.0/cnt)*Puuf_cum[:,:,:(np.floor(ds.dims[spectra_dim]/2).astype(int))]   ###2.0 is to account for the dropping of the negative side of the FFT 
+    #f = f[:(np.floor(ds.dims[spectra_dim]/2).astype(int))]
+    Puuf = (1.0/sum_count)*Puuf_cum
+    f = Pxxf.index.get_level_values('frequency')
     return f,Puuf
 
 def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs,fld,fldMean):
@@ -611,7 +652,7 @@ def model4D_spatial_spectra(ds,spectra_dim,vert_levels,horizontal_locs,fld,fldMe
 
                 f, Pxxfc = welch(series, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
                 Pxxf = np.multiply(np.real(Pxxfc),np.conj(Pxxfc))
-                if it is 0:
+                if it == 0:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
                 else:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
@@ -688,7 +729,7 @@ def model4D_cospectra(ds,spectra_dim,average_dim,vert_levels,horizontal_locs,fld
                             nfft=nblock, return_onesided=False, detrend='constant')
                 Pxxf = (np.multiply(np.real(Pxxfc0),np.conj(Pxxfc1))+
                         np.multiply(np.real(Pxxfc1),np.conj(Pxxfc0)))
-                if it is 0:
+                if it == 0:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
                 else:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
@@ -749,7 +790,7 @@ def model4D_spatial_cospectra(ds,spectra_dim,vert_levels,horizontal_locs,fldv0,f
                 f, Pxxfc1 = welch(series1, fs, window=win, noverlap=overlap, nfft=nblock, return_onesided=False, detrend='constant')
 
                 Pxxf = (np.multiply(np.real(Pxxfc0),np.conj(Pxxfc1))+np.multiply(np.real(Pxxfc1),np.conj(Pxxfc0)))
-                if it is 0:
+                if it == 0:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Pxxf
                 else:
                     Puuf_cum[cnt_lvl,cnt_i,:] = Puuf_cum[cnt_lvl,cnt_i,:] + Pxxf
@@ -793,7 +834,10 @@ def model4D_pdfs(ds,pdf_dim,vert_levels,horizontal_locs,fld,fldMean,bins_vector)
     for level in vert_levels:
         cnt_i = 0
         for iLoc in horizontal_locs:
-            dist=np.ndarray.flatten(((ds[fld]).isel(nz=level,nx=iLoc)-(ds[fldMean]).isel(nz=level,nx=iLoc)).values)
+            if fldMean is not None:
+                dist=np.ndarray.flatten(((ds[fld]).isel(nz=level,nx=iLoc)-(ds[fldMean]).isel(nz=level,nx=iLoc)).values)
+            else:
+                dist=np.ndarray.flatten(ds[fld].isel(nz=level,nx=iLoc).values)
             sk_vec[cnt_lvl,cnt_i]=skew(dist)
             kurt_vec[cnt_lvl,cnt_i]=kurtosis(dist)
             hist,bin_edges=np.histogram(dist, bins=bins_vector)
@@ -871,7 +915,7 @@ def model4D_spatial_pdfs(ds,pdf_dim,vert_levels,horizontal_locs,fld,fldMean,bins
                 y = (ds[fld].isel(datetime=it,nz=level,nx=iLoc)-ds[fldMean].isel(datetime=it,nz=level,nx=iLoc))
                 #y = np.ndarray.flatten(dist.isel(nz=level,nx=iLoc).values)
                 hist,bin_edges=np.histogram(y, bins=bins_vector)
-                if it is 0:
+                if it == 0:
                     hist_cum[cnt_lvl,cnt_i,:] = hist
                 else:
                     hist_cum[cnt_lvl,cnt_i,:] = hist_cum[cnt_lvl,cnt_i,:] + hist
@@ -980,4 +1024,305 @@ def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
         raise ValueError('No valid inputs provided')
     ablh.name = 'ABLheight'
     return ablh
+
+def get_nc_file_times(f_dir,
+                      f_grep_str,
+                      decode_times=True,
+                      time_dim='time',
+                      get_time_from_fname=False,
+                      f_split=[],
+                      time_pos=[],
+                      time_fmt='%Y%m%d'):
+    '''
+    Get times from netCDF files and returns dictionary of times associated with the file that it's in:
+    dict{'time' : 'file_path'}. This uses xarray to find the times.
+    
+    This is useful for when you're using different NetCDF datasets that have non-uniform time 
+    conventions (i.e., some have 1 time per file, others have multiple.)
+    
+    f_dir : str
+        path to files
+    f_grep_str : str
+        string to grep the file - should include '*'
+    decode_times : bool
+        (Default=True) If you want xarray to decode the times (if xarray cannot decode the time, set 
+        this to False)
+    time_dim : str
+        (Default='time') time dimension name
+    get_time_from_fname : bool
+        if there is no time in the file, you can use the following options to parse the file name
+        f_split : list
+            The strings (in order) for which the file name should be parsed
+        time_pos : list (same dimension as f_split)
+            After the string has been split, which index should be taken. Must be same dimension and
+            order as f_split to work properly
+        time_fmt : str
+            (Default '%Y%m%d') Format for the datetime in file.
+    '''
+    files = sorted(glob.glob('{}{}'.format(f_dir,f_grep_str)))
+    num_files = len(files)
+    file_times = {}
+
+    for ff,fname in enumerate(files): 
+        ncf = xr.open_dataset(fname,decode_times=decode_times)
+
+        #ncf = ncdf(fname,'r')
+
+        if get_time_from_fname:
+            assert f_split != [], 'Need to specify how to split the file name.'
+            assert time_pos != [], 'Need to specify index of time string after split.'
+            f_name = fname.replace(f_dir,'')
+            assert len(f_split) == len(time_pos), 'f_split (how to parse the file name) and time_pos (index of time string is after split) must be same size.'
+            for split,pos in zip(f_split,time_pos):
+                f_name = f_name.split(split)[pos]
+            
+            f_time = [datetime.strptime(f_name,time_fmt)]
+        else:
+            if not decode_times:
+                nc_times = ncf[time_dim][:].data
+                f_time = []
+                for ff,nc_time in enumerate(nc_times):
+                    time_start = pd.to_datetime(ncf[time_dim].units.replace('seconds since ',''))            
+                    f_time.append(datetime(time_start.year, time_start.month, time_start.day) + timedelta(seconds=int(nc_time)))
+            else:
+                f_time = ncf[time_dim].data
+        for ft in f_time:
+            ft = pd.to_datetime(str(ft))
+            file_times[ft] = fname
+    return (file_times)
+
+
+def calc_spectra(data,
+                 var_oi=None,
+                 xvar_oi=None,
+                 spectra_dim=None,
+                 average_dim=None,
+                 level_dim=None,
+                 level=None,
+                 window='hamming',
+                 number_of_windows=1,
+                 window_length=None,
+                 window_overlap_pct=None,
+                 detrend='constant',
+                 tstart=None,
+                 interval=None
+                 ):
+    
+    '''
+    Calculate spectra using the Welch function or cross spectra using the cross
+    spectral density function. This code uses the power_spectral_density function
+    from helper_functions.py. This function accepts either xarray dataset or
+    dataArray, or pandas dataframe. Dimensions must be 4 or less (time, x, y, z).
+    Returns a xarray dataset with the PSD of all of the variables in the original
+    dataset (f(average_dim, level, frequency/wavelength)) and the frequency 
+    or wavelength variables. Alterntively, the user can specify a subset of variables
+    for the PSD to be computed from using `var_oi` and pairs of variables for cross
+    PSD using `xvar_oi`. Averages of PSD and cross PSD over time or space can easily
+    be done with xarray.Dataset.mean(dim='[dimension_name]').
+    
+    Parameters
+    ==========
+    data : xr.Dataset, xr.DataArray, or pd.dataframe
+        The data that spectra should be calculated over
+    var_oi : str, or list
+        Variable(s) of interest - what variable(s) should PSD be computed from.
+    xvar_oi : tuple of str, or list of tuples of str
+        Variable(s) of interest for cross PSD - what pair(s) of variables should
+        the cross PSD be computed from
+    spectra_dim : str
+        Name of the dimension that the variable spans for spectra to be 
+        computed. E.g., if you want time spectra, this should be something like
+        'time' or 'datetime', if you want spatial spectra, this should be 'x' or 
+        'y' (or for WRF, 'south_north' / 'west_east')
+    average_dim : str
+        Which dimension should be looped over for averaging. Name should be
+        similar to what is described in spectra_dim
+    level_dim : str (optional)
+        If you have a third dimension that you want to loop over, specify the
+        dimension name here. E.g., if you want to calculate PSD at several
+        heights, level_dim = 'height_dim'
+    level : list, array, int (optional)
+        If there is a level_dim, what levels should be looped over. Default is 
+        the length of level_dim.
+    window : 'hamming' or specific window (optional)
+        What window should be used for the PSD calculation? If None, no window
+        is used in the Welch function (window is all 1's).
+    number_of_windows : int (optional)
+        Number of windows - determines window length as signal length / int
+    window_length : int or str (optional)
+        Alternative to number_of_windows, you can directly specify the length
+        of the windows as an integer or as a string to be converted to a 
+        time_delta. This will overwrite number_of_windows. If using time_delta,
+        the window_length cannot be shorter than the data frequency.
+    overlap_percent : int (optional)
+        Percentage of data overlap with respect to window length.
+    detrend : str (optional)
+        Should the data be detrended (constant, linear, etc.). See Welch 
+        function for more details.
+    tstart : datetime (optional)
+        If calculating the spectra over only a portion of the data, when will
+        the series start (only available for timeseries at the moment).
+    interval : str (optional)
+        If calculating the spectra over only a portion of the data, how long
+        of a segment is considered (only available for timeseries at the 
+        moment).
+        
+        
+    Example Call
+    ============
+    
+    psd = calc_spectra(data,                       # data read in with xarray 
+                       var_oi='W',                # PSD of 'W' to be computed
+                       xvar_oi=[('U','V'),('U','W')] # cross PSD of UV and UW
+                       spectra_dim='west_east',     # Take the west-east line
+                       average_dim='south_north',  # Average over north/south
+                       level_dim='bottom_top_stag', # Compute over each level
+                       level=None)    # level defaults to all levels in array
+    
+    '''
+    from scipy.signal.windows import hamming, hann
+
+    # Datasets, DataArrays, or dataframes
+    if not isinstance(data,xr.Dataset):
+        if isinstance(data,pd.DataFrame):
+            data = data.to_xarray()
+        elif isinstance(data,xr.DataArray):
+            if data.name is None:
+                data.name = var_oi
+            data = data.to_dataset()
+        else:
+            raise ValueError('unsupported type: {}'.format(type(data)))
+
+    for xr_dim in list(data.dims):
+        if xr_dim not in list(data.coords):
+            data = data.assign_coords({xr_dim:np.arange(len(data[xr_dim]))})
+
+    # Get index for frequency / wavelength:
+    spec_index = data.coords[spectra_dim]
+    dX = (spec_index.data[1] - spec_index.data[0])
+    if isinstance(dX,(pd.Timedelta,np.timedelta64)):
+        dX = pd.to_timedelta(dX)#.total_seconds()
+    else:
+        dX = float(dX)
+
+    # Window length specification:
+    if window_length is not None:
+        if (isinstance(window_length,str)):
+            if isinstance(dX,(pd.Timedelta,np.timedelta64)):
+                try:
+                    dwindow = pd.to_timedelta(window_length)
+                except:
+                    raise ValueError('Cannot convert {} to timedelta'.format(window_length))
+
+                if dwindow < dX:
+                    raise ValueError('window_length is smaller than data time spacing')
+                nblock = int( dwindow/dX )
+            else:
+                raise ValueError('window_length given as timedelta, but spectra_dim is not datetime...')
+        else:
+            nblock = int(window_length)
+    else:
+        nblock = int((len(data[spectra_dim].data))/number_of_windows)
+
+    # Create window:
+    if window is None:
+        window = np.ones(nblock)
+    elif window == 'hamming':
+        window = hamming(nblock, True) #Assumed non-periodic in the spectra_dim    
+    elif window == 'hanning' or window=='hann':
+        window = hann(nblock, True) #Assumed non-periodic in the spectra_dim    
+
+    # Calculate number of overlapping points:
+    if window_overlap_pct is not None:
+        if window_overlap_pct > 1:
+            window_overlap_pct /= 100.0
+        num_overlap = int(nblock*window_overlap_pct)
+    else:
+        num_overlap = None
+
+    # Make sure 'level' is iterable:
+    if level is None:
+        if level_dim is not None:
+            level = data[level_dim].data[:]
+        else:
+            level = [None]
+    elif isinstance(level,(int,float)):
+        level = [level]
+    level = list(level)
+    n_levels = len(level)
+
+    # Make sure variables of interest are lists
+    var_oi = [var_oi] if type(var_oi) is str else var_oi
+    if var_oi==None:
+        var_oi=[]
+    xvar_oi = [xvar_oi] if type(xvar_oi) is tuple else xvar_oi
+
+    # Flatten the cross PSD vars of interest
+    if xvar_oi != None:
+        xvar_oi_flatten = [var for pairs in xvar_oi for var in pairs]
+    else:
+        xvar_oi = []
+        xvar_oi_flatten=[]
+
+    if average_dim is None:
+        average_dim_data = [None]
+    else:
+        average_dim_data = data[average_dim]
+
+    for ll,lvl in enumerate(level):
+        if lvl is not None:
+            spec_dat_lvl = data.sel({level_dim:lvl},method='nearest')
+            lvl = spec_dat_lvl[level_dim].data
+        else:
+            spec_dat_lvl = data.copy()
+        for ad,avg_dim in enumerate(average_dim_data):
+            if avg_dim is not None:
+                spec_dat = spec_dat_lvl.sel({average_dim:avg_dim})
+            else:
+                spec_dat = spec_dat_lvl.copy()
+            if len(list(spec_dat.dims)) > 1:
+                dim_list = list(spec_dat.dims)
+                dim_list.remove(spectra_dim)
+                assert len(dim_list) == 1, 'There are too many dimensions... drop one of {}'.format(dim_list)
+                assert len(spec_dat[dim_list[0]].data) == 1, 'Not sure how to parse this dimension, {}, reduce to 1 or remove'.format(dim_list)
+                spec_dat = spec_dat.squeeze()
+            varsToDrop = set(spec_dat.variables.keys()) \
+                       - set([spectra_dim] if type(spectra_dim) is str else spectra_dim) \
+                       - set(var_oi) \
+                       - set(xvar_oi_flatten)
+            spec_dat = spec_dat.drop(list(varsToDrop))
+
+            spec_dat_df = spec_dat.to_dataframe()
+
+            psd = power_spectral_density(spec_dat_df,
+                                         var_oi=var_oi,
+                                         xvar_oi=xvar_oi,
+                                         window_type=window,
+                                         detrend=detrend,
+                                         num_overlap=num_overlap,
+                                         tstart=tstart,interval=interval)
+            psd = psd.to_xarray()
+            if avg_dim is not None:
+                psd = psd.assign_coords(**{average_dim:1})
+                psd[average_dim] = avg_dim.data            
+                psd = psd.expand_dims(average_dim)
+
+                if ad == 0:
+                    psd_level = psd
+                else:
+                    psd_level = psd.combine_first(psd_level)
+            else:
+                psd_level = psd
+
+        if level_dim is not None:
+            psd_level = psd_level.assign_coords(**{level_dim:1})
+            psd_level[level_dim] = lvl#.data            
+            psd_level = psd_level.expand_dims(level_dim)
+
+        if ll == 0:
+            psd_f = psd_level
+        else:
+            psd_f = psd_level.combine_first(psd_f)
+
+    return psd_f
 

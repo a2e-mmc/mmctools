@@ -1,6 +1,20 @@
+# Copyright 2019 NREL
+
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy of the
+# License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
 """
 Library of standardized plotting functions for basic plot formats
+
+Written by Dries Allaerts (dries.allaerts@nrel.gov)
 """
+
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -16,36 +30,36 @@ from scipy.signal import welch
 fieldlabels_default_units = {
     'wspd': r'Wind speed [m/s]',
     'wdir': r'Wind direction [$^\circ$]',
-    'u': r'u [m/s]',
-    'v': r'v [m/s]',
-    'w': r'Vertical wind speed [m/s]',
-    'theta': r'$\theta$ [K]',
+    'u': r'u [m/s]', 'Ux': r'$u$ [m/s]',
+    'v': r'v [m/s]', 'Uy': r'$v$ [m/s]',
+    'w': r'Vertical wind speed [m/s]', 'Uz': r'Vertical wind speed [m/s]',
+    'theta': r'$\theta$ [K]', 'T': r'$\theta$ [K]',
     'thetav': r'$\theta_v$ [K]',
-    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
-    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
+    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUxx': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUyy': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUzz': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUxy': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUxz': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',  'UUyz': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2/s^2}]$',
+    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$', 'TUz': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{Km/s}]$',
     'TI': r'TI $[-]$',
     'TKE': r'TKE $[\mathrm{m^2/s^2}]$',
 }
 fieldlabels_superscript_units = {
     'wspd': r'Wind speed [m s$^{-1}$]',
     'wdir': r'Wind direction [$^\circ$]',
-    'u': r'u [m s$^{-1}$]',
-    'v': r'v [m s$^{-1}$]',
-    'w': r'Vertical wind speed [m s$^{-1}$]',
-    'theta': r'$\theta$ [K]',
+    'u': r'u [m s$^{-1}$]', 'Ux': r'$u$ [m s$^{-1}$]',
+    'v': r'v [m s$^{-1}$]', 'Uy': r'$v$ [m s$^{-1}$]',
+    'w': r'Vertical wind speed [m s$^{-1}$]',    'Uz': r'Vertical wind speed [m s$^{-1}$]',
+    'theta': r'$\theta$ [K]', 'T': r'$\theta$ [K]',
     'thetav': r'$\theta_v$ [K]',
-    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
-    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{K m s^{-1}}]$',
+    'uu': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUxx': r'$\langle u^\prime u^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'vv': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUyy': r'$\langle v^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'ww': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUzz': r'$\langle w^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'uv': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUxy': r'$\langle u^\prime v^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'uw': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUxz': r'$\langle u^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'vw': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',     'UUyz': r'$\langle v^\prime w^\prime \rangle \;[\mathrm{m^2 s^{-2}}]$',
+    'tw': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{K m s^{-1}}]$', 'TUz': r'$\langle w^\prime \theta^\prime \rangle \;[\mathrm{K m s^{-1}}]$',
     'TI': r'TI $[-]$',
     'TKE': r'TKE $[\mathrm{m^2 s^{-2}}]$',
 }
@@ -75,8 +89,8 @@ standard_spectrumlabels = spectrumlabels_default_units
 
 # Supported dimensions and associated names
 dimension_names = {
-    'time':      ['datetime','time','Time'],
-    'height':    ['height','heights','z'],
+    'time':      ['datetime','time','Time','t'],
+    'height':    ['height','heights','z','zagl'],
     'frequency': ['frequency','f',]
 }
 
@@ -337,6 +351,7 @@ def plot_timeheight(datasets,
 def plot_timehistory_at_height(datasets,
                                fields=None,
                                heights=None,
+                               extrapolate=True,
                                fig=None,ax=None,
                                fieldlimits=None,
                                timelimits=None,
@@ -377,6 +392,9 @@ def plot_timehistory_at_height(datasets,
         value. 'all' means the time history for all heights in the
         datasets will be plotted (in this case all datasets should
         have the same heights)
+    extrapolate : bool
+        If false, then output height(s) outside the data range will
+        not be plotted; default is true for backwards compatibility
     fig : figure handle
         Custom figure handle. Should be specified together with ax
     ax : axes handle, or list or numpy ndarray with axes handles
@@ -510,6 +528,7 @@ def plot_timehistory_at_height(datasets,
         if (not heightvalues is None) and (not all([h in heightvalues for h in args.heights])):
             df_pivot = _get_pivot_table(df,'height',available_fields)
             pivoted = True
+            fill_value = 'extrapolate' if extrapolate else np.nan
             if debug: print('Pivoting '+dfname)
         else:
             pivoted = False
@@ -524,6 +543,16 @@ def plot_timehistory_at_height(datasets,
                 continue
 
             for k, height in enumerate(args.heights):
+                # Check if height is outside of data range
+                if (heightvalues is not None) and \
+                        ((height > np.max(heightvalues)) or (height < np.min(heightvalues))):
+                    if extrapolate:
+                        if debug:
+                            print('Extrapolating field "'+field+'" at z='+str(height)+' in dataset '+dfname)
+                    else:
+                        print('Warning: field "'+field+'" not available at z='+str(height)+' in dataset '+dfname)
+                        continue
+                
                 # Store plotting options in dictionary
                 # Set default linestyle to '-' and no markers
                 plotting_properties = {
@@ -567,7 +596,7 @@ def plot_timehistory_at_height(datasets,
 
                 # Extract data from dataframe
                 if pivoted:
-                    signal = interp1d(heightvalues,_get_pivoted_field(df_pivot,field).values,axis=-1,fill_value="extrapolate")(height)
+                    signal = interp1d(heightvalues,_get_pivoted_field(df_pivot,field).values,axis=-1,fill_value=fill_value)(height)
                 else:
                     slice_z = _get_slice(df,height,'height')
                     signal  = _get_field(slice_z,field).values
@@ -1853,6 +1882,31 @@ def _align_labels(fig,ax,nrows,ncols):
         fig.align_ylabels(ax[c::ncols])
 
 
+def reference_lines(x_range, y_start, slopes, line_type='log'):
+    '''
+    This will generate an array of y-values over a specified x-range for
+    the provided slopes. All lines will start from the specified
+    location. For now, this is only assumed useful for log-log plots.
+    x_range : array
+        values over which to plot the lines (requires 2 or more values)
+    y_start : float
+        where the lines will start in y
+    slopes : float or array
+        the slopes to be plotted (can be 1 or several)
+    '''
+    if type(slopes)==float:
+        y_range = np.asarray(x_range)**slopes
+        shift = y_start/y_range[0]
+        y_range = y_range*shift
+    elif isinstance(slopes,(list,np.ndarray)):
+        y_range = np.zeros((np.shape(x_range)[0],np.shape(slopes)[0]))
+        for ss,slope in enumerate(slopes):
+            y_range[:,ss] = np.asarray(x_range)**slope
+            shift = y_start/y_range[0,ss]
+            y_range[:,ss] = y_range[:,ss]*shift
+    return(y_range)
+
+
 class TaylorDiagram(object):
     """
     Taylor diagram.
@@ -1871,7 +1925,10 @@ class TaylorDiagram(object):
                  corrticks=[0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1],
                  minorcorrticks=None,
                  stdevticks=None,
-                 labelsize=None):
+                 labelsize=None,
+                 labelcoraxis=True,
+                 labelstdaxis=True,
+                 extend_length=np.pi):
         """
         Set up Taylor diagram axes, i.e. single quadrant polar
         plot, using `mpl_toolkits.axisartist.floating_axes`.
@@ -1901,6 +1958,10 @@ class TaylorDiagram(object):
             integer input) or FixedLocator (with list-like input)
         labelsize: int or str, optional
             Font size (e.g., 16 or 'x-large') for all axes labels
+        labelaxis: bool, optional
+            Show axis labels or not (useful for array of plots)
+        extend_length: float, optional
+            Extend to a specified radian (default = pi)
         """
 
         from matplotlib.projections import PolarAxes
@@ -1919,7 +1980,7 @@ class TaylorDiagram(object):
             rlocs = np.array(sorted(list(corrticks) + list(minorcorrticks)))
         if extend:
             # Diagram extended to negative correlations
-            self.tmax = np.pi
+            self.tmax = extend_length
             rlocs = np.concatenate((-rlocs[:0:-1], rlocs))
         else:
             # Diagram limited to positive correlations
@@ -1968,14 +2029,22 @@ class TaylorDiagram(object):
         ax.axis["top"].toggle(ticklabels=True, label=True)
         ax.axis["top"].major_ticklabels.set_axis_direction("top")
         ax.axis["top"].label.set_axis_direction("top")
-        ax.axis["top"].label.set_text("Correlation")
+        if labelcoraxis:
+            ax.axis["top"].label.set_text("Correlation")
+        else:
+            ax.axis["top"].label.set_text('')
+            
 
         # - "x" axis
         ax.axis["left"].set_axis_direction("bottom")
-        if normalize:
-            ax.axis["left"].label.set_text("Normalized standard deviation")
+        if labelstdaxis:
+            if normalize:
+                left_axis_str = "Normalized standard deviation"
+            else:
+                left_axis_str = "Standard deviation"
         else:
-            ax.axis["left"].label.set_text("Standard deviation")
+            left_axis_str = ''
+        ax.axis["left"].label.set_text(left_axis_str)
 
         # - "y" axis
         ax.axis["right"].set_axis_direction("top")    # "Y-axis"
@@ -2096,4 +2165,5 @@ class TaylorDiagram(object):
         Set the title for the axes
         """
         self._ax.set_title(label, **kwargs)
+
 

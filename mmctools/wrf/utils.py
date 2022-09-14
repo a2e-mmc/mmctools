@@ -23,7 +23,6 @@ import xarray as xr
 from scipy.spatial import KDTree
 from scipy.interpolate import interp1d, LinearNDInterpolator
 import netCDF4
-import wrf as wrfpy
 
 from ..helper_functions import calc_wind
 
@@ -57,7 +56,13 @@ ts_header = [
     'RAINC',  # rainfall from a cumulus scheme [mm]
     'RAINNC', # rainfall from an explicit scheme [mm]
     'CLW',    # total column-integrated water vapor and cloud variables
+    'QFX',    # Vapor flux (upward is positive) [g m^-2 s^-1]
+    'UST',    # u* from M-O 
+    'U4',     # 4 m U wind (earth-relative)
+    'V4',     # 4 m V wind (earth-relative)
 ]
+
+TH0 = 300.0 # [K] base-state potential temperature by WRF convention
 
 def _get_dim(wrfdata,dimname):
     """Returns the specified dimension, with support for both netCDF4
@@ -369,15 +374,14 @@ class Tower():
                     datadict[varn] = ((tsdata[:,1:] + tsdata[:,:-1]) / 2).ravel()
                 elif varn == 'th':
                     # theta is a special case
-                    assert np.all(tsdata[:,-1] == 300), 'Unexpected nonzero value for theta'
+                    #assert np.all(tsdata[:,-1] == TH0), 'Unexpected nonzero value for theta'
                     # drop the trailing 0 for already unstaggered quantities
                     datadict[varn] = tsdata[:,:-1].ravel()
                 else:
                     # other quantities already unstaggered
-                    if not varn == 'ww':
-                        # don't throw a warning if w is already unstaggered by the code
-                        # last value is (w(model top) + 0.0)/2.0
-                        assert np.all(tsdata[:,-1] == 0), 'Unexpected nonzero value for '+varn
+                    #if not varn == 'ww':
+                    #    # don't throw a warning if w is already unstaggered by the code
+                    #    assert np.all(tsdata[:,-1] == 0), 'Unexpected nonzero value for '+varn
                     # drop the trailing 0 for already unstaggered quantities
                     datadict[varn] = tsdata[:,:-1].ravel()
             else:
@@ -482,15 +486,18 @@ class Tower():
         start_time = pd.to_datetime(start_time)
         if time_step is None:
             times = start_time + pd.to_timedelta(self.time, unit=time_unit)
-            times = times.round(freq='1s')
+            times = times.round(freq='1ms')
             times.name = 'datetime'
         else:
-            timestep = pd.to_timedelta(time_step, unit='s')
-            endtime = start_time + self.nt*timestep + pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h')
-            times = pd.date_range(start=start_time+timestep+pd.to_timedelta(np.round(self.time[0],decimals=1),unit='h'),
-                                  end=endtime,
+            timedelta = pd.to_timedelta(time_step, unit='s')
+            # note: time is in hours and _single-precision_
+            Nsteps0 = np.round(self.time[0] / (time_step/3600))
+            toffset0 = Nsteps0 * timedelta
+            times = pd.date_range(start=start_time+toffset0,
+                                  freq=timedelta,
                                   periods=self.nt,
                                   name='datetime')
+            times = times.round(freq='1ms')
         # combine (and interpolate) time-height data
         # - note 1: self.[varn].shape == self.height.shape == (self.nt, self.nz)
         # - note 2: arraydata.shape == (self.nt, len(varns)*self.nz)
@@ -561,7 +568,7 @@ class Tower():
                     tsdata = getattr(self,varn)
                     #if varn == 'th':
                     #    # theta is a special case
-                    #    assert np.all(tsdata[:,-1] == 300)
+                    #    assert np.all(tsdata[:,-1] == TH0)
                     #elif not varn == 'ww':
                     #    # if w has already been destaggered by wrf
                     #    assert np.all(tsdata[:,-1] == 0)
@@ -741,7 +748,7 @@ def add_surface_plane(var,plane=None):
 
 def extract_column_from_wrfdata(fpath, coords,
                                 Ztop=2000., Vres=5.0,
-                                T0=300.,
+                                T0=TH0,
                                 spatial_filter='interpolate',L_filter=0.0,
                                 additional_fields=[],
                                 verbose=False,
@@ -866,7 +873,7 @@ def extract_column_from_wrfdata(fpath, coords,
             continue
             
         # 4D field specific processing
-        if field is 'T':
+        if field == 'T':
             # Add T0, set surface plane to TSK
             WRFdata[field] += T0
             WRFdata[field] = add_surface_plane(WRFdata[field],plane=WRFdata['TSK'])
@@ -1083,9 +1090,16 @@ def combine_towers(fdir, restarts, simulation_start, fname,
     return dataF
 
 
-def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest,
-                       structure='ordered', time_step=None,
-                       heights=None, height_var='heights', select_tower=None):
+def tsout_seriesReader(fdir, 
+                       restarts=[''], 
+                       simulation_start_time=None, 
+                       domain_of_interest=None,
+                       structure='ordered', 
+                       time_step=None,
+                       heights=None, 
+                       height_var='heights', 
+                       select_tower=None,
+                       **kwargs):
     '''
     This will combine a series of tslist output over time and location based on the
     path to the case (fdir), the restart directories (restarts), a model start time 
@@ -1104,10 +1118,18 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
     height_var            = 'ph'
     select_tower          = ['TS1','TS5']
     '''
+    if simulation_start_time is None:
+        raise ValueError ('simulation_start_time must be in the format of "YYYY-MM-DD HH:MM:SS"')
+    if type(restarts) is str:
+        restarts = [restarts]
+    if domain_of_interest is None:
+        raise ValueError('Must specify domain_of_interest as str (e.g., "d02")')
+    if type(simulation_start_time) is str:
+        simulation_start_time = [simulation_start_time]*len(restarts)
     ntimes = np.shape(restarts)[0]
     floc = '{}{}/*{}.??'.format(fdir,restarts[0],domain_of_interest)
     file_list = glob.glob(floc)
-
+    assert file_list != [], 'No tslist files found in {}. Check kwargs.'.format(floc)
     for ff,file in enumerate(file_list):
         file = file[:-3]
         file_list[ff] = file
@@ -1131,12 +1153,16 @@ def tsout_seriesReader(fdir, restarts, simulation_start_time, domain_of_interest
         tower_names = good_towers
     dsF = combine_towers(fdir,restarts,simulation_start_time,tower_names,
                          structure=structure, time_step=time_step,
-                         heights=heights, height_var=height_var)
+                         heights=heights, height_var=height_var,
+                         **kwargs)
     return dsF
 
 
-def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
-                        hlim_ind=None):
+def wrfout_seriesReader(wrf_path,wrf_file_filter,
+                        specified_heights=None,agl=False,
+                        irange=None,jrange=None,hlim_ind=None,
+                        temp_var='THM',extra_vars=[],
+                        use_dimension_coords=False):
     """
     Construct an a2e-mmc standard, xarrays-based, data structure from a
     series of 3-dimensional WRF output files
@@ -1153,23 +1179,44 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
         output files.
     specified_heights : list-like, optional	
         If not None, then a list of static heights to which all data
-        variables should be	interpolated. Note that this significantly
+        variables should be interpolated. Note that this significantly
         increases the data read time.
-    hlim_ind : int, index
-        If not none, then the DataArray ds_subset is further subset by vertical dimension,
-        keeping vertical layers 0:hlim_ind.
-        This is meant to be used to speed up execution of the code or prevent a memory error
-        where the specified_heights argument is not well suited
-        (i.e., want a range of non-interpolated heights), and you only care about
-        data that are below a certain vertical index.
+    agl : bool, optional
+        If True, then specified heights are expected to be above ground
+        level (AGL) and the interpolation heights will have the local
+        elevation subtracted out.
+    irange,jrange : tuple, optional
+        If not none, then the DataArray ds_subset is further subset in
+        the horizontal dimensions, which should speed up execution. The
+        tuple should be (idxmin, idxmax), inclusive and 1-based indices
+        (as in WRF).
+    hlim_ind : int, index, optional
+        If not none, then the DataArray ds_subset is further subset by
+        vertical dimension, keeping vertical layers 0:hlim_ind. This is
+        meant to be used to speed up execution of the code or prevent a
+        memory error where the specified_heights argument is not well
+        suited (i.e., want a range of non-interpolated heights), and you
+        only care about data that are below a certain vertical index.
+    extra_vars : list, optional
+        List of additional fields to output
+    temp_var : str, optional
+        Name of moist potential temperature variable, e.g., 'THM' for
+        standard WRF output or 'T' MMC auxiliary output
+    use_dimension_coords : bool, optional
+        If True, then x and y coordinates will match the corresponding
+        dimension to facilitate and expedite xarray operations
     """
-    TH0 = 300.0 #WRF convention base-state theta = 300.0 K
+    import wrf as wrfpy
     dims_dict = {
         'Time':'datetime',
         'bottom_top':'nz',
-        'south_north': 'ny',
-        'west_east':'nx',
     }
+    if use_dimension_coords:
+        dims_dict['west_east'] = 'x'
+        dims_dict['south_north'] = 'y'
+    else:
+        dims_dict['west_east'] = 'nx'
+        dims_dict['south_north'] = 'ny'
 
     ds = xr.open_mfdataset(os.path.join(wrf_path,wrf_file_filter),
                            chunks={'Time': 10},
@@ -1181,14 +1228,14 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
 
     ds_subset = ds[['XTIME']]
     print('Establishing coordinate variables, x,y,z, zSurface...')
-    zcoord = wrfpy.destagger((ds['PHB'] + ds['PH']) / 9.8, stagger_dim=1, meta=False)
+    ds_subset['z'] = wrfpy.destagger((ds['PHB'] + ds['PH']) / 9.8,
+                                     stagger_dim=1, meta=True)
     #ycoord = ds.DY * np.tile(0.5 + np.arange(ds.dims['south_north']),
     #                         (ds.dims['west_east'],1))
     #xcoord = ds.DX * np.tile(0.5 + np.arange(ds.dims['west_east']),
     #                         (ds.dims['south_north'],1)) 
     ycoord = ds.DY * (0.5 + np.arange(ds.dims['south_north']))
     xcoord = ds.DX * (0.5 + np.arange(ds.dims['west_east']))
-    ds_subset['z'] = xr.DataArray(zcoord, dims=dim_keys)
     #ds_subset['y'] = xr.DataArray(np.transpose(ycoord), dims=horiz_dim_keys)
     #ds_subset['x'] = xr.DataArray(xcoord, dims=horiz_dim_keys)
     ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
@@ -1198,25 +1245,52 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     # for it to be time-varying for moving grids
     ds_subset['zsurface'] = xr.DataArray(ds['HGT'].isel(Time=0), dims=horiz_dim_keys)
     print('Destaggering data variables, u,v,w...')
-    ds_subset['u'] = xr.DataArray(wrfpy.destagger(ds['U'],stagger_dim=3,meta=False),
-                                  dims=dim_keys)
-    ds_subset['v'] = xr.DataArray(wrfpy.destagger(ds['V'],stagger_dim=2,meta=False),
-                                  dims=dim_keys)
-    ds_subset['w'] = xr.DataArray(wrfpy.destagger(ds['W'],stagger_dim=1,meta=False),
-                                  dims=dim_keys)
+    ds_subset['u'] = wrfpy.destagger(ds['U'], stagger_dim=3, meta=True)
+    ds_subset['v'] = wrfpy.destagger(ds['V'], stagger_dim=2, meta=True)
+    ds_subset['w'] = wrfpy.destagger(ds['W'], stagger_dim=1, meta=True)
 
     print('Extracting data variables, p,theta...')
     ds_subset['p'] = xr.DataArray(ds['P']+ds['PB'], dims=dim_keys)
-    ds_subset['theta'] = xr.DataArray(ds['THM']+TH0, dims=dim_keys)
+    ds_subset['theta'] = xr.DataArray(ds[temp_var]+TH0, dims=dim_keys)
+
+    # extract additional variables if requested
+    for var in extra_vars:
+        if var not in ds.data_vars:
+            print(f'Requested variable "{var}" not in {str(list(ds.data_vars))}')
+            continue
+        field = ds[var]
+        print(f'Extracting {var}...')
+        for idim, dim in enumerate(field.dims):
+            if dim.endswith('_stag'):
+                print(f'  destaggering {var} in dim {dim}...')
+                field = wrfpy.destagger(field, stagger_dim=idim, meta=True)
+        ds_subset[var] = field
+
+    # subset in horizontal dimensions
+    # note: specified ranges are WRF indices, i.e., python indices +1
+    if irange is not None:
+        assert isinstance(irange, tuple), 'irange should be (imin,imax)'
+        ds_subset = ds_subset.isel(west_east=slice(irange[0]-1, irange[1]))
+    if jrange is not None:
+        assert isinstance(jrange, tuple), 'jrange should be (jmin,jmax)'
+        ds_subset = ds_subset.isel(south_north=slice(jrange[0]-1, jrange[1]))
+
+    # clip vertical extent if requested
+    if hlim_ind is not None:
+        ds_subset = ds_subset.isel(bottom_top=slice(0, hlim_ind))
 
     # optionally, interpolate to static heights	
     if specified_heights is not None:	
         zarr = ds_subset['z']	
-        for var in ['u','v','w','p','theta']:	
+        if agl:
+            zarr -= ds_subset['zsurface']
+        for var in ds_subset.data_vars:
+            if (var == 'z') or ('bottom_top' not in ds_subset[var].dims):
+                continue
             print('Interpolating',var)	
-            interpolated = wrfpy.interplevel(ds_subset[var], zarr, specified_heights)	
-            ds_subset[var] = interpolated #.expand_dims('Time', axis=0)	
-            #print(ds_subset[var])
+            ds_subset[var] = wrfpy.interplevel(ds_subset[var], zarr, specified_heights)	
+            if np.any(~np.isfinite(ds_subset[var])):
+                print('WARNING: wrf.interplevel() produced NaNs -- make sure requested heights are in range and/or use agl=True')
         ds_subset = ds_subset.drop_dims('bottom_top').rename({'level':'z'})	
         dim_keys[1] = 'z'	
         dims_dict.pop('bottom_top')
@@ -1229,25 +1303,147 @@ def wrfout_seriesReader(wrf_path,wrf_file_filter,specified_heights=None,
     ds_subset['wdir'] = xr.DataArray(180. + np.arctan2(ds_subset['u'],ds_subset['v'])*180./np.pi,
                                      dims=dim_keys)
     
-    # assign rename coord variable for time, and assign ccordinates 
+    # rename coord variable for time and assign ccordinates 
     ds_subset = ds_subset.rename({'XTIME': 'datetime'})  #Rename after defining the component DataArrays in the DataSet
     if specified_heights is None:
         ds_subset = ds_subset.assign_coords(z=ds_subset['z'])
+    ds_subset = ds_subset.assign_coords(x=ds_subset['x'],
+                                        y=ds_subset['y'],
+                                        zsurface=ds_subset['zsurface'])
+    ds_subset = ds_subset.rename_vars({'XLAT':'lat', 'XLONG':'lon'})
+    for olddim,newdim in dims_dict.copy().items():
+        if newdim in ds_subset.coords:
+            # have to swap dim instead of renaming if it already exists
+            ds_subset = ds_subset.swap_dims({olddim: newdim})
+            dims_dict.pop(olddim)
+    ds_subset = ds_subset.rename_dims(dims_dict)
+    
+    return ds_subset
+
+
+def wrfout_slices_seriesReader(wrf_path, wrf_file_filter,
+                               specified_heights=None,
+                               do_slice_vars=True,
+                               do_surf_vars=False,
+                               vlist=None):
+    """
+    Construct an a2e-mmc standard, xarrays-based, data structure from a
+    series of WRF slice output files
+
+    Note: Base state theta= 300.0 K is assumed by convention in WRF,
+          and this function follows this convention.                                                                                     
+    Usage
+    ====
+    wrfpath : string
+        The path to directory containing wrfout files to be processed
+    wrf_file_filter : string-glob expression
+        A string-glob expression to filter a set of 4-dimensional WRF
+        output files.
+    specified_heights : list-like, optional
+        If not None, then a list of static heights to which all data
+        variables should be interpolated. Note that this significantly
+        increases the data read time.
+    do_slice_vars: Logical (default True), optional
+       If true, then the slice variables (SLICES_U, SLICES_V, SLICES_W,
+       SLICES_T) are read for the specified height (or for all heights
+       if 'specified_heights = None')
+    do_surf_vars: Logical (default False), optional
+       If true, then the surface variables (UST, HFX, QFX, SST, SSTK)
+       will be added to the file
+    vlist: List-like, default None (optional)
+       If not none, then set do_slice_vars and do_surf_vars to False,
+       and only variables in the list 'vlist' are read
+    """
+    dims_dict = {
+        'Time':'datetime',
+        'num_slices':'nz_slice',
+        'south_north': 'ny',
+        'west_east':'nx',
+    }
+
+    ds = xr.open_mfdataset(os.path.join(wrf_path,wrf_file_filter),
+                           chunks={'Time': 10},
+                           combine='nested',
+                           concat_dim='Time')
+
+    ds = ds.assign_coords({"SLICES_Z": ds.SLICES_Z.isel(Time=1)})
+    ds = ds.swap_dims({'num_slices': 'SLICES_Z'})
+
+    dim_keys = ["Time","bottom_top","south_north","west_east"]
+    horiz_dim_keys = ["south_north","west_east"]
+    print('Finished opening/concatenating datasets...')
+    #print(ds.dims)                                                                                                               
+    ds_subset = ds[['Time']]
+    print('Establishing coordinate variables, x,y,z, zSurface...')
+    ycoord = ds.DY * (0.5 + np.arange(ds.dims['south_north']))
+    xcoord = ds.DX * (0.5 + np.arange(ds.dims['west_east']))
+    ds_subset['z'] = xr.DataArray(specified_heights, dims='num_slices')
+
+    ds_subset['y'] = xr.DataArray(ycoord, dims='south_north')
+    ds_subset['x'] = xr.DataArray(xcoord, dims='west_east')
+
+    if vlist is not None:
+        print("vlist not None, setting do_slice_vars and do_surf_vars to False")
+        print("Does not support specified_heights argument, grabing all available heights")
+        do_slice_vars = False
+        do_surf_vars = False
+        print("Extracting variables")
+        for vv in vlist:
+            print(vv)
+            ds_subset[vv] = ds[vv]
+
+    if do_slice_vars:
+        print("Doing slice variables")
+        print('Grabbing u, v, w, T')
+        if specified_heights is not None:
+            if len(specified_heights) == 1:
+                print("One height")
+                #print(ds.dims)
+                #print(ds.coords)
+                ds_subset['u'] = ds['SLICES_U'].sel(SLICES_Z=specified_heights)
+                ds_subset['v'] = ds['SLICES_V'].sel(SLICES_Z=specified_heights)
+                ds_subset['w'] = ds['SLICES_W'].sel(SLICES_Z=specified_heights)
+                ds_subset['T'] = ds['SLICES_T'].sel(SLICES_Z=specified_heights)
+            else:
+                print("Multiple heights")
+                ds_subset['u'] = ds['SLICES_U'].sel(SLICES_Z=specified_heights)
+                ds_subset['v'] = ds['SLICES_V'].sel(SLICES_Z=specified_heights)
+                ds_subset['w'] = ds['SLICES_W'].sel(SLICES_Z=specified_heights)
+                ds_subset['T'] = ds['SLICES_T'].sel(SLICES_Z=specified_heights)
+        else:
+            ds_subset['u'] = ds['SLICES_U']
+            ds_subset['v'] = ds['SLICES_V']
+            ds_subset['w'] = ds['SLICES_W']
+            ds_subset['T'] = ds['SLICES_T']
+
+        print('Calculating derived data variables, wspd, wdir...')
+        #print((ds_subset['u'].ufuncs.square()).values)
+        ds_subset['wspd'] = xr.DataArray(
+                np.sqrt(ds_subset['u'].values**2 + ds_subset['v'].values**2),
+                dims=dim_keys)
+        ds_subset['wdir'] = xr.DataArray(
+                180. + np.arctan2(ds_subset['u'].values,ds_subset['v'].values)*180./np.pi,
+                dims=dim_keys)
+
+    if do_surf_vars:
+        print('Extracting 2-D variables (UST, HFX, QFX, SST, SSTSK)')
+        ds_subset['UST'] = ds['UST']
+        ds_subset['HFX'] = ds['HFX']
+        ds_subset['QFX'] = ds['QFX']
+        ds_subset['SST'] = ds['SST']
+        ds_subset['SSTK'] = ds['SSTK']
+    else:
+        print("Skipping 2-D variables")
+
+    # assign rename coord variable for time, and assign coordinates
+    if specified_heights is None:
+        ds_subset = ds_subset.assign_coords(z=ds_subset['SLICES_Z'])
     ds_subset = ds_subset.assign_coords(y=ds_subset['y'])
     ds_subset = ds_subset.assign_coords(x=ds_subset['x'])
-    ds_subset = ds_subset.assign_coords(zsurface=ds_subset['zsurface'])
-    ds_subset = ds_subset.rename_vars({'XLAT':'lat', 'XLONG':'lon'})
-    #print(ds_subset)
+    print(ds_subset.dims)
     ds_subset = ds_subset.rename_dims(dims_dict)
-    #print(ds_subset)
-    
-    # Change by WHL to eliminate vertical info far from the surface to prevent memory crash                                       
-    try:
-        ds_subset2 = ds_subset.isel( nz = slice(0, hlim_ind) )
-        return ds_subset2
-    except:
-        # if hlim_ind = None, default code execution
-        return ds_subset
+
+    return ds_subset
 
 
 def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_abbr=None):
@@ -1335,4 +1531,371 @@ def write_tslist_file(fname,lat=None,lon=None,i=None,j=None,twr_names=None,twr_a
     f.close()
         
         
-  
+
+import glob
+import numpy as np
+import matplotlib.pyplot as plt
+import xarray as xr
+import pandas as pd
+import time
+import matplotlib.colors as colors
+
+def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    new_cmap = colors.LinearSegmentedColormap.from_list(
+        'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
+        cmap(np.linspace(minval, maxval, n)))
+    return new_cmap
+
+class ErrorWatch():
+    
+    def __init__(self,
+                 working_dir=None,
+                 domain_of_interest=None,
+                 wait_time=5.0,
+                 show_plot=True):
+        
+        if domain_of_interest is None:
+            domain_of_interest = 'd01'
+        terrain_cmap = truncate_colormap(plt.cm.terrain,minval=0.25)
+        terrain_cmap.set_bad('steelblue')
+
+        
+        if working_dir is None:
+            raise ValueError('working_dir must be specified')
+            
+        print('Getting information about the run...')
+        datetime_dict = self.get_run_information(working_dir)
+
+        print('Getting information about the domain...')
+        domain_ds = self.get_domain_information(working_dir,domain_of_interest)
+        self.domain_ds = domain_ds
+
+        print('Initializing the CFL dataset...')
+        cfl_ds = self.initialize_dataset(datetime_dict[domain_of_interest],domain_of_interest)
+        last_time_step = cfl_ds.datetime[0].data
+        
+        print('Getting CFL information...')
+        cfl_ds,rsl_dict,last_time_step = self.grep_error_logs(cfl_ds,rsl_loc=working_dir,last_time_step=last_time_step)
+        self.cfl_ds = cfl_ds
+
+        
+        sim_running = self.check_run_status(cfl_ds)
+        if show_plot:
+            fig = plt.figure(figsize=(9,9))#,constrained_layout=True)
+            plt.subplots_adjust(hspace=0.8)
+            self.error_watch_plot(fig,cmap=terrain_cmap)
+        
+        sim_finished_when_starting = True
+        
+        if sim_running:
+            print('It appears the simulation is still running... refreshing every {} seconds'.format(wait_time))
+            need_to_iterate = True
+        else:
+            need_to_iterate = False
+
+
+        while sim_running:
+            cfl_ds,rsl_dict,last_time_step = self.grep_error_logs(cfl_ds,rsl_loc=working_dir,last_time_step=last_time_step)
+            self.cfl_ds = cfl_ds
+            sim_running = self.check_run_status(cfl_ds)
+            if show_plot:
+                plt.clf()
+                self.error_watch_plot(fig,cmap=terrain_cmap)
+                plt.pause(0.05)
+            time.sleep(wait_time)
+
+        self.cfl_ds = cfl_ds
+        if show_plot:
+            if need_to_iterate:
+                self.error_watch_plot(fig,cmap=terrain_cmap)
+            plt.show()
+            
+        print('The simulation has stopped. Result: {}'.format(cfl_ds.status))
+
+
+        
+
+    def error_watch_plot(self,fig,cmap):
+        cfl_ds = self.cfl_ds
+        domain_ds = self.domain_ds
+        gs = fig.add_gridspec(3, 3)
+        cfl_ax = fig.add_subplot(gs[0, :])
+        xy_ax = fig.add_subplot(gs[1:, :-1])
+        z_ax = fig.add_subplot(gs[1:, -1])
+
+        w_plt = cfl_ds.w.where(cfl_ds.w != -999.).dropna(how='any',dim='datetime')
+        cfl_plt = cfl_ds.cfl.where(cfl_ds.cfl != -999.).dropna(how='any',dim='datetime')
+
+        #cfl_ax.plot(w_plt.datetime.data,w_plt.data,marker='o',c='b',label='W')
+        #cfl_ax.plot(cfl_plt.datetime.data,cfl_plt.data,marker='o',label='CFL',c=t_locs,vmin=cfl_ds.datetime[0],vmax=cfl_ds.datetime[-1])
+        
+        cfl_ax.scatter(w_plt.datetime.data,w_plt.data,marker='o',c='grey',label='W')
+        cfl_ax.scatter(cfl_plt.datetime.data,cfl_plt.data,marker='o',label='CFL',cmap=plt.cm.jet,c=w_plt.datetime.data,vmin=cfl_ds.datetime[0],vmax=cfl_ds.datetime[-1])
+
+        
+        progress_s = pd.to_datetime(cfl_ds.datetime[0].data)
+        progress_e = pd.to_datetime(cfl_ds.finished_to)
+
+        cfl_ax.set_ylim(0,1.1*np.max((cfl_ds.cfl.max().data,cfl_ds.w.max().data,1.0)))
+        cfl_ax.set_xlim(cfl_ds.datetime[0].data,cfl_ds.datetime[-1].data)
+        cfl_ax.plot([progress_s,progress_e],[0.0,0.0],c='g',lw=10.0,alpha=0.5)
+
+        #xy_ax.pcolormesh(domain_ds.HGT.where(domain_ds.LANDMASK > 0),cmap=cmap,alpha=0.15)
+        xy_ax.contour(domain_ds.HGT,alpha=0.15,cmap=plt.cm.copper,levels=np.arange(0,domain_ds.HGT.max(),200))
+        xy_ax.contour(domain_ds.LANDMASK,levels=[0.5],colors='k',alpha=0.15)
+
+        locs_ds = cfl_ds.location.where(cfl_ds.location != None).dropna(how='any',dim='datetime')
+
+        loc_list = []
+        t_locs = []
+        for locs in locs_ds:
+            loc_t = locs.datetime.data
+            locs = str(locs.data)
+            if '),(' in locs:
+                locs = locs.split('),(')
+                for loc in locs:
+                    loc = loc.replace('(','').replace(')','')
+                    loc_list.append(loc)
+                    t_locs.append(loc_t)
+            else:
+                loc = locs.replace('(','').replace(')','')
+                loc_list.append(loc)
+                t_locs.append(loc_t)
+
+
+        dz = domain_ds.z[1:] - domain_ds.z[:-1]
+        #z_ax.scatter(np.arange(len(domain_ds.z)),domain_ds.z/1000.0,marker='o',color='k')
+        z_ax.scatter(np.arange(len(dz)),dz,marker='o',color='k')
+        show_scatter = True
+        if show_scatter: 
+
+            i_locs = []
+            j_locs = []
+            k_locs = []
+            z_locs = []
+            for loc in loc_list:
+                loc = loc.split(',')
+                i_locs.append(int(loc[0]))
+                j_locs.append(int(loc[1]))
+                k_locs.append(int(loc[2]))
+                z_locs.append(dz.data[int(loc[2])])
+                
+            xy_ax.scatter(i_locs,j_locs,marker='o',cmap=plt.cm.jet,c=t_locs,vmin=cfl_ds.datetime[0],vmax=cfl_ds.datetime[-1])
+            z_ax.scatter(k_locs,z_locs,marker='o',cmap=plt.cm.jet,c=t_locs,vmin=cfl_ds.datetime[0],vmax=cfl_ds.datetime[-1])
+                
+        cfl_ax.tick_params(labelsize=16,labelbottom=True,bottom=True)
+        xticks = pd.date_range(str(cfl_ds.datetime.data[0]),str(cfl_ds.datetime.data[-1]),freq='6h')
+        xticks = np.asarray(xticks)
+        xtick_str = []
+        for xt in np.arange(len(xticks)):
+            xtick = pd.to_datetime(xticks[xt])
+            xtick_str.append('{0:02d} {1:02d}Z'.format(xtick.day,xtick.hour))
+        cfl_ax.set_xticks(xticks)
+        cfl_ax.set_xticklabels(xtick_str,rotation=-35)
+        #cfl_ax.tick_params(labelbottom=False,labeltop=True,bottom=False,top=True,labelsize=16)
+        #cfl_ax.tick_params(axis='x',labelrotation=35.0)
+        for label in cfl_ax.get_xticklabels():
+            label.set_horizontalalignment('left')
+        #cfl_ax.xaxis.set_label_position('top') 
+        cfl_ax.set_xlabel('Datetime',size=18)
+        cfl_ax.legend(frameon=False,fontsize=16,ncol=2,loc=(0.01,1.01))
+
+        xy_ax.tick_params(labelsize=16)
+        xy_ax.set_ylabel('NY',size=16)
+        xy_ax.set_xlabel('NX',size=16)
+
+        z_ax.tick_params(labelsize=16,labelleft=False,left=False,labelright=True,right=True)
+        z_ax.set_xlabel('NZ',size=16)
+        z_ax.set_ylabel('∆z [m]',size=16,rotation=270,labelpad=20)
+        z_ax.yaxis.set_label_position('right') 
+
+        plt.suptitle('{} - Current Time: {}'.format(str(cfl_ds.domain),progress_e),size=20)
+        plt.draw()
+
+
+    def remove_commas(self,string,make=None):
+        if ',' in string: 
+            string = string.replace(',','')
+        if make is not None:
+            if make == 'int': string = int(string)
+            if make == 'float': string = float(string)
+
+        return(string)
+
+    def get_run_information(self,working_dir):
+        namelist = open('{}namelist.input'.format(working_dir),'r')
+        for line in namelist:
+            line = line.split() 
+            #print(line)
+            if len(line) > 0:
+                if 'start_year' in line[0]: start_yr = line[2:]
+                if 'start_month' in line[0]:start_mo = line[2:]
+                if 'start_day' in line[0]:start_dy = line[2:]
+                if 'start_hour' in line[0]:start_hr = line[2:]
+                if 'start_minute' in line[0]:start_mn = line[2:]
+                if 'start_second' in line[0]:start_sd = line[2:]
+
+                if 'end_year' in line[0]: end_yr = line[2:]
+                if 'end_month' in line[0]:end_mo = line[2:]
+                if 'end_day' in line[0]:end_dy = line[2:]
+                if 'end_hour' in line[0]:end_hr = line[2:]
+                if 'end_minute' in line[0]:end_mn = line[2:]
+                if 'end_second' in line[0]:end_sd = line[2:]
+
+                if 'max_dom' in line[0]:
+                    max_dom = line[2]
+                    max_dom = self.remove_commas(max_dom)
+                    max_dom = int(max_dom)
+
+                if 'time_step' in line[0]:
+                    if line[0] == 'time_step':dt_b = self.remove_commas(line[2],make='int')
+                    if 'fract_num' in line[0]: dt_num = self.remove_commas(line[2],make='int')
+                    if 'fract_den' in line[0]: dt_den = self.remove_commas(line[2],make='int')
+                    if 'ratio' in line[0]: dt_ratio = line[2:]
+
+
+        namelist.close()
+        main_dt = float(dt_b) + float(dt_num)/float(dt_den)
+        datetime_dict = {}
+        for dd in range(0,max_dom):
+            dom = 'd{0:02d}'.format(dd+1)
+            dom_dt = main_dt / self.remove_commas(dt_ratio[dd],make='float')
+            syr = self.remove_commas(start_yr[dd],make='int')
+            smo = self.remove_commas(start_mo[dd],make='int')
+            sdy = self.remove_commas(start_dy[dd],make='int')
+            shr = self.remove_commas(start_hr[dd],make='int')
+            smn = self.remove_commas(start_mn[dd],make='int')
+            ssd = self.remove_commas(start_sd[dd],make='int')
+
+            eyr = self.remove_commas(end_yr[dd],make='int')
+            emo = self.remove_commas(end_mo[dd],make='int')
+            edy = self.remove_commas(end_dy[dd],make='int')
+            ehr = self.remove_commas(end_hr[dd],make='int')
+            emn = self.remove_commas(end_mn[dd],make='int')
+            esd = self.remove_commas(end_sd[dd],make='int')
+
+            start_date = pd.to_datetime('{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d}'.format(
+                                        syr,smo,sdy,shr,smn,ssd))
+            end_date = pd.to_datetime('{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d}'.format(
+                                        eyr,emo,edy,ehr,emn,esd))
+
+
+            freq = int(max([1.0,dom_dt]))
+            datetime = pd.date_range(start_date,end_date,freq='{0}s'.format(freq))
+            datetime_dict[dom] = datetime
+
+
+        return(datetime_dict)
+
+
+    def initialize_dataset(self,datetime,domain):
+        cfl_ds = xr.Dataset(data_vars={
+                                'cfl':(['datetime'],np.zeros(len(datetime))-999.0),
+                               'npts':(['datetime'],np.zeros(len(datetime))),
+                                  'w':(['datetime'],np.zeros(len(datetime))-999.0),
+                           'location':(['datetime'],np.empty(len(datetime),dtype=list)),
+                                      },
+                            coords={'datetime':datetime},
+                            attrs={'domain':domain},
+                           )
+        cfl_ds.w.astype(str)
+        return(cfl_ds)
+
+    def grep_error_logs(self,cfl_ds,rsl_dict=None,rsl_loc=None,last_time_step=None):
+        if (rsl_dict is None) and (rsl_loc is None):
+            raise ValueError('Please specify the location of rsl files (rsl_loc)')
+        if (rsl_dict is None) and (rsl_loc is not None):
+            rsl_files = sorted(glob.glob('{}rsl.error*'.format(rsl_loc)))
+            rsl_dict = {}
+            for log in rsl_files:
+                rsl_dict[log] = {'stopping_ind':0}
+
+        rsl_files = list(rsl_dict.keys())
+
+        domain_of_interest = cfl_ds.domain
+        sim_complete = False
+        sim_crash = False
+        
+        for ee,elog in enumerate(rsl_files):
+            log = open(elog,'r')
+            log = log.readlines()[rsl_dict[elog]['stopping_ind']:]
+
+            for line in log:
+
+                if 'w_critical_cfl' in line:
+                    line = line.split()
+                    dom = line[0]
+                    if dom == domain_of_interest:
+                        npts = int(line[2])
+                        dtime = pd.to_datetime(line[1].replace('_',' '))
+                        cfl_ds.sel(datetime=dtime)['npts'] += npts
+                if 'w-cfl' in line:
+                    if "*******" in line: print(line)
+                    line = line.split()
+                    dom = line[0]
+                    if dom == domain_of_interest:
+                        dtime = pd.to_datetime(line[1].replace('_',' '))
+                        cfl = float(line[10])
+                        w = float(line[8])
+                        i = str(line[4])
+                        j = int(line[5])
+                        k = int(line[6])
+                        current_cfl = cfl_ds.sel(datetime=dtime).cfl
+                        current_w = cfl_ds.sel(datetime=dtime).w
+                        current_loc = cfl_ds.sel(datetime=dtime).location
+
+                        if cfl > current_cfl:
+                            cfl_ds.sel(datetime=dtime)['cfl'] *= 0.0
+                            cfl_ds.sel(datetime=dtime)['cfl'] += cfl
+
+                        if w > current_w:
+                            cfl_ds.sel(datetime=dtime)['w'] *= 0.0
+                            cfl_ds.sel(datetime=dtime)['w'] += w
+
+                        if current_loc.data == None:
+                            cfl_ds.location.loc[{'datetime':str(dtime)}] = ('({},{},{})'.format(i,j,k))
+
+                        else:
+                            current_loc_str = str(current_loc.data)
+                            new_loc_str = ','.join([current_loc_str,'({},{},{})'.format(i,j,k)])
+                            cfl_ds.location.loc[{'datetime':str(dtime)}]= new_loc_str
+
+
+                if ee == 0:
+                    if 'Timing for main' in line:
+                        last_time_step = pd.to_datetime(line.split()[4].replace('_',' '))
+                if 'SUCCESS COMPLETE WRF' in line:
+                    sim_complete = True
+                if 'Program received signal SIGSEGV' in line:
+                    sim_complete = True
+                    sim_crash = True
+
+                rsl_dict[elog]['stopping_ind'] += 1
+                
+        if sim_complete: 
+            if sim_crash:
+                status = 'Crashed'
+            else:
+                status = 'Complete'
+        else:
+            status = 'Running'
+        cfl_ds.attrs['status'] = status
+        cfl_ds.attrs['finished_to'] = last_time_step
+        #cfl_ds = cfl_ds.where(cfl_ds != -999.)
+        return(cfl_ds,rsl_dict,last_time_step)
+
+    def check_run_status(self,cfl_ds):
+        if cfl_ds.status == 'Running':
+            sim_running = True
+        else:
+            sim_running = False
+        return(sim_running)
+
+    def get_domain_information(self,working_dir,domain):
+        wrfin = xr.open_dataset('{}wrfinput_{}'.format(working_dir,domain)).squeeze()
+        hgt = wrfin.HGT
+        z = ((wrfin.PH + wrfin.PHB)/9.81 - hgt).mean(dim=['west_east','south_north'])
+
+        domain_ds = wrfin[['HGT','LANDMASK']]
+        domain_ds['z'] = z
+        return(domain_ds)
