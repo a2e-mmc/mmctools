@@ -35,10 +35,10 @@ VERSION = '0.1.1'
 REQUIRED = [
     # core
     'matplotlib>=3',
-    'numpy==1.22.0',
-    'scipy==1.4.1',
-    'pandas==1.0.1',
-    'xarray==0.15.0',
+    'numpy>=1.22.0',
+    'scipy>=1.4.1',
+    'pandas>=1.0.1',
+    'xarray>=0.15.0',
     'netcdf4>=1.5.1',
     'dask>=2.10.1',
     'utm>=0.5.0',
@@ -48,7 +48,7 @@ EXTRAS = {
     # NCAR WRF utilities
     'wrf-python': ['wrf-python>=1.3.2'],
     # Coupling with terrain (mmctools.coupling.terrain)
-    'terrain': ['elevation==1.0.6', 'rasterio==1.0.25'],
+    'terrain': ['elevation>=1.0.6', 'rasterio>=1.0.25'],
 }
 
 # The rest you shouldn't have to touch too much :)
