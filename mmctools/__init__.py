@@ -20,5 +20,5 @@
 # enable `from mmctools.foo.bar import baz # to import baz from windtools.foo.bar`
 import os
 mmctools_module = os.path.split(__file__)[0]
-__path__.append(os.path.join(mmctools_module,'windtools','windtools'))
+__path__.append(os.path.join(mmctools_module,'..','windtools','windtools'))
 

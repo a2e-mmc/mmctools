@@ -106,6 +106,13 @@ cd /path/to/a2e-mmc/mmctools
 pip install -e .
 ```
 
+### `windtools`
+
+This repository includes a subtree from https://github.com/NREL/windtools, which 
+provides an essential plotting library (importable as `from mmctools.plotting
+import ...`) as well as other simulation post-processing helper modules.
+
+
 ## Code Development Principles
 
 - All code should be usable in, and demonstrated by, Jupyter notebooks.

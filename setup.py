@@ -28,7 +28,7 @@ DESCRIPTION = 'A collection of preprocessing, postprocessing, and analysis code 
 URL = 'https://github.com/a2e-mmc/mmctools'
 EMAIL = 'eliot.quon@nrel.gov'
 AUTHOR = 'U.S. Department of Energy'
-REQUIRES_PYTHON = '>=3.10.6'
+REQUIRES_PYTHON = '>=3.10.5'
 VERSION = '0.1.1'
 
 # What packages are required for this module to be executed?
