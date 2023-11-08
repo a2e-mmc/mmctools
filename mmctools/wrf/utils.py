@@ -359,7 +359,8 @@ class Tower():
                     self.stationz = float(header[88:94])
                     tsdata = pd.read_csv(f,delim_whitespace=True,header=None,names=ts_header)
                     tsdata = tsdata.drop(columns=['dom','time','tsID','locx','locy'])
-                    for name,col in tsdata.iteritems(): 
+                    self.timeseries = tsdata
+                    for name,col in tsdata.items(): 
                         setattr(self, name.lower(), col.values)
                     self.ts_varns = list(tsdata.columns)
 
