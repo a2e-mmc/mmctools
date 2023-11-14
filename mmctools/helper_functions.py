@@ -381,7 +381,7 @@ def fit_powerlaw(df=None,z=None,U=None,zref=80.0,Uref=None):
     R2 = pd.Series(index=df.columns,dtype=float)
     def fun(x,*popt):
         return popt[0]*x
-    for col,U in df.iteritems():
+    for col,U in df.items():
         logU = np.log(U) - np.log(Uref[col])
         popt, pcov = curve_fit(fun,xdata=logz,ydata=logU,p0=0.14,bounds=(0,1))
         alpha[col] = popt[0]
@@ -1001,7 +1001,7 @@ def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
     elif Tw is not None:
         ablh = Tw.unstack().idxmin(axis=1)
         if sanitycheck:
-            Tw_at_ablh = Tw.loc[[(t,z) for t,z in ablh.iteritems()]]
+            Tw_at_ablh = Tw.loc[[(t,z) for t,z in ablh.items()]]
             assert np.all(Tw_at_ablh <= 0)
     elif uw is not None:
         # assume the turbulent stress maxima occur near the surface and
@@ -1014,7 +1014,7 @@ def estimate_ABL_height(T=None,Tw=None,uw=None,sanitycheck=True,**kwargs):
         z_near0 = z_near0.fillna(method='bfill').fillna(method='ffill')
         # get near-zero value of uw for extrapolation
         uw_norm = uw_norm.stack(dropna=False)
-        uw_norm_near0 = uw_norm.loc[[(t,z) for t,z in z_near0.iteritems()]]
+        uw_norm_near0 = uw_norm.loc[[(t,z) for t,z in z_near0.items()]]
         if sanitycheck:
             assert np.all(uw_norm_near0.loc[~pd.isna(uw_norm_near0)] >= 0) 
         # extrapolate

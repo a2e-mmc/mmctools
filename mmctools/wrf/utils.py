@@ -360,7 +360,7 @@ class Tower():
                     tsdata = pd.read_csv(f,delim_whitespace=True,header=None,names=ts_header)
                     tsdata = tsdata.drop(columns=['dom','time','tsID','locx','locy'])
                     self.timeseries = tsdata
-                    for name,col in tsdata.items(): 
+                    for name,col in tsdata.items():
                         setattr(self, name.lower(), col.values)
                     self.ts_varns = list(tsdata.columns)
 
