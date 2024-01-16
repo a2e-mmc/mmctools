@@ -30,17 +30,20 @@ class RDADataset(object):
         """Setup credentials for downloading datasets from the NCAR
         Research Data Archive
 
-        Additional opts and certopts may be optionally provided.
+        Additional opts and certopts may be optionally provided. If you
+        get a certificate verification error (version 1.10 or higher),
+        try setting cert_opt = ['--no-check-certificate']
         """
-        if emailaddr is None:
-            emailaddr = prompt('RDA email address: ')
-        if passwd is None:
-            passwd = getpass('RDA password: ')
-        self.emailaddr = emailaddr
-        self.passwd = self._clean_password(passwd)
+        #if emailaddr is None:
+        #    emailaddr = prompt('RDA email address: ')
+        #if passwd is None:
+        #    passwd = getpass('RDA password: ')
+        #self.emailaddr = emailaddr
+        #self.passwd = self._clean_password(passwd)
         self.opts = self.default_opts + opts
         self.certopts = certopts
-        self._get_auth()
+        self.cookie = None
+        #self._get_auth()
 
     def _clean_password(self,passwd):
         passwd = passwd.replace('&','%26')
@@ -68,7 +71,7 @@ class RDADataset(object):
         #print('Cleaning up authentication files')
         if os.path.isfile(self.auth_status):
             os.remove(self.auth_status)
-        if os.path.isfile(self.cookie):
+        if self.cookie and os.path.isfile(self.cookie):
             os.remove(self.cookie)
 
     def download(self,urlpath,datetimes,path=None,fields=[None],**kwargs):
@@ -91,14 +94,13 @@ class RDADataset(object):
             Additional fields in urlpath to be updated with str.format()
         """
         if not urlpath.startswith('https://'):
-            urlpath = 'https://rda.ucar.edu/data/' + urlpath.lstrip('/')
+            urlpath = 'https://data.rda.ucar.edu/' + urlpath.lstrip('/')
         cmd = ['wget'] + self.certopts + self.opts
         if path is not None:
             cmd += ['-P', path]
-        cmd += [
-            '--load-cookies', self.cookie,
-            'URL_placeholder'
-        ]
+        if self.cookie:
+            cmd += ['--load-cookies', self.cookie]
+        cmd += ['URL_placeholder']
         if not hasattr(datetimes,'__iter__'):
             datetimes = [pd.to_datetime(datetimes)]
         print('Downloading fields',fields,'at',len(datetimes),'times')
@@ -122,7 +124,7 @@ class FNL(RDADataset):
         """Download data at specified datetimes.
 
         Files to download:
-        - https://rda.ucar.edu/datasets/ds083.2/grib2/YY/YY.MM/fnl_YYMMDD_HH_MM.grib2
+        - https://data.rda.ucar.edu/ds083.2/grib2/2013/2013.11/fnl_20131108_00_00.grib2
 
         Usage
         =====
