@@ -376,7 +376,7 @@ class BoundaryCoupling(object):
         else:
             dateref = pd.to_datetime(dateref)
         tidx = (self.ds['datetime'] - dateref.to_datetime64()) / np.timedelta64(1,'s')
-        self.ds = self.ds.assign_coords(t_index=('datetime',tidx))
+        self.ds = self.ds.assign_coords(t_index=('datetime',tidx.values))
 
     def _check_xarray_dataset(self,
                               expected_dims=['datetime','height','x','y']):
@@ -408,8 +408,6 @@ class BoundaryCoupling(object):
     
         Usage
         =====
-        patchname : str
-            Name of patch subdirectory
         fields : dict
             Key-value pairs with keys corresponding to the OpenFOAM
             field name, values corresponding to dataset data variables;
