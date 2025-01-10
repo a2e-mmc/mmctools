@@ -267,6 +267,7 @@ Run `conda install -c conda-forge cdsapi`""")
                  variables=[],
                  area=[],
                  pressure_levels=None,
+                 download_daily=True,
                  combine_request=False):
         """Download data at specified datetimes.
 
@@ -287,6 +288,8 @@ Run `conda install -c conda-forge cdsapi`""")
             North/west/south/east lat/long limits
         pressure_levels : list, optional
             List of pressure levels
+        download_daily : bool, optional
+            Combine all date-times into daily requests
         combine_request : bool, optional
             Aggregate requested dates into lists of years, months, days,
             and hours--note that this may return additional time steps
@@ -297,10 +300,9 @@ Run `conda install -c conda-forge cdsapi`""")
             prefix = os.path.join('.',product)
         
         req = {
-            'product_type': 'reanalysis',
-            'format': 'grib',
+            'product_type': ['reanalysis'],
+            'data_format': 'grib',
             'variable': variables,
-            'pressure_level': pressure_levels,
             'area': area, # North, West, South, East.
         }
         if pressure_levels is not None:
@@ -314,6 +316,21 @@ Run `conda install -c conda-forge cdsapi`""")
             req['time'] = sorted(list(set([datetime.strftime('%H:%M') for datetime in datetimes])))
             target = datetimes[0].strftime('{:s}_from_%Y_%m_%d_%H.grib'.format(prefix))
             self.client.retrieve(product, req, target)
+        elif download_daily:
+            indiv_dates = np.unique([dt.date() for dt in datetimes])
+            print(f'Splitting into {len(indiv_dates)} requests :',indiv_dates)
+            req['download_format'] = 'unarchived'
+            for date in indiv_dates:
+                print(f"Downloading {product} for {date.strftime('%Y-%m-%d')}")
+                selecttimes = [dt.strftime('%H:%M')
+                               for dt in datetimes if dt.date()==date]
+                req['year'] = [date.strftime('%Y')]
+                req['month'] = [date.strftime('%m')]
+                req['day'] = [date.strftime('%d')]
+                req['time'] = selecttimes
+                target = date.strftime('{:s}_%Y_%m_%d_'.format(prefix)) \
+                       + f'{selecttimes[0][:-3]}Z_to_{selecttimes[-1][:-3]}Z.grib'
+                self.client.retrieve(product, req, target)
         else:
             for datetime in datetimes:
                 req['year'] = datetime.strftime('%Y')
@@ -321,7 +338,6 @@ Run `conda install -c conda-forge cdsapi`""")
                 req['day'] = datetime.strftime('%d')
                 req['time'] = datetime.strftime('%H:%M')
                 target = datetime.strftime('{:s}_%Y_%m_%d_%H.grib'.format(prefix))
-                #print(datetime,req,target)
                 self.client.retrieve(product, req, target)
 
     
