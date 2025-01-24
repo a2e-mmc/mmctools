@@ -39,7 +39,7 @@ def read_tslist(fpath,
         Latitude and longitude to use as a reference to determine the
         zone number and relative distances x,y.
     """
-    df = pd.read_csv(fpath,comment='#',delim_whitespace=True,
+    df = pd.read_csv(fpath,comment='#',sep='\s+',
                      names=['name','prefix','lat','lon'])
     if snap_to_grid is not None:
         print('Attemping to adjust grid lat/lon')
