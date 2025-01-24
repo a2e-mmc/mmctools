@@ -320,7 +320,7 @@ class Tower():
                 # Open again for reading
                 with open(fpath) as f:
                     self.header = f.readline().split() # Header information
-                    data = pd.read_csv(f,delim_whitespace=True,header=None).values
+                    data = pd.read_csv(f,sep='\s+',header=None).values
                 var = data[:,1:]
                 setattr(self, varn.lower(), var)
                 if self.time is None:
@@ -357,7 +357,7 @@ class Tower():
                     self.gridlat  = float(header[70:77])
                     self.gridlon  = float(header[78:86])
                     self.stationz = float(header[88:94])
-                    tsdata = pd.read_csv(f,delim_whitespace=True,header=None,names=ts_header)
+                    tsdata = pd.read_csv(f,sep='\s+',header=None,names=ts_header)
                     tsdata = tsdata.drop(columns=['dom','time','tsID','locx','locy'])
                     self.timeseries = tsdata
                     for name,col in tsdata.items():
